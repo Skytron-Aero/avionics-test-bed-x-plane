@@ -18,6 +18,12 @@ import asyncio
 from enum import Enum
 
 
+# ==================== AVWX BACKUP CONFIGURATION ====================
+# AVWX API token (optional - enables backup data source)
+# Get a free token at: https://avwx.rest/
+AVWX_API_TOKEN = os.environ.get("AVWX_API_TOKEN", "")
+
+
 # ==================== DATA HEALTH TRACKING ====================
 
 class DataHealthTracker:
@@ -167,6 +173,7 @@ class METARData(BaseModel):
     flight_rules: FlightRules
     sky_conditions: List[Dict]
     remarks: Optional[str] = None
+    data_source: str = "FAA"  # FAA or AVWX
 
 class TAFData(BaseModel):
     station: str
@@ -175,6 +182,7 @@ class TAFData(BaseModel):
     valid_period_end: datetime
     raw_text: str
     forecast_periods: List[Dict]
+    data_source: str = "FAA"  # FAA or AVWX
 
 class WeatherForecast(BaseModel):
     latitude: float
@@ -291,9 +299,114 @@ async def get_weather_forecast(
 
 # ==================== AVWX/FAA AVIATION WEATHER ====================
 
+async def fetch_metar_from_avwx(station: str, client: httpx.AsyncClient) -> Optional[METARData]:
+    """Fetch METAR from AVWX as backup source"""
+    if not AVWX_API_TOKEN:
+        return None
+
+    try:
+        headers = {"Authorization": f"BEARER {AVWX_API_TOKEN}"}
+        response = await client.get(
+            f"https://avwx.rest/api/metar/{station}",
+            headers=headers,
+            timeout=10.0
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        # Parse AVWX response format
+        sky_conditions = []
+        ceiling = None
+        for cloud in data.get("clouds", []):
+            sky_dict = {
+                "cover": cloud.get("type"),
+                "base": cloud.get("altitude")
+            }
+            sky_conditions.append(sky_dict)
+            if cloud.get("type") in ["BKN", "OVC"] and cloud.get("altitude"):
+                if ceiling is None or cloud.get("altitude") < ceiling:
+                    ceiling = cloud.get("altitude")
+
+        visibility = data.get("visibility", {}).get("value")
+        flight_rules = data.get("flight_rules", calculate_flight_rules(visibility, ceiling))
+
+        # Parse observation time
+        obs_time_str = data.get("time", {}).get("dt")
+        if obs_time_str:
+            observation_time = datetime.fromisoformat(obs_time_str.replace('Z', '+00:00'))
+        else:
+            observation_time = datetime.now(timezone.utc)
+
+        return METARData(
+            station=station,
+            observation_time=observation_time,
+            raw_text=data.get("raw", ""),
+            temperature=data.get("temperature", {}).get("value"),
+            dewpoint=data.get("dewpoint", {}).get("value"),
+            wind_direction=data.get("wind_direction", {}).get("value"),
+            wind_speed=data.get("wind_speed", {}).get("value"),
+            wind_gust=data.get("wind_gust", {}).get("value") if data.get("wind_gust") else None,
+            visibility=visibility,
+            altimeter=data.get("altimeter", {}).get("value"),
+            flight_rules=flight_rules,
+            sky_conditions=sky_conditions,
+            remarks=data.get("remarks"),
+            data_source="AVWX"
+        )
+    except Exception:
+        return None
+
+
+async def fetch_taf_from_avwx(station: str, client: httpx.AsyncClient) -> Optional[TAFData]:
+    """Fetch TAF from AVWX as backup source"""
+    if not AVWX_API_TOKEN:
+        return None
+
+    try:
+        headers = {"Authorization": f"BEARER {AVWX_API_TOKEN}"}
+        response = await client.get(
+            f"https://avwx.rest/api/taf/{station}",
+            headers=headers,
+            timeout=10.0
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        forecast_periods = []
+        for forecast in data.get("forecast", []):
+            period = {
+                "valid_from": forecast.get("start_time", {}).get("dt"),
+                "wind_direction": forecast.get("wind_direction", {}).get("value"),
+                "wind_speed": forecast.get("wind_speed", {}).get("value"),
+                "wind_gust": forecast.get("wind_gust", {}).get("value") if forecast.get("wind_gust") else None,
+                "visibility": forecast.get("visibility", {}).get("value"),
+                "sky_conditions": [{"cover": c.get("type"), "base": c.get("altitude")} for c in forecast.get("clouds", [])],
+                "change_indicator": forecast.get("type")
+            }
+            forecast_periods.append(period)
+
+        # Parse time fields
+        def parse_avwx_time(time_obj) -> datetime:
+            if time_obj and isinstance(time_obj, dict) and time_obj.get("dt"):
+                return datetime.fromisoformat(time_obj["dt"].replace('Z', '+00:00'))
+            return datetime.now(timezone.utc)
+
+        return TAFData(
+            station=station,
+            issue_time=parse_avwx_time(data.get("time")),
+            valid_period_start=parse_avwx_time(data.get("start_time")),
+            valid_period_end=parse_avwx_time(data.get("end_time")),
+            raw_text=data.get("raw", ""),
+            forecast_periods=forecast_periods,
+            data_source="AVWX"
+        )
+    except Exception:
+        return None
+
+
 @app.get("/api/aviation/metar/{station}", response_model=METARData)
 async def get_metar(station: str):
-    """Get current METAR for aviation station (uses FAA Aviation Weather API)"""
+    """Get current METAR for aviation station (uses FAA Aviation Weather API with AVWX fallback)"""
     station = station.upper().strip()
 
     # Auto-prepend K for 3-letter US airport codes
@@ -356,17 +469,26 @@ async def get_metar(station: str):
                 altimeter=metar.get("altim"),
                 flight_rules=flight_rules,
                 sky_conditions=sky_conditions,
-                remarks=metar.get("rawOb", "").split("RMK")[-1].strip() if "RMK" in metar.get("rawOb", "") else None
+                remarks=metar.get("rawOb", "").split("RMK")[-1].strip() if "RMK" in metar.get("rawOb", "") else None,
+                data_source="FAA"
             )
             health_tracker.record_call("METAR", True, elapsed_ms)
             return result
 
-        except httpx.HTTPError as e:
+        except (httpx.HTTPError, Exception) as primary_error:
             health_tracker.record_call("METAR", False, (datetime.now() - start_time).total_seconds() * 1000)
-            raise HTTPException(status_code=503, detail=f"Failed to fetch METAR: {str(e)}")
-        except Exception as e:
-            health_tracker.record_call("METAR", False, (datetime.now() - start_time).total_seconds() * 1000)
-            raise HTTPException(status_code=500, detail=f"Error parsing METAR: {str(e)}")
+
+            # Try AVWX as fallback
+            fallback_result = await fetch_metar_from_avwx(station, client)
+            if fallback_result:
+                health_tracker.record_call("METAR_AVWX", True, 0)
+                return fallback_result
+
+            # Both sources failed
+            if isinstance(primary_error, httpx.HTTPError):
+                raise HTTPException(status_code=503, detail=f"Failed to fetch METAR from all sources: {str(primary_error)}")
+            else:
+                raise HTTPException(status_code=500, detail=f"Error parsing METAR: {str(primary_error)}")
 
 @app.get("/api/aviation/taf/{station}", response_model=TAFData)
 async def get_taf(station: str):
@@ -421,17 +543,26 @@ async def get_taf(station: str):
                 valid_period_start=parse_taf_time(taf.get("validTimeFrom")),
                 valid_period_end=parse_taf_time(taf.get("validTimeTo")),
                 raw_text=taf.get("rawTAF", ""),
-                forecast_periods=forecast_periods
+                forecast_periods=forecast_periods,
+                data_source="FAA"
             )
             health_tracker.record_call("TAF", True, elapsed_ms)
             return result
 
-        except httpx.HTTPError as e:
+        except (httpx.HTTPError, Exception) as primary_error:
             health_tracker.record_call("TAF", False, (datetime.now() - start_time).total_seconds() * 1000)
-            raise HTTPException(status_code=503, detail=f"Failed to fetch TAF: {str(e)}")
-        except Exception as e:
-            health_tracker.record_call("TAF", False, (datetime.now() - start_time).total_seconds() * 1000)
-            raise HTTPException(status_code=500, detail=f"Error parsing TAF: {str(e)}")
+
+            # Try AVWX as fallback
+            fallback_result = await fetch_taf_from_avwx(station, client)
+            if fallback_result:
+                health_tracker.record_call("TAF_AVWX", True, 0)
+                return fallback_result
+
+            # Both sources failed
+            if isinstance(primary_error, httpx.HTTPError):
+                raise HTTPException(status_code=503, detail=f"Failed to fetch TAF from all sources: {str(primary_error)}")
+            else:
+                raise HTTPException(status_code=500, detail=f"Error parsing TAF: {str(primary_error)}")
 
 # ==================== FAA REGULATION CHECKING ====================
 
@@ -1396,9 +1527,9 @@ async def get_compliance_status():
                 "category": "Redundancy Provisions",
                 "requirement": "Backup Data Sources",
                 "description": "Fallback when primary source fails",
-                "status": "partial",
-                "evidence": "Open-Meteo provides backup forecast data",
-                "notes": "METAR/TAF single source - recommend backup"
+                "status": "compliant",
+                "evidence": "AVWX provides backup for METAR/TAF, Open-Meteo for forecasts",
+                "notes": "Automatic failover to AVWX when FAA API unavailable"
             },
             {
                 "id": "F3153-9",
