@@ -2,7 +2,39 @@
 
 **Backend Weather Data Engine for MFD/PFD Integration**
 
-A FastAPI-based backend service that aggregates, normalizes, and serves aviation weather data for integration with Skytron's Qt/QML avionics displays. This API provides real-time METAR observations, TAF forecasts, hourly weather predictions, and FAA regulation compliance checking.
+![Weather Dashboard](docs/images/weather-dashboard.png)
+
+## Overview
+
+The Skytron Aviation Weather API is a **production-ready backend service** designed to power weather widgets and displays across Skytron's avionics suite. Built specifically for integration with Qt/QML-based Multi-Function Displays (MFD) and Primary Flight Displays (PFD), this API serves as the single source of truth for all aviation weather data in the cockpit.
+
+### What It Does
+
+- **Aggregates** weather data from official FAA sources and meteorological services
+- **Normalizes** diverse data formats into consistent, Qt/QML-friendly JSON structures
+- **Validates** flight conditions against FAA regulations (14 CFR Part 91)
+- **Monitors** data source health and API performance in real-time
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Real-time METAR** | Current airport observations with flight rules (VFR/MVFR/IFR/LIFR) |
+| **TAF Forecasts** | Terminal forecasts with human-readable simplified view |
+| **Weather Map** | Interactive map with precipitation, cloud, temperature overlays |
+| **VFR Compliance** | Automatic visibility and cloud clearance validation by airspace |
+| **Journey Planning** | Route weather interpolation for flight planning |
+| **Health Monitoring** | Live status of all external data sources |
+
+### Why This Architecture?
+
+The API acts as an **abstraction layer** that shields avionics displays from:
+- External API changes and deprecations
+- Network latency variability
+- Data format inconsistencies
+- Service outages (with health monitoring)
+
+This means your Qt/QML widgets receive **clean, predictable data** regardless of upstream changes.
 
 ---
 
@@ -786,6 +818,8 @@ FastAPI provides automatic interactive documentation:
 ## Data Health Monitoring
 
 Access the data health dashboard at: **http://localhost:8000/health-dashboard**
+
+![Data Health Dashboard](docs/images/health-dashboard.png)
 
 This provides:
 
