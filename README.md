@@ -48,6 +48,7 @@ This means your Qt/QML widgets receive **clean, predictable data** regardless of
 - [Setup & Installation](#setup--installation)
 - [Development](#development)
 - [Data Health Monitoring](#data-health-monitoring)
+- [Regulatory Compliance](#regulatory-compliance)
 
 ---
 
@@ -73,6 +74,9 @@ This backend serves as the **weather data aggregation layer** between external a
 ---
 
 ## Architecture Overview
+
+<details>
+<summary>View Architecture Diagram</summary>
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -147,6 +151,8 @@ This backend serves as the **weather data aggregation layer** between external a
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+</details>
+
 ---
 
 ## Data Sources
@@ -182,7 +188,9 @@ Get current METAR observation for an airport.
 **Parameters:**
 - `station` (path) - ICAO code (e.g., `KLAX`, `KJFK`) or 3-letter code (auto-converts)
 
-**Response:**
+<details>
+<summary>View Response Example</summary>
+
 ```json
 {
   "station": "KLAX",
@@ -204,10 +212,14 @@ Get current METAR observation for an airport.
 }
 ```
 
+</details>
+
 #### GET `/api/aviation/taf/{station}`
 Get Terminal Aerodrome Forecast.
 
-**Response:**
+<details>
+<summary>View Response Example</summary>
+
 ```json
 {
   "station": "KLAX",
@@ -219,6 +231,8 @@ Get Terminal Aerodrome Forecast.
 }
 ```
 
+</details>
+
 ### Weather Forecasts
 
 #### GET `/api/weather/forecast`
@@ -229,7 +243,9 @@ Get hourly weather forecast for a location.
 - `lon` (query) - Longitude
 - `hours` (query, optional) - Number of hours (default: 24, max: 48)
 
-**Response:**
+<details>
+<summary>View Response Example</summary>
+
 ```json
 [
   {
@@ -244,6 +260,8 @@ Get hourly weather forecast for a location.
 ]
 ```
 
+</details>
+
 ### Regulatory Compliance
 
 #### GET `/api/regulations/check/vfr`
@@ -254,7 +272,9 @@ Check current conditions against VFR minimums.
 - `altitude_agl` (query) - Planned altitude AGL in feet
 - `airspace_class` (query) - Airspace class (B, C, D, E, G)
 
-**Response:**
+<details>
+<summary>View Response Example</summary>
+
 ```json
 [
   {
@@ -275,6 +295,8 @@ Check current conditions against VFR minimums.
   }
 ]
 ```
+
+</details>
 
 #### GET `/api/regulations/check/fuel`
 Check fuel reserve requirements.
@@ -307,6 +329,9 @@ Comprehensive data health statistics including API call counts, success rates, a
 ### Network Layer Setup
 
 Create a reusable weather service component:
+
+<details>
+<summary>View WeatherService.qml</summary>
 
 ```qml
 // WeatherService.qml
@@ -400,7 +425,12 @@ QtObject {
 }
 ```
 
+</details>
+
 ### PFD Weather Widget Example
+
+<details>
+<summary>View PFDWeatherWidget.qml</summary>
 
 ```qml
 // PFDWeatherWidget.qml
@@ -519,7 +549,12 @@ Rectangle {
 }
 ```
 
+</details>
+
 ### MFD Weather Panel Example
+
+<details>
+<summary>View MFDWeatherPanel.qml</summary>
 
 ```qml
 // MFDWeatherPanel.qml
@@ -668,9 +703,14 @@ Rectangle {
 }
 ```
 
+</details>
+
 ### C++ Backend Integration (Optional)
 
 For production deployments, consider using Qt's C++ network classes for better performance:
+
+<details>
+<summary>View WeatherClient.h</summary>
 
 ```cpp
 // WeatherClient.h
@@ -715,7 +755,12 @@ private:
 #endif
 ```
 
+</details>
+
 ### Registering with QML
+
+<details>
+<summary>View main.cpp</summary>
 
 ```cpp
 // main.cpp
@@ -736,6 +781,8 @@ int main(int argc, char *argv[])
 }
 ```
 
+</details>
+
 ---
 
 ## Setup & Installation
@@ -746,6 +793,9 @@ int main(int argc, char *argv[])
 - pip
 
 ### Installation
+
+<details>
+<summary>View Installation Commands</summary>
 
 ```bash
 # Clone the repository
@@ -762,6 +812,8 @@ pip install fastapi uvicorn httpx pydantic
 # Run the server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+</details>
 
 ### Production Deployment
 
@@ -793,7 +845,10 @@ avionics-weather-api/
 │   ├── main.py              # FastAPI application & endpoints
 │   └── static/
 │       ├── index.html       # Web dashboard (development)
-│       └── health.html      # Data health dashboard
+│       ├── health.html      # Data health dashboard
+│       └── compliance.html  # Regulatory compliance dashboard
+├── docs/
+│   └── images/              # Dashboard screenshots
 ├── venv/                    # Python virtual environment
 ├── README.md               # This file
 └── requirements.txt        # Python dependencies
@@ -842,6 +897,41 @@ curl http://localhost:8000/api/data-health
 
 ---
 
+## Regulatory Compliance
+
+Access the regulatory compliance dashboard at: **http://localhost:8000/compliance-dashboard**
+
+![Compliance Dashboard](docs/images/compliance-dashboard.png)
+
+This dashboard tracks compliance with aviation software certification standards:
+
+### Standards Tracked
+
+| Standard | Description | Requirements |
+|----------|-------------|--------------|
+| **DO-178C DAL D** | Software Considerations in Airborne Systems (Minor) | 9 requirements |
+| **DO-178C DAL C** | Major Failure Conditions (Reference) | 6 requirements |
+| **DO-178C DAL B** | Hazardous Failure Conditions (Reference) | 6 requirements |
+| **DO-178C DAL A** | Catastrophic Failure Conditions (Reference) | 8 requirements |
+| **ASTM F3269** | Data Quality Standard | 8 requirements |
+| **ASTM F3153** | Weather Information Standard | 9 requirements |
+
+### Features
+
+- **Overall Compliance Score** - Calculated from all enabled standards
+- **Toggle Controls** - Include/exclude standards from score calculation
+- **Real-time Checks** - API success rate, response time, service availability
+- **Requirement Details** - Evidence and notes for each compliance item
+
+### Compliance API
+
+```bash
+# Get compliance status
+curl http://localhost:8000/api/compliance
+```
+
+---
+
 ## Flight Rules Reference
 
 The API calculates flight rules based on FAA criteria:
@@ -860,8 +950,9 @@ The API calculates flight rules based on FAA criteria:
 For questions or issues:
 
 1. Check the `/health-dashboard` for service status
-2. Review API documentation at `/docs`
-3. Contact the Skytron development team
+2. Check the `/compliance-dashboard` for regulatory status
+3. Review API documentation at `/docs`
+4. Contact the Skytron development team
 
 ---
 
