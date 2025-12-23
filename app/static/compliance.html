@@ -263,6 +263,123 @@
             color: var(--accent);
         }
 
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            transition: 0.3s;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--success);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .toggle-switch.disabled .toggle-slider {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Score Breakdown */
+        .score-breakdown {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .score-breakdown-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-tertiary);
+            margin-bottom: 12px;
+        }
+
+        .score-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .score-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .score-item.disabled {
+            opacity: 0.4;
+        }
+
+        .score-item-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .score-item-name {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .score-item-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .score-item-value {
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            min-width: 50px;
+            text-align: right;
+        }
+
+        .score-item-value.excellent { color: var(--success); }
+        .score-item-value.good { color: #84cc16; }
+        .score-item-value.fair { color: var(--warning); }
+        .score-item-value.poor { color: var(--danger); }
+        .score-item-value.reviewed { color: var(--accent); }
+
         /* Dynamic Check */
         .dynamic-check {
             display: flex;
@@ -535,6 +652,102 @@
                 <div class="score-summary">
                     <span id="compliantCount">-</span> of <span id="totalCount">-</span> requirements met
                 </div>
+
+                <!-- Score Breakdown with Toggles -->
+                <div class="score-breakdown">
+                    <div class="score-breakdown-title">Score Breakdown (Toggle to Include/Exclude)</div>
+
+                    <div class="score-item" id="scoreItem-do178c">
+                        <div class="score-item-left">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-do178c" checked onchange="recalculateScore()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="score-item-name">DO-178C DAL D</span>
+                        </div>
+                        <div class="score-item-right">
+                            <span class="score-item-value" id="score-do178c">--%</span>
+                        </div>
+                    </div>
+
+                    <div class="score-item" id="scoreItem-dalc">
+                        <div class="score-item-left">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-dalc" onchange="recalculateScore()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="score-item-name">DO-178C DAL C</span>
+                        </div>
+                        <div class="score-item-right">
+                            <span class="score-item-value reviewed" id="score-dalc">Reviewed</span>
+                        </div>
+                    </div>
+
+                    <div class="score-item" id="scoreItem-dalb">
+                        <div class="score-item-left">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-dalb" onchange="recalculateScore()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="score-item-name">DO-178C DAL B</span>
+                        </div>
+                        <div class="score-item-right">
+                            <span class="score-item-value reviewed" id="score-dalb">Reviewed</span>
+                        </div>
+                    </div>
+
+                    <div class="score-item" id="scoreItem-dala">
+                        <div class="score-item-left">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-dala" onchange="recalculateScore()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="score-item-name">DO-178C DAL A</span>
+                        </div>
+                        <div class="score-item-right">
+                            <span class="score-item-value reviewed" id="score-dala">Reviewed</span>
+                        </div>
+                    </div>
+
+                    <div class="score-item" id="scoreItem-f3269">
+                        <div class="score-item-left">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-f3269" checked onchange="recalculateScore()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="score-item-name">ASTM F3269</span>
+                        </div>
+                        <div class="score-item-right">
+                            <span class="score-item-value" id="score-f3269">--%</span>
+                        </div>
+                    </div>
+
+                    <div class="score-item" id="scoreItem-f3153">
+                        <div class="score-item-left">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-f3153" checked onchange="recalculateScore()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="score-item-name">ASTM F3153</span>
+                        </div>
+                        <div class="score-item-right">
+                            <span class="score-item-value" id="score-f3153">--%</span>
+                        </div>
+                    </div>
+
+                    <div class="score-item" id="scoreItem-dynamic">
+                        <div class="score-item-left">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-dynamic" checked onchange="recalculateScore()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="score-item-name">Real-time Checks</span>
+                        </div>
+                        <div class="score-item-right">
+                            <span class="score-item-value" id="score-dynamic">--%</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="card">
@@ -670,6 +883,121 @@
 
     <script>
         let autoRefreshInterval;
+        let complianceData = null;
+        let sectionScores = {};
+
+        // Calculate score for a section's requirements
+        function calculateSectionScore(requirements, isReviewOnly = false) {
+            if (!requirements || requirements.length === 0) {
+                return { compliant: 0, total: 0, score: 0 };
+            }
+
+            let compliant = 0;
+            let total = 0;
+
+            requirements.forEach(req => {
+                if (req.status !== 'not_applicable') {
+                    total++;
+                    if (req.status === 'compliant') {
+                        compliant++;
+                    } else if (req.status === 'partial') {
+                        compliant += 0.5;
+                    }
+                    // 'reviewed' status counts as 0 for compliance
+                }
+            });
+
+            const score = total > 0 ? (compliant / total) * 100 : 0;
+            return { compliant, total, score: Math.round(score * 10) / 10 };
+        }
+
+        // Calculate dynamic checks score
+        function calculateDynamicScore(checks) {
+            if (!checks || checks.length === 0) {
+                return { compliant: 0, total: 0, score: 100 };
+            }
+
+            const compliant = checks.filter(c => c.compliant).length;
+            const total = checks.length;
+            const score = total > 0 ? (compliant / total) * 100 : 0;
+            return { compliant, total, score: Math.round(score * 10) / 10 };
+        }
+
+        // Recalculate overall score based on active toggles
+        function recalculateScore() {
+            if (!complianceData) return;
+
+            let totalCompliant = 0;
+            let totalRequirements = 0;
+
+            const sections = [
+                { id: 'do178c', data: complianceData.static_compliance.do178c_dal_d },
+                { id: 'dalc', data: complianceData.static_compliance.do178c_dal_c },
+                { id: 'dalb', data: complianceData.static_compliance.do178c_dal_b },
+                { id: 'dala', data: complianceData.static_compliance.do178c_dal_a },
+                { id: 'f3269', data: complianceData.static_compliance.astm_f3269_data_quality },
+                { id: 'f3153', data: complianceData.static_compliance.astm_f3153_weather }
+            ];
+
+            sections.forEach(section => {
+                const toggle = document.getElementById(`toggle-${section.id}`);
+                const scoreItem = document.getElementById(`scoreItem-${section.id}`);
+
+                if (toggle.checked) {
+                    scoreItem.classList.remove('disabled');
+                    const sectionScore = sectionScores[section.id];
+                    if (sectionScore) {
+                        totalCompliant += sectionScore.compliant;
+                        totalRequirements += sectionScore.total;
+                    }
+                } else {
+                    scoreItem.classList.add('disabled');
+                }
+            });
+
+            // Dynamic checks
+            const dynamicToggle = document.getElementById('toggle-dynamic');
+            const dynamicScoreItem = document.getElementById('scoreItem-dynamic');
+            if (dynamicToggle.checked) {
+                dynamicScoreItem.classList.remove('disabled');
+                const dynScore = sectionScores.dynamic;
+                if (dynScore) {
+                    totalCompliant += dynScore.compliant;
+                    totalRequirements += dynScore.total;
+                }
+            } else {
+                dynamicScoreItem.classList.add('disabled');
+            }
+
+            // Calculate and display overall score
+            const overallScore = totalRequirements > 0 ? (totalCompliant / totalRequirements) * 100 : 0;
+            const roundedScore = Math.round(overallScore * 10) / 10;
+
+            const scoreEl = document.getElementById('overallScore');
+            scoreEl.textContent = `${roundedScore}%`;
+            scoreEl.className = 'compliance-score ' + getScoreClass(roundedScore);
+
+            const progressEl = document.getElementById('scoreProgress');
+            progressEl.style.width = `${roundedScore}%`;
+            progressEl.style.background = getScoreColor(roundedScore);
+
+            document.getElementById('compliantCount').textContent = Math.round(totalCompliant);
+            document.getElementById('totalCount').textContent = totalRequirements;
+        }
+
+        // Update individual section score display
+        function updateSectionScoreDisplay(sectionId, scoreData, isReviewOnly = false) {
+            const scoreEl = document.getElementById(`score-${sectionId}`);
+            if (!scoreEl) return;
+
+            if (isReviewOnly) {
+                scoreEl.textContent = `0%`;
+                scoreEl.className = 'score-item-value reviewed';
+            } else {
+                scoreEl.textContent = `${scoreData.score}%`;
+                scoreEl.className = 'score-item-value ' + getScoreClass(scoreData.score);
+            }
+        }
 
         async function loadComplianceData() {
             const refreshBtn = document.querySelector('.refresh-btn');
@@ -685,29 +1013,30 @@
             try {
                 const res = await fetch('/api/compliance');
                 const data = await res.json();
+                complianceData = data;
 
                 // Update last updated timestamp
                 const lastUpdated = new Date(data.last_updated);
                 document.getElementById('lastUpdated').textContent =
                     `Last updated: ${lastUpdated.toLocaleTimeString()}`;
 
-                // Update overall score
-                const score = data.overall_score;
-                const scoreEl = document.getElementById('overallScore');
-                scoreEl.textContent = `${score}%`;
-                scoreEl.className = 'compliance-score ' + getScoreClass(score);
+                // Calculate and store section scores
+                sectionScores.do178c = calculateSectionScore(data.static_compliance.do178c_dal_d);
+                sectionScores.dalc = calculateSectionScore(data.static_compliance.do178c_dal_c, true);
+                sectionScores.dalb = calculateSectionScore(data.static_compliance.do178c_dal_b, true);
+                sectionScores.dala = calculateSectionScore(data.static_compliance.do178c_dal_a, true);
+                sectionScores.f3269 = calculateSectionScore(data.static_compliance.astm_f3269_data_quality);
+                sectionScores.f3153 = calculateSectionScore(data.static_compliance.astm_f3153_weather);
+                sectionScores.dynamic = calculateDynamicScore(data.dynamic_compliance);
 
-                // Update progress bar
-                const progressEl = document.getElementById('scoreProgress');
-                progressEl.style.width = `${score}%`;
-                progressEl.style.background = getScoreColor(score);
-
-                // Update counts
-                const summary = data.summary;
-                document.getElementById('compliantCount').textContent =
-                    Math.round(summary.static_compliant + summary.dynamic_compliant);
-                document.getElementById('totalCount').textContent =
-                    summary.static_total + summary.dynamic_total;
+                // Update section score displays
+                updateSectionScoreDisplay('do178c', sectionScores.do178c);
+                updateSectionScoreDisplay('dalc', sectionScores.dalc, true);
+                updateSectionScoreDisplay('dalb', sectionScores.dalb, true);
+                updateSectionScoreDisplay('dala', sectionScores.dala, true);
+                updateSectionScoreDisplay('f3269', sectionScores.f3269);
+                updateSectionScoreDisplay('f3153', sectionScores.f3153);
+                updateSectionScoreDisplay('dynamic', sectionScores.dynamic);
 
                 // Render dynamic checks
                 renderDynamicChecks(data.dynamic_compliance);
@@ -719,6 +1048,9 @@
                 renderRequirements('dala', data.static_compliance.do178c_dal_a, true);
                 renderRequirements('f3269', data.static_compliance.astm_f3269_data_quality);
                 renderRequirements('f3153', data.static_compliance.astm_f3153_weather);
+
+                // Calculate overall score based on current toggles
+                recalculateScore();
 
             } catch (error) {
                 console.error('Failed to load compliance data:', error);
