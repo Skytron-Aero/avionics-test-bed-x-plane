@@ -2,7 +2,7 @@
 
 **Backend Weather Data Engine for MFD/PFD Integration**
 
-![Weather Dashboard](docs/images/weather-dashboard.png)
+![Weather Dashboard](docs/images/weather-dashboard-2.png)
 
 ## Overview
 
