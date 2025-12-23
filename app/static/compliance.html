@@ -258,6 +258,11 @@
             color: var(--text-tertiary);
         }
 
+        .compliance-badge.reviewed {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--accent);
+        }
+
         /* Dynamic Check */
         .dynamic-check {
             display: flex;
@@ -567,6 +572,63 @@
             </div>
         </div>
 
+        <!-- DO-178C DAL C Section (Reviewed) -->
+        <div class="standard-section">
+            <div class="standard-header" onclick="toggleSection('dalc')">
+                <div class="standard-info">
+                    <div class="standard-title">DO-178C DAL C - Major Failure Conditions</div>
+                    <div class="standard-subtitle">Design Assurance Level C - Not required, included for reference</div>
+                </div>
+                <div class="standard-meta">
+                    <span class="compliance-badge reviewed" id="dalcBadge">Reviewed</span>
+                    <svg class="chevron" id="dalcChevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="collapsible-content" id="dalcContent">
+                <div class="requirements-container" id="dalcRequirements"></div>
+            </div>
+        </div>
+
+        <!-- DO-178C DAL B Section (Reviewed) -->
+        <div class="standard-section">
+            <div class="standard-header" onclick="toggleSection('dalb')">
+                <div class="standard-info">
+                    <div class="standard-title">DO-178C DAL B - Hazardous Failure Conditions</div>
+                    <div class="standard-subtitle">Design Assurance Level B - Not required, included for reference</div>
+                </div>
+                <div class="standard-meta">
+                    <span class="compliance-badge reviewed" id="dalbBadge">Reviewed</span>
+                    <svg class="chevron" id="dalbChevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="collapsible-content" id="dalbContent">
+                <div class="requirements-container" id="dalbRequirements"></div>
+            </div>
+        </div>
+
+        <!-- DO-178C DAL A Section (Reviewed) -->
+        <div class="standard-section">
+            <div class="standard-header" onclick="toggleSection('dala')">
+                <div class="standard-info">
+                    <div class="standard-title">DO-178C DAL A - Catastrophic Failure Conditions</div>
+                    <div class="standard-subtitle">Design Assurance Level A - Most rigorous, not required, included for reference</div>
+                </div>
+                <div class="standard-meta">
+                    <span class="compliance-badge reviewed" id="dalaBadge">Reviewed</span>
+                    <svg class="chevron" id="dalaChevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="collapsible-content" id="dalaContent">
+                <div class="requirements-container" id="dalaRequirements"></div>
+            </div>
+        </div>
+
         <!-- ASTM F3269 Data Quality Section -->
         <div class="standard-section">
             <div class="standard-header" onclick="toggleSection('f3269')">
@@ -652,6 +714,9 @@
 
                 // Render static compliance sections
                 renderRequirements('do178c', data.static_compliance.do178c_dal_d);
+                renderRequirements('dalc', data.static_compliance.do178c_dal_c, true);
+                renderRequirements('dalb', data.static_compliance.do178c_dal_b, true);
+                renderRequirements('dala', data.static_compliance.do178c_dal_a, true);
                 renderRequirements('f3269', data.static_compliance.astm_f3269_data_quality);
                 renderRequirements('f3153', data.static_compliance.astm_f3153_weather);
 
@@ -706,23 +771,29 @@
             }).join('');
         }
 
-        function renderRequirements(sectionId, requirements) {
+        function renderRequirements(sectionId, requirements, isReviewOnly = false) {
             const container = document.getElementById(`${sectionId}Requirements`);
             const badge = document.getElementById(`${sectionId}Badge`);
 
-            // Count compliant items
-            let compliant = 0;
-            let total = 0;
-            requirements.forEach(req => {
-                if (req.status !== 'not_applicable') {
-                    total++;
-                    if (req.status === 'compliant') compliant++;
-                    else if (req.status === 'partial') compliant += 0.5;
-                }
-            });
+            if (isReviewOnly) {
+                // For review-only sections, just show "Reviewed" badge
+                badge.textContent = `${requirements.length} Items`;
+                badge.className = 'compliance-badge reviewed';
+            } else {
+                // Count compliant items
+                let compliant = 0;
+                let total = 0;
+                requirements.forEach(req => {
+                    if (req.status !== 'not_applicable') {
+                        total++;
+                        if (req.status === 'compliant') compliant++;
+                        else if (req.status === 'partial') compliant += 0.5;
+                    }
+                });
 
-            badge.textContent = `${Math.round(compliant)} / ${total}`;
-            badge.className = 'compliance-badge ' + (compliant === total ? 'compliant' : compliant >= total * 0.7 ? 'partial' : 'non_compliant');
+                badge.textContent = `${Math.round(compliant)} / ${total}`;
+                badge.className = 'compliance-badge ' + (compliant === total ? 'compliant' : compliant >= total * 0.7 ? 'partial' : 'non_compliant');
+            }
 
             // Group by category
             const categories = {};
@@ -779,7 +850,8 @@
                 'compliant': 'Compliant',
                 'partial': 'Partial',
                 'non_compliant': 'Non-Compliant',
-                'not_applicable': 'N/A'
+                'not_applicable': 'N/A',
+                'reviewed': 'Reviewed'
             };
             return labels[status] || status;
         }

@@ -1027,6 +1027,192 @@ async def get_compliance_status():
                 "notes": "FAARegulationCheck model directly traces CFR requirements"
             }
         ],
+        "do178c_dal_c": [
+            {
+                "id": "DO-C-1",
+                "category": "Software Verification Process",
+                "requirement": "Test Case Reviews",
+                "description": "Independent review of test cases and procedures",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "DAL C adds review requirements for test artifacts"
+            },
+            {
+                "id": "DO-C-2",
+                "category": "Software Verification Process",
+                "requirement": "Test Results Analysis",
+                "description": "Analysis of test results for completeness",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Formal test result documentation required"
+            },
+            {
+                "id": "DO-C-3",
+                "category": "Software Verification Process",
+                "requirement": "Requirements-Based Testing",
+                "description": "Tests derived from high-level requirements",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "All HLR must have corresponding test cases"
+            },
+            {
+                "id": "DO-C-4",
+                "category": "Verification Independence",
+                "requirement": "Test Independence",
+                "description": "Testing performed by someone other than developer",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Separation of development and verification roles"
+            },
+            {
+                "id": "DO-C-5",
+                "category": "Code Analysis",
+                "requirement": "Source Code Reviews",
+                "description": "Systematic review of source code",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Formal code inspection process required"
+            },
+            {
+                "id": "DO-C-6",
+                "category": "Code Analysis",
+                "requirement": "Dead Code Analysis",
+                "description": "Identification and removal of unreachable code",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "No dead code permitted in executable"
+            }
+        ],
+        "do178c_dal_b": [
+            {
+                "id": "DO-B-1",
+                "category": "Structural Coverage",
+                "requirement": "Decision Coverage (DC)",
+                "description": "Every decision has taken all outcomes",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "DAL B requires decision coverage analysis"
+            },
+            {
+                "id": "DO-B-2",
+                "category": "Structural Coverage",
+                "requirement": "Statement Coverage",
+                "description": "Every statement in source code executed",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "100% statement coverage required"
+            },
+            {
+                "id": "DO-B-3",
+                "category": "Verification Independence",
+                "requirement": "Verification Process Independence",
+                "description": "Independent verification of all outputs",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Separate V&V team recommended"
+            },
+            {
+                "id": "DO-B-4",
+                "category": "Low-Level Requirements",
+                "requirement": "LLR Testing",
+                "description": "Tests derived from low-level requirements",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Detailed design-level testing required"
+            },
+            {
+                "id": "DO-B-5",
+                "category": "Data Coupling",
+                "requirement": "Data Coupling Analysis",
+                "description": "Analysis of data dependencies between components",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Formal data flow analysis required"
+            },
+            {
+                "id": "DO-B-6",
+                "category": "Control Coupling",
+                "requirement": "Control Coupling Analysis",
+                "description": "Analysis of control flow between components",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Component interaction analysis required"
+            }
+        ],
+        "do178c_dal_a": [
+            {
+                "id": "DO-A-1",
+                "category": "Structural Coverage",
+                "requirement": "MC/DC Coverage",
+                "description": "Modified Condition/Decision Coverage analysis",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Most rigorous coverage - each condition independently affects decision"
+            },
+            {
+                "id": "DO-A-2",
+                "category": "Verification Independence",
+                "requirement": "Full Independence",
+                "description": "Complete separation of development and verification",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Different teams for development vs verification"
+            },
+            {
+                "id": "DO-A-3",
+                "category": "Tool Qualification",
+                "requirement": "Development Tool Qualification",
+                "description": "Qualification of all development tools",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Compilers, linkers must be qualified"
+            },
+            {
+                "id": "DO-A-4",
+                "category": "Tool Qualification",
+                "requirement": "Verification Tool Qualification",
+                "description": "Qualification of all verification tools",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Test tools, coverage analyzers must be qualified"
+            },
+            {
+                "id": "DO-A-5",
+                "category": "Formal Methods",
+                "requirement": "Formal Verification",
+                "description": "Mathematical proof of correctness (optional supplement)",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Can supplement or replace some testing"
+            },
+            {
+                "id": "DO-A-6",
+                "category": "Safety Analysis",
+                "requirement": "Software Safety Assessment",
+                "description": "Comprehensive safety analysis of software",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "FMEA/FTA required for safety-critical functions"
+            },
+            {
+                "id": "DO-A-7",
+                "category": "Robustness",
+                "requirement": "Robustness Testing",
+                "description": "Testing for abnormal and stress conditions",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Edge cases, boundary conditions, error injection"
+            },
+            {
+                "id": "DO-A-8",
+                "category": "Documentation",
+                "requirement": "Complete Lifecycle Data",
+                "description": "Full documentation of all lifecycle activities",
+                "status": "reviewed",
+                "evidence": "Not required for DAL D certification",
+                "notes": "Plans, standards, records for all processes"
+            }
+        ],
         "astm_f3269_data_quality": [
             {
                 "id": "F3269-1",
