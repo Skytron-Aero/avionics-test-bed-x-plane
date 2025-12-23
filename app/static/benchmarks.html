@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Source Benchmarks - Aviation Weather API</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+            min-height: 100vh;
+            color: #ffffff;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Navigation */
+        .nav {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            transform: translateY(-2px);
+        }
+
+        .nav-link.active {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.3));
+            border-color: rgba(139, 92, 246, 0.5);
+            color: #ffffff;
+        }
+
+        .nav-link svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #8b5cf6, #3b82f6, #06b6d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.1rem;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .input-group label {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+        }
+
+        .input-group input {
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            width: 120px;
+            text-transform: uppercase;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: rgba(139, 92, 246, 0.5);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .btn.running {
+            background: linear-gradient(135deg, #f59e0b, #ef4444);
+        }
+
+        /* Summary Cards */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .summary-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .summary-card .value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .summary-card .label {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .summary-card.operational .value { color: #22c55e; }
+        .summary-card.degraded .value { color: #f59e0b; }
+        .summary-card.offline .value { color: #ef4444; }
+        .summary-card.time .value { color: #3b82f6; }
+        .summary-card.quality .value { color: #8b5cf6; }
+
+        /* Benchmark Results */
+        .results-section {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .section-header svg {
+            width: 24px;
+            height: 24px;
+            color: #8b5cf6;
+        }
+
+        .section-header h2 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        /* Benchmark Cards */
+        .benchmark-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .benchmark-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .benchmark-card:hover {
+            border-color: rgba(139, 92, 246, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .benchmark-card.operational {
+            border-left: 3px solid #22c55e;
+        }
+
+        .benchmark-card.degraded {
+            border-left: 3px solid #f59e0b;
+        }
+
+        .benchmark-card.offline, .benchmark-card.timeout {
+            border-left: 3px solid #ef4444;
+        }
+
+        .benchmark-card.auth_required {
+            border-left: 3px solid #6366f1;
+        }
+
+        .benchmark-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .benchmark-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .benchmark-url {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.operational {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .status-badge.degraded {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+        }
+
+        .status-badge.offline, .status-badge.timeout {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .status-badge.auth_required {
+            background: rgba(99, 102, 241, 0.2);
+            color: #6366f1;
+        }
+
+        .benchmark-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .metric-value.fast { color: #22c55e; }
+        .metric-value.medium { color: #f59e0b; }
+        .metric-value.slow { color: #ef4444; }
+
+        .metric-label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+
+        .used-by {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .used-by-tag {
+            padding: 4px 10px;
+            background: rgba(139, 92, 246, 0.15);
+            border-radius: 6px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .used-by-tag.highlight {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.3));
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .feature-tag {
+            padding: 3px 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .benchmark-notes {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            font-style: italic;
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(139, 92, 246, 0.2);
+            border-top-color: #8b5cf6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Comparison Section */
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .comparison-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .comparison-card.highlight {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(59, 130, 246, 0.1));
+            border-color: rgba(139, 92, 246, 0.3);
+        }
+
+        .comparison-card h3 {
+            font-size: 1rem;
+            margin-bottom: 16px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .comparison-card .big-value {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .comparison-card .unit {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .comparison-features {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .comparison-features .feature {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .comparison-features .feature svg {
+            width: 16px;
+            height: 16px;
+            color: #22c55e;
+        }
+
+        /* Progress bar */
+        .quality-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .quality-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .quality-bar-fill.high { background: linear-gradient(90deg, #22c55e, #10b981); }
+        .quality-bar-fill.medium { background: linear-gradient(90deg, #f59e0b, #eab308); }
+        .quality-bar-fill.low { background: linear-gradient(90deg, #ef4444, #f97316); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation -->
+        <nav class="nav">
+            <a href="/" class="nav-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                    <polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+                Weather
+            </a>
+            <a href="/health-dashboard" class="nav-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+                Health
+            </a>
+            <a href="/compliance-dashboard" class="nav-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+                Compliance
+            </a>
+            <a href="/benchmarks-dashboard" class="nav-link active">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 20V10"/>
+                    <path d="M18 20V4"/>
+                    <path d="M6 20v-4"/>
+                </svg>
+                Benchmarks
+            </a>
+        </nav>
+
+        <!-- Header -->
+        <header class="header">
+            <h1>Data Source Benchmarks</h1>
+            <p>Performance comparison against Garmin, ForeFlight & Jeppesen data sources</p>
+        </header>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="input-group">
+                <label for="station">Station ICAO:</label>
+                <input type="text" id="station" value="KJFK" maxlength="4" placeholder="KJFK">
+            </div>
+            <button class="btn" id="runBtn" onclick="runBenchmarks()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Run Benchmarks
+            </button>
+            <button class="btn" onclick="runComparison()" style="background: linear-gradient(135deg, #06b6d4, #3b82f6);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"/>
+                    <line x1="12" y1="20" x2="12" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+                Compare Our API
+            </button>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-grid" id="summary">
+            <div class="summary-card">
+                <div class="value">--</div>
+                <div class="label">Total Sources</div>
+            </div>
+            <div class="summary-card operational">
+                <div class="value">--</div>
+                <div class="label">Operational</div>
+            </div>
+            <div class="summary-card degraded">
+                <div class="value">--</div>
+                <div class="label">Degraded</div>
+            </div>
+            <div class="summary-card offline">
+                <div class="value">--</div>
+                <div class="label">Offline</div>
+            </div>
+            <div class="summary-card time">
+                <div class="value">--</div>
+                <div class="label">Avg Response (ms)</div>
+            </div>
+            <div class="summary-card quality">
+                <div class="value">--</div>
+                <div class="label">Avg Quality</div>
+            </div>
+        </div>
+
+        <!-- Benchmark Results -->
+        <section class="results-section">
+            <div class="section-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 20V10"/>
+                    <path d="M18 20V4"/>
+                    <path d="M6 20v-4"/>
+                </svg>
+                <h2>Data Source Performance</h2>
+            </div>
+            <div id="benchmarkResults">
+                <div class="loading">
+                    <p>Click "Run Benchmarks" to test aviation data sources</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Comparison Section -->
+        <section class="results-section" id="comparisonSection" style="display: none;">
+            <div class="section-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"/>
+                    <line x1="12" y1="20" x2="12" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+                <h2>Our API vs Direct Sources</h2>
+            </div>
+            <div id="comparisonResults" class="comparison-grid"></div>
+        </section>
+    </div>
+
+    <script>
+        let isRunning = false;
+
+        async function runBenchmarks() {
+            if (isRunning) return;
+
+            const station = document.getElementById('station').value.toUpperCase() || 'KJFK';
+            const btn = document.getElementById('runBtn');
+            const resultsDiv = document.getElementById('benchmarkResults');
+
+            isRunning = true;
+            btn.disabled = true;
+            btn.classList.add('running');
+            btn.innerHTML = `
+                <div class="spinner" style="width: 18px; height: 18px; margin: 0; border-width: 2px;"></div>
+                Running...
+            `;
+
+            resultsDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Testing ${station} against 8 data sources...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/benchmarks/run?station=${station}`);
+                const data = await response.json();
+
+                updateSummary(data.summary);
+                renderBenchmarks(data.benchmarks);
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="loading">
+                        <p style="color: #ef4444;">Error running benchmarks: ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                isRunning = false;
+                btn.disabled = false;
+                btn.classList.remove('running');
+                btn.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                    Run Benchmarks
+                `;
+            }
+        }
+
+        function updateSummary(summary) {
+            const cards = document.querySelectorAll('.summary-card');
+            cards[0].querySelector('.value').textContent = summary.total_sources;
+            cards[1].querySelector('.value').textContent = summary.operational;
+            cards[2].querySelector('.value').textContent = summary.degraded;
+            cards[3].querySelector('.value').textContent = summary.offline + (summary.auth_required || 0);
+            cards[4].querySelector('.value').textContent = summary.avg_response_time_ms.toFixed(0);
+            cards[5].querySelector('.value').textContent = summary.avg_data_quality.toFixed(1) + '%';
+        }
+
+        function renderBenchmarks(benchmarks) {
+            const container = document.getElementById('benchmarkResults');
+            container.innerHTML = '<div class="benchmark-grid"></div>';
+            const grid = container.querySelector('.benchmark-grid');
+
+            benchmarks.forEach(b => {
+                const responseClass = b.response_time_ms < 500 ? 'fast' : b.response_time_ms < 1500 ? 'medium' : 'slow';
+                const qualityClass = b.data_quality_score >= 80 ? 'high' : b.data_quality_score >= 50 ? 'medium' : 'low';
+
+                grid.innerHTML += `
+                    <div class="benchmark-card ${b.status}">
+                        <div class="benchmark-header">
+                            <div>
+                                <div class="benchmark-name">${b.source_name}</div>
+                                <div class="benchmark-url">${b.source_url}</div>
+                            </div>
+                            <span class="status-badge ${b.status}">${b.status.replace('_', ' ')}</span>
+                        </div>
+
+                        <div class="benchmark-metrics">
+                            <div class="metric">
+                                <div class="metric-value ${responseClass}">${b.response_time_ms.toFixed(0)}</div>
+                                <div class="metric-label">Response (ms)</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value">${b.data_quality_score.toFixed(0)}%</div>
+                                <div class="metric-label">Data Quality</div>
+                                <div class="quality-bar">
+                                    <div class="quality-bar-fill ${qualityClass}" style="width: ${b.data_quality_score}%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="used-by">
+                            ${b.used_by.map(u => `<span class="used-by-tag ${u.includes('Our') ? 'highlight' : ''}">${u}</span>`).join('')}
+                        </div>
+
+                        <div class="features">
+                            ${b.features.map(f => `<span class="feature-tag">${f}</span>`).join('')}
+                        </div>
+
+                        <div class="benchmark-notes">${b.notes}</div>
+                    </div>
+                `;
+            });
+        }
+
+        async function runComparison() {
+            const station = document.getElementById('station').value.toUpperCase() || 'KJFK';
+            const section = document.getElementById('comparisonSection');
+            const resultsDiv = document.getElementById('comparisonResults');
+
+            section.style.display = 'block';
+            resultsDiv.innerHTML = `
+                <div class="loading" style="grid-column: 1/-1;">
+                    <div class="spinner"></div>
+                    <p>Comparing API performance...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/benchmarks/compare?station=${station}`);
+                const data = await response.json();
+
+                renderComparison(data);
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="loading" style="grid-column: 1/-1;">
+                        <p style="color: #ef4444;">Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderComparison(data) {
+            const container = document.getElementById('comparisonResults');
+            const comp = data.comparison;
+
+            container.innerHTML = `
+                <div class="comparison-card highlight">
+                    <h3>${comp.our_api.name}</h3>
+                    <div class="big-value" style="color: #8b5cf6;">${comp.our_api.response_time_ms.toFixed(0)}</div>
+                    <div class="unit">milliseconds</div>
+                    <div class="comparison-features">
+                        ${comp.our_api.features.map(f => `
+                            <div class="feature">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                ${f}
+                            </div>
+                        `).join('')}
+                        <div class="feature">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            AVWX Fallback
+                        </div>
+                    </div>
+                </div>
+
+                <div class="comparison-card">
+                    <h3>${comp.faa_direct.name}</h3>
+                    <div class="big-value" style="color: #3b82f6;">${comp.faa_direct.response_time_ms.toFixed(0)}</div>
+                    <div class="unit">milliseconds</div>
+                    <div class="comparison-features">
+                        ${comp.faa_direct.features.map(f => `
+                            <div class="feature">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                ${f}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="comparison-card">
+                    <h3>${comp.open_meteo.name}</h3>
+                    <div class="big-value" style="color: #06b6d4;">${comp.open_meteo.response_time_ms.toFixed(0)}</div>
+                    <div class="unit">milliseconds</div>
+                    <div class="comparison-features">
+                        ${comp.open_meteo.features.map(f => `
+                            <div class="feature">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                ${f}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+
+            // Add analysis
+            if (data.analysis.our_overhead_vs_faa_ms !== null) {
+                const overhead = data.analysis.our_overhead_vs_faa_ms;
+                const overheadText = overhead > 0
+                    ? `+${overhead.toFixed(0)}ms overhead (adds fallback + compliance)`
+                    : `${Math.abs(overhead).toFixed(0)}ms faster than direct FAA`;
+
+                container.innerHTML += `
+                    <div style="grid-column: 1/-1; text-align: center; padding: 20px; background: rgba(255,255,255,0.02); border-radius: 12px; margin-top: 10px;">
+                        <p style="color: rgba(255,255,255,0.7); font-size: 14px;">
+                            <strong>Analysis:</strong> ${overheadText}
+                        </p>
+                        <p style="color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 8px;">
+                            ${data.analysis.recommendation}
+                        </p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
