@@ -1709,7 +1709,7 @@ async def run_benchmarks(station: str = "KJFK"):
         {
             "name": "NWS Weather API",
             "url": "https://api.weather.gov/points/40.6413,-73.7781",
-            "used_by": ["Garmin", "ForeFlight", "Weather Apps"],
+            "used_by": ["Garmin", "ForeFlight", "Skytron", "Weather Apps"],
             "category": "government",
             "features": ["Forecasts", "Alerts", "Radar", "Free"],
             "notes": "National Weather Service - primary US forecast source"
@@ -1717,7 +1717,7 @@ async def run_benchmarks(station: str = "KJFK"):
         {
             "name": "NWS Aviation Weather (ADDS)",
             "url": f"https://aviationweather.gov/api/data/pirep?id={station}&format=json",
-            "used_by": ["Garmin", "ForeFlight", "Jeppesen"],
+            "used_by": ["Garmin", "ForeFlight", "Jeppesen", "Skytron"],
             "category": "government",
             "features": ["PIREPs", "Turbulence", "Icing"],
             "notes": "Pilot Reports - critical for flight planning"
@@ -1800,7 +1800,7 @@ async def run_benchmarks(station: str = "KJFK"):
         {
             "name": "NOAA GOES Satellite",
             "url": "https://www.star.nesdis.noaa.gov/GOES/index.php",
-            "used_by": ["Garmin", "ForeFlight", "All Weather Apps"],
+            "used_by": ["Garmin", "ForeFlight", "Skytron", "All Weather Apps"],
             "category": "government",
             "features": ["Satellite Imagery", "Visible", "IR"],
             "notes": "GOES-East/West satellite imagery"
@@ -1808,7 +1808,7 @@ async def run_benchmarks(station: str = "KJFK"):
         {
             "name": "NWS NEXRAD Radar",
             "url": "https://radar.weather.gov/",
-            "used_by": ["Garmin", "ForeFlight", "All Weather Apps"],
+            "used_by": ["Garmin", "ForeFlight", "Skytron", "All Weather Apps"],
             "category": "government",
             "features": ["Radar", "Precipitation", "Storm Tracking"],
             "notes": "National radar network - critical for weather avoidance"
