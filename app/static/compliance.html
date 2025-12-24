@@ -559,6 +559,68 @@
             margin-top: 6px;
         }
 
+        /* Ground Truth Measured Values */
+        .measured-value {
+            font-size: 13px;
+            color: var(--success);
+            margin-top: 6px;
+            padding: 8px 12px;
+            background: rgba(34, 197, 94, 0.1);
+            border-radius: 6px;
+            border-left: 3px solid var(--success);
+        }
+
+        .measured-label {
+            color: var(--text-tertiary);
+            margin-right: 8px;
+        }
+
+        .measured-data {
+            font-family: 'SF Mono', 'Monaco', monospace;
+            font-weight: 600;
+        }
+
+        .threshold-value {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .threshold-label {
+            color: var(--text-tertiary);
+        }
+
+        .verification-method {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            margin-top: 4px;
+        }
+
+        .method-label {
+            color: var(--accent);
+        }
+
+        .evidence-count {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .evidence-label {
+            color: var(--text-tertiary);
+        }
+
+        .requirement-row.failing {
+            border-left: 3px solid var(--danger);
+            background: rgba(239, 68, 68, 0.05);
+        }
+
+        .requirement-row.failing .measured-value {
+            background: rgba(239, 68, 68, 0.1);
+            border-left-color: var(--danger);
+            color: var(--danger);
+        }
+
         .requirement-status {
             text-align: right;
         }
@@ -624,6 +686,12 @@
                 </svg>
                 Benchmarks
             </a>
+            <a href="/competitive-analysis-dashboard" class="nav-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                </svg>
+                Analysis
+            </a>
         </div>
     </nav>
 
@@ -681,39 +749,39 @@
                     <div class="score-item" id="scoreItem-dalc">
                         <div class="score-item-left">
                             <label class="toggle-switch">
-                                <input type="checkbox" id="toggle-dalc" onchange="recalculateScore()">
+                                <input type="checkbox" id="toggle-dalc" checked onchange="recalculateScore()">
                                 <span class="toggle-slider"></span>
                             </label>
                             <span class="score-item-name">DO-178C DAL C</span>
                         </div>
                         <div class="score-item-right">
-                            <span class="score-item-value reviewed" id="score-dalc">Reviewed</span>
+                            <span class="score-item-value" id="score-dalc">--%</span>
                         </div>
                     </div>
 
                     <div class="score-item" id="scoreItem-dalb">
                         <div class="score-item-left">
                             <label class="toggle-switch">
-                                <input type="checkbox" id="toggle-dalb" onchange="recalculateScore()">
+                                <input type="checkbox" id="toggle-dalb" checked onchange="recalculateScore()">
                                 <span class="toggle-slider"></span>
                             </label>
                             <span class="score-item-name">DO-178C DAL B</span>
                         </div>
                         <div class="score-item-right">
-                            <span class="score-item-value reviewed" id="score-dalb">Reviewed</span>
+                            <span class="score-item-value" id="score-dalb">--%</span>
                         </div>
                     </div>
 
                     <div class="score-item" id="scoreItem-dala">
                         <div class="score-item-left">
                             <label class="toggle-switch">
-                                <input type="checkbox" id="toggle-dala" onchange="recalculateScore()">
+                                <input type="checkbox" id="toggle-dala" checked onchange="recalculateScore()">
                                 <span class="toggle-slider"></span>
                             </label>
                             <span class="score-item-name">DO-178C DAL A</span>
                         </div>
                         <div class="score-item-right">
-                            <span class="score-item-value reviewed" id="score-dala">Reviewed</span>
+                            <span class="score-item-value" id="score-dala">--%</span>
                         </div>
                     </div>
 
@@ -998,13 +1066,9 @@
             const scoreEl = document.getElementById(`score-${sectionId}`);
             if (!scoreEl) return;
 
-            if (isReviewOnly) {
-                scoreEl.textContent = `0%`;
-                scoreEl.className = 'score-item-value reviewed';
-            } else {
-                scoreEl.textContent = `${scoreData.score}%`;
-                scoreEl.className = 'score-item-value ' + getScoreClass(scoreData.score);
-            }
+            // Always show actual score - no more "review only" mode
+            scoreEl.textContent = `${scoreData.score}%`;
+            scoreEl.className = 'score-item-value ' + getScoreClass(scoreData.score);
         }
 
         async function loadComplianceData() {
@@ -1115,44 +1179,58 @@
             const container = document.getElementById(`${sectionId}Requirements`);
             const badge = document.getElementById(`${sectionId}Badge`);
 
-            if (isReviewOnly) {
-                // For review-only sections, just show "Reviewed" badge
-                badge.textContent = `${requirements.length} Items`;
-                badge.className = 'compliance-badge reviewed';
-            } else {
-                // Count compliant items
-                let compliant = 0;
-                let total = 0;
-                requirements.forEach(req => {
-                    if (req.status !== 'not_applicable') {
-                        total++;
-                        if (req.status === 'compliant') compliant++;
-                        else if (req.status === 'partial') compliant += 0.5;
-                    }
-                });
+            // Count compliant items
+            let compliant = 0;
+            let total = 0;
+            requirements.forEach(req => {
+                if (req.status !== 'not_applicable') {
+                    total++;
+                    if (req.status === 'compliant') compliant++;
+                    else if (req.status === 'partial') compliant += 0.5;
+                }
+            });
 
-                badge.textContent = `${Math.round(compliant)} / ${total}`;
-                badge.className = 'compliance-badge ' + (compliant === total ? 'compliant' : compliant >= total * 0.7 ? 'partial' : 'non_compliant');
-            }
+            badge.textContent = `${Math.round(compliant)} / ${total}`;
+            badge.className = 'compliance-badge ' + (compliant === total ? 'compliant' : compliant >= total * 0.7 ? 'partial' : 'non_compliant');
 
-            // Group by category
+            // Group by category or verification method
             const categories = {};
             requirements.forEach(req => {
-                if (!categories[req.category]) {
-                    categories[req.category] = [];
+                const cat = req.category || req.verification_method || 'General';
+                if (!categories[cat]) {
+                    categories[cat] = [];
                 }
-                categories[req.category].push(req);
+                categories[cat].push(req);
             });
 
             container.innerHTML = Object.entries(categories).map(([category, reqs]) => `
                 <div class="category-header">${category}</div>
                 ${reqs.map(req => `
-                    <div class="requirement-row">
+                    <div class="requirement-row ${req.status === 'non_compliant' ? 'failing' : ''}">
                         <div class="requirement-id">${req.id}</div>
                         <div class="requirement-content">
                             <div class="requirement-name">${req.requirement}</div>
-                            <div class="requirement-desc">${req.description}</div>
-                            ${req.evidence ? `<div class="requirement-evidence"><strong>Evidence:</strong> ${req.evidence}</div>` : ''}
+                            ${req.measured_value ? `
+                                <div class="measured-value">
+                                    <span class="measured-label">Measured:</span>
+                                    <span class="measured-data">${req.measured_value}</span>
+                                </div>
+                            ` : req.description ? `<div class="requirement-desc">${req.description}</div>` : ''}
+                            ${req.threshold ? `
+                                <div class="threshold-value">
+                                    <span class="threshold-label">Threshold:</span> ${req.threshold}
+                                </div>
+                            ` : ''}
+                            ${req.verification_method ? `
+                                <div class="verification-method">
+                                    <span class="method-label">Method:</span> ${req.verification_method}
+                                </div>
+                            ` : ''}
+                            ${req.evidence_count !== undefined ? `
+                                <div class="evidence-count">
+                                    <span class="evidence-label">Evidence:</span> ${req.evidence_count} items
+                                </div>
+                            ` : req.evidence ? `<div class="requirement-evidence"><strong>Evidence:</strong> ${req.evidence}</div>` : ''}
                             ${req.notes ? `<div class="requirement-notes">${req.notes}</div>` : ''}
                         </div>
                         <div class="requirement-status">

@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Competitive Analysis - Aviation Weather API</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-tertiary: rgba(255, 255, 255, 0.4);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent: #6366f1;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --skytron: #8b5cf6;
+            --garmin: #3b82f6;
+            --foreflight: #f97316;
+            --jeppesen: #10b981;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding-top: 48px;
+        }
+
+        /* Top Navigation Bar */
+        .top-navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 48px;
+            background: rgba(10, 10, 15, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 9999;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .nav-brand svg {
+            width: 24px;
+            height: 24px;
+            color: var(--accent);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 4px;
+        }
+
+        .nav-link {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--skytron);
+        }
+
+        .nav-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .content {
+            padding: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-header p {
+            color: var(--text-tertiary);
+            font-size: 14px;
+        }
+
+        .winner-badge {
+            background: linear-gradient(135deg, var(--skytron), #6366f1);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(139, 92, 246, 0); }
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            backdrop-filter: blur(20px);
+        }
+
+        .card.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .card-title {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-tertiary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title svg {
+            width: 16px;
+            height: 16px;
+            color: var(--accent);
+        }
+
+        /* Score Cards */
+        .score-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .score-card {
+            text-align: center;
+            padding: 20px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .score-card.winner {
+            border-color: var(--skytron);
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .score-card .vendor-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .score-card .vendor-name .crown {
+            color: #fbbf24;
+        }
+
+        .score-card .score-value {
+            font-size: 48px;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .score-card.skytron .score-value { color: var(--skytron); }
+        .score-card.garmin .score-value { color: var(--garmin); }
+        .score-card.foreflight .score-value { color: var(--foreflight); }
+        .score-card.jeppesen .score-value { color: var(--jeppesen); }
+
+        .score-card .score-label {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .score-breakdown {
+            margin-top: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+        }
+
+        .breakdown-item .label {
+            color: var(--text-tertiary);
+        }
+
+        .breakdown-item .value {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Advantage Summary */
+        .advantage-highlight {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(99, 102, 241, 0.15));
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .advantage-value {
+            font-size: 64px;
+            font-weight: 700;
+            color: var(--skytron);
+            line-height: 1;
+        }
+
+        .advantage-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        /* Feature Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 16px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .comparison-table th {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-tertiary);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .comparison-table th.skytron { color: var(--skytron); }
+        .comparison-table th.garmin { color: var(--garmin); }
+        .comparison-table th.foreflight { color: var(--foreflight); }
+        .comparison-table th.jeppesen { color: var(--jeppesen); }
+
+        .comparison-table td:first-child {
+            text-align: left;
+            font-weight: 500;
+        }
+
+        .comparison-table .feature-name {
+            font-size: 14px;
+        }
+
+        .comparison-table .feature-value {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-top: 4px;
+        }
+
+        .check-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .check-icon.yes {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+
+        .check-icon.partial {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        .check-icon.no {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        /* Unique Features */
+        .unique-features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .unique-tag {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2));
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: var(--skytron);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .unique-tag svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        /* Compliance Section */
+        .compliance-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .compliance-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .compliance-card h4 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+
+        .compliance-card .standard-desc {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-bottom: 16px;
+        }
+
+        .vendor-compliance {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .vendor-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+        }
+
+        .vendor-row .name {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .vendor-row.skytron { border-left: 3px solid var(--skytron); }
+        .vendor-row.garmin { border-left: 3px solid var(--garmin); }
+        .vendor-row.foreflight { border-left: 3px solid var(--foreflight); }
+        .vendor-row.jeppesen { border-left: 3px solid var(--jeppesen); }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            color: var(--text-tertiary);
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .score-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .compliance-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .score-grid {
+                grid-template-columns: 1fr;
+            }
+            .comparison-table {
+                font-size: 12px;
+            }
+            .comparison-table th,
+            .comparison-table td {
+                padding: 10px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <nav class="top-navbar">
+        <div class="nav-brand">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            Skytron OS
+        </div>
+        <div class="nav-links">
+            <a href="/" class="nav-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 15a4 4 0 0 0 4 4h9a5 5 0 0 0 .5-9.97"/>
+                    <path d="M9 17V9"/>
+                    <path d="M12 17V9"/>
+                    <path d="M15 17V9"/>
+                </svg>
+                Weather
+            </a>
+            <a href="/health-dashboard" class="nav-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+                Health
+            </a>
+            <a href="/compliance-dashboard" class="nav-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+                Compliance
+            </a>
+            <a href="/benchmarks-dashboard" class="nav-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 20V10"/>
+                    <path d="M12 20V4"/>
+                    <path d="M6 20v-6"/>
+                </svg>
+                Benchmarks
+            </a>
+            <a href="/competitive-analysis-dashboard" class="nav-link active">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                </svg>
+                Analysis
+            </a>
+        </div>
+    </nav>
+
+    <div class="content">
+        <div class="page-header">
+            <h1>
+                Competitive Analysis
+                <span class="winner-badge" id="winnerBadge">Loading...</span>
+            </h1>
+            <p>ASTM F3269, ASTM F3153 & DO-178C DAL D compliance comparison across aviation data providers</p>
+        </div>
+
+        <div id="loadingState" class="loading">
+            <div class="spinner"></div>
+            Loading competitive analysis data...
+        </div>
+
+        <div id="mainContent" style="display: none;">
+            <!-- Advantage Highlight -->
+            <div class="advantage-highlight">
+                <div class="advantage-value" id="advantageValue">+0</div>
+                <div class="advantage-label">Skytron OS Compliance Advantage Points</div>
+            </div>
+
+            <!-- Score Cards -->
+            <div class="grid">
+                <div class="card full-width">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 15l-2-4 7-7 2 2-7 7-2 4 2 2z"/>
+                            <path d="M5 21l3-3"/>
+                        </svg>
+                        Vendor Score Comparison
+                    </div>
+                    <div class="score-grid" id="scoreGrid">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="grid">
+                <div class="card">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 2a10 10 0 0 1 10 10"/>
+                            <path d="M12 12l4-4"/>
+                        </svg>
+                        Score Breakdown
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 20V10"/>
+                            <path d="M12 20V4"/>
+                            <path d="M6 20v-6"/>
+                        </svg>
+                        Total Points by Category
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Unique to Skytron -->
+            <div class="grid">
+                <div class="card full-width">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                        </svg>
+                        Unique to Skytron OS
+                    </div>
+                    <div class="unique-features" id="uniqueFeatures">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Compliance Standards Breakdown -->
+            <div class="grid">
+                <div class="card full-width">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                        Regulatory Standards Compliance by Vendor
+                    </div>
+                    <div class="compliance-grid" id="complianceGrid">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature Comparison Table -->
+            <div class="grid">
+                <div class="card full-width">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 20h9"/>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                        </svg>
+                        Detailed Feature Comparison
+                    </div>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left;">Feature / Capability</th>
+                                <th class="skytron">Skytron OS</th>
+                                <th class="garmin">Garmin</th>
+                                <th class="foreflight">ForeFlight</th>
+                                <th class="jeppesen">Jeppesen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="comparisonTable">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let radarChart = null;
+        let barChart = null;
+
+        async function loadAnalysis() {
+            try {
+                const response = await fetch('/api/competitive-analysis');
+                const data = await response.json();
+                renderAnalysis(data);
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading analysis:', error);
+                document.getElementById('loadingState').innerHTML =
+                    '<span style="color: var(--danger);">Error loading analysis data. Please refresh.</span>';
+            }
+        }
+
+        function renderAnalysis(data) {
+            const { summary, vendor_scores, advantages, differentiators } = data;
+
+            // Update winner badge
+            document.getElementById('winnerBadge').textContent = 'SKYTRON LEADS';
+
+            // Update advantage value
+            document.getElementById('advantageValue').textContent = `+${summary.skytron_advantage}`;
+
+            // Render score cards
+            renderScoreCards(vendor_scores);
+
+            // Render unique features
+            renderUniqueFeatures(differentiators.unique_to_skytron, advantages);
+
+            // Render compliance grid
+            renderComplianceGrid(advantages);
+
+            // Render comparison table
+            renderComparisonTable(advantages);
+
+            // Render charts
+            renderRadarChart(vendor_scores);
+            renderBarChart(vendor_scores);
+        }
+
+        function renderScoreCards(scores) {
+            const vendors = [
+                { key: 'skytron', name: 'Skytron OS', winner: true },
+                { key: 'garmin', name: 'Garmin' },
+                { key: 'foreflight', name: 'ForeFlight' },
+                { key: 'jeppesen', name: 'Jeppesen' }
+            ];
+
+            const html = vendors.map(v => `
+                <div class="score-card ${v.key} ${v.winner ? 'winner' : ''}">
+                    <div class="vendor-name">
+                        ${v.name}
+                        ${v.winner ? '<span class="crown">&#x1F451;</span>' : ''}
+                    </div>
+                    <div class="score-value">${scores[v.key].total}</div>
+                    <div class="score-label">Total Points</div>
+                    <div class="score-breakdown">
+                        <div class="breakdown-item">
+                            <span class="label">Compliance</span>
+                            <span class="value">${scores[v.key].compliance} pts</span>
+                        </div>
+                        <div class="breakdown-item">
+                            <span class="label">Quality</span>
+                            <span class="value">${scores[v.key].quality} pts</span>
+                        </div>
+                        <div class="breakdown-item">
+                            <span class="label">Features</span>
+                            <span class="value">${scores[v.key].features} pts</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('scoreGrid').innerHTML = html;
+        }
+
+        function renderUniqueFeatures(unique, advantages) {
+            const html = unique.map(key => {
+                const adv = advantages[key];
+                const displayName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                return `
+                    <div class="unique-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 11l3 3L22 4"/>
+                        </svg>
+                        ${displayName}
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('uniqueFeatures').innerHTML = html || '<span style="color: var(--text-tertiary);">No unique features identified</span>';
+        }
+
+        function renderComplianceGrid(advantages) {
+            const standards = [
+                {
+                    key: 'do178c_certified',
+                    name: 'DO-178C DAL D',
+                    desc: 'Safety-critical aviation software development process certification'
+                },
+                {
+                    key: 'astm_f3269_compliance',
+                    name: 'ASTM F3269',
+                    desc: 'Standard specification for aviation weather data quality'
+                },
+                {
+                    key: 'astm_f3153_compliance',
+                    name: 'ASTM F3153',
+                    desc: 'Standard for weather information services in aviation'
+                }
+            ];
+
+            const vendors = ['skytron', 'garmin', 'foreflight', 'jeppesen'];
+            const vendorNames = {
+                skytron: 'Skytron OS',
+                garmin: 'Garmin',
+                foreflight: 'ForeFlight',
+                jeppesen: 'Jeppesen'
+            };
+
+            const html = standards.map(std => {
+                const adv = advantages[std.key];
+                const vendorRows = vendors.map(v => {
+                    const status = adv[v];
+                    let icon, statusClass;
+                    if (status === true) {
+                        icon = '&#x2713;';
+                        statusClass = 'yes';
+                    } else if (status === 'Partial') {
+                        icon = '~';
+                        statusClass = 'partial';
+                    } else {
+                        icon = '&#x2717;';
+                        statusClass = 'no';
+                    }
+                    return `
+                        <div class="vendor-row ${v}">
+                            <span class="name">${vendorNames[v]}</span>
+                            <span class="check-icon ${statusClass}">${icon}</span>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="compliance-card">
+                        <h4>${std.name}</h4>
+                        <div class="standard-desc">${std.desc}</div>
+                        <div class="vendor-compliance">
+                            ${vendorRows}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('complianceGrid').innerHTML = html;
+        }
+
+        function renderComparisonTable(advantages) {
+            const html = Object.entries(advantages).map(([key, adv]) => {
+                const displayName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                const getIcon = (status) => {
+                    if (status === true) return '<span class="check-icon yes">&#x2713;</span>';
+                    if (status === 'Partial') return '<span class="check-icon partial">~</span>';
+                    return '<span class="check-icon no">&#x2717;</span>';
+                };
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="feature-name">${displayName}</div>
+                            <div class="feature-value">${adv.value}</div>
+                        </td>
+                        <td>${getIcon(adv.skytron)}</td>
+                        <td>${getIcon(adv.garmin)}</td>
+                        <td>${getIcon(adv.foreflight)}</td>
+                        <td>${getIcon(adv.jeppesen)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('comparisonTable').innerHTML = html;
+        }
+
+        function renderRadarChart(scores) {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+
+            if (radarChart) radarChart.destroy();
+
+            radarChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['Compliance', 'Quality', 'Features'],
+                    datasets: [
+                        {
+                            label: 'Skytron OS',
+                            data: [scores.skytron.compliance, scores.skytron.quality, scores.skytron.features],
+                            borderColor: '#8b5cf6',
+                            backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                            borderWidth: 2,
+                            pointBackgroundColor: '#8b5cf6'
+                        },
+                        {
+                            label: 'Garmin',
+                            data: [scores.garmin.compliance, scores.garmin.quality, scores.garmin.features],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: '#3b82f6'
+                        },
+                        {
+                            label: 'ForeFlight',
+                            data: [scores.foreflight.compliance, scores.foreflight.quality, scores.foreflight.features],
+                            borderColor: '#f97316',
+                            backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: '#f97316'
+                        },
+                        {
+                            label: 'Jeppesen',
+                            data: [scores.jeppesen.compliance, scores.jeppesen.quality, scores.jeppesen.features],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: '#10b981'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            angleLines: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            pointLabels: {
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                font: { size: 12 }
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.5)',
+                                backdropColor: 'transparent'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                padding: 16,
+                                usePointStyle: true
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderBarChart(scores) {
+            const ctx = document.getElementById('barChart').getContext('2d');
+
+            if (barChart) barChart.destroy();
+
+            barChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Skytron OS', 'Garmin', 'ForeFlight', 'Jeppesen'],
+                    datasets: [
+                        {
+                            label: 'Compliance',
+                            data: [scores.skytron.compliance, scores.garmin.compliance, scores.foreflight.compliance, scores.jeppesen.compliance],
+                            backgroundColor: 'rgba(139, 92, 246, 0.8)',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Quality',
+                            data: [scores.skytron.quality, scores.garmin.quality, scores.foreflight.quality, scores.jeppesen.quality],
+                            backgroundColor: 'rgba(99, 102, 241, 0.8)',
+                            borderRadius: 4
+                        },
+                        {
+                            label: 'Features',
+                            data: [scores.skytron.features, scores.garmin.features, scores.foreflight.features, scores.jeppesen.features],
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            stacked: true,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)'
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            }
+                        },
+                        y: {
+                            stacked: true,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)'
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                padding: 16,
+                                usePointStyle: true
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load on page load
+        loadAnalysis();
+
+        // Refresh every 30 seconds
+        setInterval(loadAnalysis, 30000);
+    </script>
+</body>
+</html>
