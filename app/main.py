@@ -1670,6 +1670,7 @@ class BenchmarkResult(BaseModel):
     source_name: str
     source_url: str
     used_by: List[str]
+    category: str  # "government", "commercial", "open-source"
     status: str  # "operational", "degraded", "offline"
     response_time_ms: float
     data_quality_score: float  # 0-100
@@ -1686,62 +1687,131 @@ async def run_benchmarks(station: str = "KJFK"):
     station = station.upper()
 
     # Data sources commonly used by aviation companies
+    # Categories: government, commercial, open-source
     data_sources = [
+        # === GOVERNMENT / OFFICIAL SOURCES ===
         {
-            "name": "FAA Aviation Weather Center",
+            "name": "FAA Aviation Weather Center (METAR)",
             "url": f"https://aviationweather.gov/api/data/metar?ids={station}&format=json",
-            "used_by": ["Garmin", "ForeFlight", "Jeppesen", "Our API"],
-            "features": ["METAR", "TAF", "SIGMET", "AIRMET", "PIREPs"],
-            "notes": "Official FAA source - primary for US aviation"
+            "used_by": ["Garmin", "ForeFlight", "Jeppesen", "Skytron"],
+            "category": "government",
+            "features": ["METAR", "Real-time", "Official"],
+            "notes": "Primary FAA source - used by all major aviation apps"
         },
         {
-            "name": "NOAA Aviation Weather",
+            "name": "FAA Aviation Weather Center (TAF)",
             "url": f"https://aviationweather.gov/api/data/taf?ids={station}&format=json",
+            "used_by": ["Garmin", "ForeFlight", "Jeppesen", "Skytron"],
+            "category": "government",
+            "features": ["TAF", "Forecasts", "Official"],
+            "notes": "Terminal Aerodrome Forecasts from FAA"
+        },
+        {
+            "name": "NWS Weather API",
+            "url": "https://api.weather.gov/points/40.6413,-73.7781",
+            "used_by": ["Garmin", "ForeFlight", "Weather Apps"],
+            "category": "government",
+            "features": ["Forecasts", "Alerts", "Radar", "Free"],
+            "notes": "National Weather Service - primary US forecast source"
+        },
+        {
+            "name": "NWS Aviation Weather (ADDS)",
+            "url": f"https://aviationweather.gov/api/data/pirep?id={station}&format=json",
             "used_by": ["Garmin", "ForeFlight", "Jeppesen"],
-            "features": ["TAF Forecasts", "Terminal Weather"],
-            "notes": "NOAA/NWS official forecasts"
-        },
-        {
-            "name": "Open-Meteo (Global Forecast)",
-            "url": "https://api.open-meteo.com/v1/forecast?latitude=40.64&longitude=-73.78&hourly=temperature_2m",
-            "used_by": ["ForeFlight", "Our API"],
-            "features": ["Global Coverage", "Hourly Forecasts", "Free Tier"],
-            "notes": "Open source weather API with global coverage"
-        },
-        {
-            "name": "AVWX REST API",
-            "url": f"https://avwx.rest/api/metar/{station}",
-            "used_by": ["ForeFlight", "Aviation Apps", "Our API (Backup)"],
-            "features": ["METAR", "TAF", "Parsed Data", "Global"],
-            "notes": "Aviation weather parsing service"
-        },
-        {
-            "name": "CheckWX API",
-            "url": f"https://api.checkwx.com/metar/{station}",
-            "used_by": ["Garmin Pilot", "Aviation Apps"],
-            "features": ["METAR", "TAF", "Station Info"],
-            "notes": "Popular aviation weather API"
+            "category": "government",
+            "features": ["PIREPs", "Turbulence", "Icing"],
+            "notes": "Pilot Reports - critical for flight planning"
         },
         {
             "name": "FAA NOTAM System",
             "url": "https://www.notams.faa.gov/dinsQueryWeb/queryRetrievalMapAction.do",
             "used_by": ["Garmin", "ForeFlight", "Jeppesen"],
-            "features": ["NOTAMs", "TFRs", "Airspace Alerts"],
-            "notes": "Official FAA NOTAM distribution"
+            "category": "government",
+            "features": ["NOTAMs", "TFRs", "Airspace"],
+            "notes": "Official FAA NOTAM distribution system"
         },
         {
-            "name": "SkyVector (Charts)",
-            "url": "https://skyvector.com/api/charts",
-            "used_by": ["ForeFlight", "Garmin"],
-            "features": ["VFR Charts", "IFR Charts", "Airport Info"],
-            "notes": "Aviation chart provider"
+            "name": "NOAA GFS Model",
+            "url": "https://nomads.ncep.noaa.gov/",
+            "used_by": ["Garmin", "ForeFlight", "WSI/DTN"],
+            "category": "government",
+            "features": ["Global Model", "16-day Forecast", "Raw Data"],
+            "notes": "Global Forecast System - base model for most forecasts"
+        },
+        # === COMMERCIAL SOURCES ===
+        {
+            "name": "AVWX REST API",
+            "url": f"https://avwx.rest/api/metar/{station}",
+            "used_by": ["ForeFlight", "Aviation Apps", "Skytron (Backup)"],
+            "category": "commercial",
+            "features": ["METAR", "TAF", "Parsed", "Global"],
+            "notes": "Popular aviation weather parsing API"
+        },
+        {
+            "name": "CheckWX API",
+            "url": f"https://api.checkwx.com/metar/{station}",
+            "used_by": ["Garmin Pilot", "Aviation Apps"],
+            "category": "commercial",
+            "features": ["METAR", "TAF", "Decoded"],
+            "notes": "Aviation-focused weather API"
+        },
+        {
+            "name": "AeroAPI (FlightAware)",
+            "url": "https://aeroapi.flightaware.com/aeroapi/",
+            "used_by": ["ForeFlight", "FlightAware"],
+            "category": "commercial",
+            "features": ["Flight Tracking", "ADS-B", "Delays"],
+            "notes": "FlightAware's commercial aviation API"
+        },
+        {
+            "name": "SkyVector Charts",
+            "url": "https://skyvector.com/",
+            "used_by": ["ForeFlight", "Garmin", "Pilots"],
+            "category": "commercial",
+            "features": ["VFR Charts", "IFR Charts", "Planning"],
+            "notes": "Popular free aviation charts"
+        },
+        # === OPEN SOURCE / FREE TIER ===
+        {
+            "name": "Open-Meteo API",
+            "url": "https://api.open-meteo.com/v1/forecast?latitude=40.64&longitude=-73.78&hourly=temperature_2m,wind_speed_10m",
+            "used_by": ["ForeFlight", "Skytron", "Open Source Apps"],
+            "category": "open-source",
+            "features": ["Global", "Hourly", "Free", "Fast"],
+            "notes": "Open-source weather API with excellent coverage"
+        },
+        {
+            "name": "OpenWeatherMap",
+            "url": "https://api.openweathermap.org/data/2.5/weather?lat=40.64&lon=-73.78&appid=demo",
+            "used_by": ["Mobile Apps", "Websites"],
+            "category": "open-source",
+            "features": ["Current", "Forecast", "Global"],
+            "notes": "Popular weather API with free tier"
         },
         {
             "name": "ADS-B Exchange",
             "url": "https://globe.adsbexchange.com/",
-            "used_by": ["ForeFlight", "FlightAware"],
-            "features": ["Live Traffic", "ADS-B Data", "Flight Tracking"],
-            "notes": "Crowdsourced ADS-B data"
+            "used_by": ["ForeFlight", "FlightAware", "Enthusiasts"],
+            "category": "open-source",
+            "features": ["Live Traffic", "Unfiltered", "Global"],
+            "notes": "Crowdsourced ADS-B - no military filtering"
+        },
+        # === SATELLITE / RADAR ===
+        {
+            "name": "NOAA GOES Satellite",
+            "url": "https://www.star.nesdis.noaa.gov/GOES/index.php",
+            "used_by": ["Garmin", "ForeFlight", "All Weather Apps"],
+            "category": "government",
+            "features": ["Satellite Imagery", "Visible", "IR"],
+            "notes": "GOES-East/West satellite imagery"
+        },
+        {
+            "name": "NWS NEXRAD Radar",
+            "url": "https://radar.weather.gov/",
+            "used_by": ["Garmin", "ForeFlight", "All Weather Apps"],
+            "category": "government",
+            "features": ["Radar", "Precipitation", "Storm Tracking"],
+            "notes": "National radar network - critical for weather avoidance"
         }
     ]
 
@@ -1812,6 +1882,7 @@ async def run_benchmarks(station: str = "KJFK"):
                 source_name=source["name"],
                 source_url=source["url"].split("?")[0],  # Hide query params
                 used_by=source["used_by"],
+                category=source.get("category", "other"),
                 status=status,
                 response_time_ms=round(response_time, 2),
                 data_quality_score=round(data_quality, 1),
@@ -1825,6 +1896,40 @@ async def run_benchmarks(station: str = "KJFK"):
     avg_response = sum(b.response_time_ms for b in benchmarks if b.response_time_ms > 0) / max(1, len([b for b in benchmarks if b.response_time_ms > 0]))
     avg_quality = sum(b.data_quality_score for b in benchmarks) / len(benchmarks)
 
+    # Category breakdown
+    categories = {}
+    for b in benchmarks:
+        cat = b.category
+        if cat not in categories:
+            categories[cat] = {"count": 0, "operational": 0, "avg_response": [], "avg_quality": []}
+        categories[cat]["count"] += 1
+        if b.status == "operational":
+            categories[cat]["operational"] += 1
+        if b.response_time_ms > 0:
+            categories[cat]["avg_response"].append(b.response_time_ms)
+        categories[cat]["avg_quality"].append(b.data_quality_score)
+
+    for cat in categories:
+        categories[cat]["avg_response"] = round(sum(categories[cat]["avg_response"]) / max(1, len(categories[cat]["avg_response"])), 2)
+        categories[cat]["avg_quality"] = round(sum(categories[cat]["avg_quality"]) / max(1, len(categories[cat]["avg_quality"])), 1)
+
+    # Vendor analysis - what sources each vendor uses
+    vendor_sources = {
+        "Garmin": [],
+        "ForeFlight": [],
+        "Jeppesen": [],
+        "Skytron": []
+    }
+    for b in benchmarks:
+        for vendor in vendor_sources.keys():
+            if any(vendor in u for u in b.used_by):
+                vendor_sources[vendor].append({
+                    "name": b.source_name,
+                    "status": b.status,
+                    "response_time_ms": b.response_time_ms,
+                    "category": b.category
+                })
+
     return {
         "station": station,
         "benchmarks": [b.dict() for b in benchmarks],
@@ -1837,6 +1942,8 @@ async def run_benchmarks(station: str = "KJFK"):
             "avg_response_time_ms": round(avg_response, 2),
             "avg_data_quality": round(avg_quality, 1)
         },
+        "categories": categories,
+        "vendor_sources": vendor_sources,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
