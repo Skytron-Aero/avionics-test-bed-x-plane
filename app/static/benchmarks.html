@@ -321,6 +321,28 @@
         .vendor-card.jeppesen h4 .logo { background: #0033a0; }
         .vendor-card.skytron h4 .logo { background: linear-gradient(135deg, #8b5cf6, #3b82f6); }
 
+        .integration-label {
+            margin-left: auto;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .integration-label.integrated {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2));
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.4);
+        }
+
+        .integration-label.reported {
+            background: rgba(107, 114, 128, 0.15);
+            color: rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(107, 114, 128, 0.2);
+        }
+
         .vendor-stats {
             display: flex;
             gap: 16px;
@@ -489,6 +511,27 @@
         .status-badge.degraded { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
         .status-badge.offline, .status-badge.timeout { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
         .status-badge.auth_required { background: rgba(99, 102, 241, 0.2); color: #6366f1; }
+
+        .skytron-badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .skytron-badge.integrated {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(59, 130, 246, 0.3));
+            color: #a78bfa;
+            border: 1px solid rgba(139, 92, 246, 0.5);
+        }
+
+        .skytron-badge.planned {
+            background: rgba(107, 114, 128, 0.2);
+            color: rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(107, 114, 128, 0.3);
+        }
 
         .benchmark-metrics {
             display: flex;
@@ -968,23 +1011,28 @@
         function renderVendorComparison(vendors) {
             const grid = document.getElementById('vendorGrid');
             const vendorStyles = {
-                'Garmin': { class: 'garmin', letter: 'G' },
-                'ForeFlight': { class: 'foreflight', letter: 'F' },
-                'Jeppesen': { class: 'jeppesen', letter: 'J' },
-                'Skytron': { class: 'skytron highlight', letter: 'S' }
+                'Garmin': { class: 'garmin', letter: 'G', type: 'reported' },
+                'ForeFlight': { class: 'foreflight', letter: 'F', type: 'reported' },
+                'Jeppesen': { class: 'jeppesen', letter: 'J', type: 'reported' },
+                'Skytron': { class: 'skytron highlight', letter: 'S', type: 'integrated' }
             };
 
             grid.innerHTML = Object.entries(vendors).map(([name, sources]) => {
-                const style = vendorStyles[name] || { class: '', letter: name[0] };
+                const style = vendorStyles[name] || { class: '', letter: name[0], type: 'reported' };
                 const operational = sources.filter(s => s.status === 'operational').length;
                 const avgTime = sources.length > 0 ?
                     Math.round(sources.reduce((sum, s) => sum + s.response_time_ms, 0) / sources.length) : 0;
+
+                const typeLabel = style.type === 'integrated'
+                    ? '<span class="integration-label integrated">FUNCTIONALLY INTEGRATED</span>'
+                    : '<span class="integration-label reported">REPORTED USAGE</span>';
 
                 return `
                     <div class="vendor-card ${style.class}">
                         <h4>
                             <span class="logo">${style.letter}</span>
                             ${name}
+                            ${typeLabel}
                         </h4>
                         <div class="vendor-stats">
                             <div class="vendor-stat">
@@ -1047,6 +1095,9 @@
             filtered.forEach(b => {
                 const responseClass = b.response_time_ms < 500 ? 'fast' : b.response_time_ms < 1500 ? 'medium' : 'slow';
                 const qualityClass = b.data_quality_score >= 80 ? 'high' : b.data_quality_score >= 50 ? 'medium' : 'low';
+                const skytronBadge = b.skytron_integrated
+                    ? '<span class="skytron-badge integrated">SKYTRON INTEGRATED</span>'
+                    : '<span class="skytron-badge planned">PLANNED</span>';
 
                 grid.innerHTML += `
                     <div class="benchmark-card ${b.status}">
@@ -1055,7 +1106,10 @@
                                 <div class="benchmark-name">${b.source_name}</div>
                                 <div class="benchmark-category">${b.category}</div>
                             </div>
-                            <span class="status-badge ${b.status}">${b.status.replace('_', ' ')}</span>
+                            <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end;">
+                                <span class="status-badge ${b.status}">${b.status.replace('_', ' ')}</span>
+                                ${skytronBadge}
+                            </div>
                         </div>
 
                         <div class="benchmark-metrics">
@@ -1073,7 +1127,8 @@
                         </div>
 
                         <div class="used-by">
-                            ${b.used_by.map(u => `<span class="used-by-tag ${u.includes('Skytron') ? 'highlight' : ''}">${u}</span>`).join('')}
+                            <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase; margin-right: 6px;">Used by:</span>
+                            ${b.used_by.map(u => `<span class="used-by-tag">${u}</span>`).join('')}
                         </div>
 
                         <div class="features">

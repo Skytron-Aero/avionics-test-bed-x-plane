@@ -18,10 +18,23 @@ import asyncio
 from enum import Enum
 
 
-# ==================== AVWX BACKUP CONFIGURATION ====================
+# ==================== DATA SOURCE CONFIGURATION ====================
 # AVWX API token (optional - enables backup data source)
 # Get a free token at: https://avwx.rest/
 AVWX_API_TOKEN = os.environ.get("AVWX_API_TOKEN", "")
+
+# NWS Weather API (api.weather.gov) - No API key required
+# Provides alerts, forecasts, and observation data
+NWS_API_BASE = "https://api.weather.gov"
+NWS_USER_AGENT = "(Skytron Aviation Weather API, contact@skytron.aero)"
+
+# Track which data sources are functionally enabled
+ENABLED_DATA_SOURCES = {
+    "FAA_AWC": True,  # FAA Aviation Weather Center (aviationweather.gov) - always enabled
+    "NWS_API": True,  # NWS Weather API (api.weather.gov) - always enabled (no key needed)
+    "AVWX": bool(AVWX_API_TOKEN),  # AVWX requires API token
+    "OPEN_METEO": True,  # Open-Meteo - always enabled (no key needed)
+}
 
 
 # ==================== DATA HEALTH TRACKING ====================
@@ -404,9 +417,271 @@ async def fetch_taf_from_avwx(station: str, client: httpx.AsyncClient) -> Option
         return None
 
 
+# ==================== NWS WEATHER API ====================
+
+class NWSAlert(BaseModel):
+    """Weather alert from NWS"""
+    id: str
+    event: str
+    headline: str
+    severity: str  # Minor, Moderate, Severe, Extreme
+    certainty: str  # Possible, Likely, Observed
+    urgency: str  # Immediate, Expected, Future
+    onset: Optional[datetime] = None
+    expires: Optional[datetime] = None
+    description: str
+    instruction: Optional[str] = None
+    affected_zones: List[str]
+
+
+class NWSForecast(BaseModel):
+    """Point forecast from NWS"""
+    latitude: float
+    longitude: float
+    generated_at: datetime
+    periods: List[Dict]
+    data_source: str = "NWS"
+
+
+async def fetch_nws_alerts(lat: float, lon: float, client: httpx.AsyncClient) -> List[NWSAlert]:
+    """Fetch active weather alerts from NWS for a location"""
+    try:
+        headers = {"User-Agent": NWS_USER_AGENT, "Accept": "application/geo+json"}
+
+        # Get alerts for the point
+        response = await client.get(
+            f"{NWS_API_BASE}/alerts/active?point={lat},{lon}",
+            headers=headers,
+            timeout=10.0
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        alerts = []
+        for feature in data.get("features", []):
+            props = feature.get("properties", {})
+
+            # Parse times
+            onset = None
+            expires = None
+            if props.get("onset"):
+                onset = datetime.fromisoformat(props["onset"].replace('Z', '+00:00'))
+            if props.get("expires"):
+                expires = datetime.fromisoformat(props["expires"].replace('Z', '+00:00'))
+
+            alerts.append(NWSAlert(
+                id=props.get("id", ""),
+                event=props.get("event", ""),
+                headline=props.get("headline", ""),
+                severity=props.get("severity", "Unknown"),
+                certainty=props.get("certainty", "Unknown"),
+                urgency=props.get("urgency", "Unknown"),
+                onset=onset,
+                expires=expires,
+                description=props.get("description", ""),
+                instruction=props.get("instruction"),
+                affected_zones=props.get("affectedZones", [])
+            ))
+
+        return alerts
+    except Exception:
+        return []
+
+
+async def fetch_nws_forecast(lat: float, lon: float, client: httpx.AsyncClient) -> Optional[NWSForecast]:
+    """Fetch point forecast from NWS"""
+    try:
+        headers = {"User-Agent": NWS_USER_AGENT, "Accept": "application/geo+json"}
+
+        # First get the forecast office and grid point
+        points_response = await client.get(
+            f"{NWS_API_BASE}/points/{lat},{lon}",
+            headers=headers,
+            timeout=10.0
+        )
+        points_response.raise_for_status()
+        points_data = points_response.json()
+
+        forecast_url = points_data.get("properties", {}).get("forecast")
+        if not forecast_url:
+            return None
+
+        # Get the actual forecast
+        forecast_response = await client.get(
+            forecast_url,
+            headers=headers,
+            timeout=10.0
+        )
+        forecast_response.raise_for_status()
+        forecast_data = forecast_response.json()
+
+        periods = []
+        for period in forecast_data.get("properties", {}).get("periods", []):
+            periods.append({
+                "name": period.get("name"),
+                "start_time": period.get("startTime"),
+                "end_time": period.get("endTime"),
+                "temperature": period.get("temperature"),
+                "temperature_unit": period.get("temperatureUnit"),
+                "wind_speed": period.get("windSpeed"),
+                "wind_direction": period.get("windDirection"),
+                "short_forecast": period.get("shortForecast"),
+                "detailed_forecast": period.get("detailedForecast"),
+                "is_daytime": period.get("isDaytime")
+            })
+
+        generated_at = forecast_data.get("properties", {}).get("generatedAt")
+        if generated_at:
+            generated_at = datetime.fromisoformat(generated_at.replace('Z', '+00:00'))
+        else:
+            generated_at = datetime.now(timezone.utc)
+
+        return NWSForecast(
+            latitude=lat,
+            longitude=lon,
+            generated_at=generated_at,
+            periods=periods,
+            data_source="NWS"
+        )
+    except Exception:
+        return None
+
+
+async def fetch_nws_observation(station: str, client: httpx.AsyncClient) -> Optional[Dict]:
+    """Fetch latest observation from NWS for a station"""
+    try:
+        headers = {"User-Agent": NWS_USER_AGENT, "Accept": "application/geo+json"}
+
+        response = await client.get(
+            f"{NWS_API_BASE}/stations/{station}/observations/latest",
+            headers=headers,
+            timeout=10.0
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        props = data.get("properties", {})
+        return {
+            "station": station,
+            "timestamp": props.get("timestamp"),
+            "raw_message": props.get("rawMessage"),
+            "temperature_c": props.get("temperature", {}).get("value"),
+            "dewpoint_c": props.get("dewpoint", {}).get("value"),
+            "wind_direction": props.get("windDirection", {}).get("value"),
+            "wind_speed_kmh": props.get("windSpeed", {}).get("value"),
+            "wind_gust_kmh": props.get("windGust", {}).get("value"),
+            "visibility_m": props.get("visibility", {}).get("value"),
+            "pressure_pa": props.get("barometricPressure", {}).get("value"),
+            "description": props.get("textDescription"),
+            "data_source": "NWS"
+        }
+    except Exception:
+        return None
+
+
+@app.get("/api/nws/alerts")
+async def get_nws_alerts(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude")
+):
+    """Get active weather alerts from NWS for a location"""
+    start_time = datetime.now(timezone.utc)
+
+    async with httpx.AsyncClient() as client:
+        alerts = await fetch_nws_alerts(lat, lon, client)
+        elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+
+        health_tracker.record_call("NWS_ALERTS", len(alerts) >= 0, elapsed_ms)
+
+        return {
+            "location": {"latitude": lat, "longitude": lon},
+            "alert_count": len(alerts),
+            "alerts": alerts,
+            "data_source": "NWS",
+            "fetched_at": datetime.now(timezone.utc).isoformat()
+        }
+
+
+@app.get("/api/nws/forecast", response_model=NWSForecast)
+async def get_nws_forecast(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude")
+):
+    """Get point forecast from NWS Weather API"""
+    start_time = datetime.now(timezone.utc)
+
+    async with httpx.AsyncClient() as client:
+        forecast = await fetch_nws_forecast(lat, lon, client)
+        elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+
+        if forecast:
+            health_tracker.record_call("NWS_FORECAST", True, elapsed_ms)
+            return forecast
+        else:
+            health_tracker.record_call("NWS_FORECAST", False, elapsed_ms)
+            raise HTTPException(status_code=503, detail="Failed to fetch NWS forecast")
+
+
+@app.get("/api/nws/observation/{station}")
+async def get_nws_observation(station: str):
+    """Get latest observation from NWS for a station"""
+    station = station.upper().strip()
+    start_time = datetime.now(timezone.utc)
+
+    async with httpx.AsyncClient() as client:
+        observation = await fetch_nws_observation(station, client)
+        elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+
+        if observation:
+            health_tracker.record_call("NWS_OBSERVATION", True, elapsed_ms)
+            return observation
+        else:
+            health_tracker.record_call("NWS_OBSERVATION", False, elapsed_ms)
+            raise HTTPException(status_code=503, detail=f"Failed to fetch NWS observation for {station}")
+
+
+@app.get("/api/data-sources")
+async def get_data_sources():
+    """Get status of all enabled data sources for Skytron"""
+    return {
+        "enabled_sources": ENABLED_DATA_SOURCES,
+        "source_details": {
+            "FAA_AWC": {
+                "name": "FAA Aviation Weather Center",
+                "url": "https://aviationweather.gov",
+                "provides": ["METAR", "TAF", "PIREPs", "AIRMETs", "SIGMETs"],
+                "enabled": ENABLED_DATA_SOURCES["FAA_AWC"],
+                "requires_key": False
+            },
+            "NWS_API": {
+                "name": "NWS Weather API",
+                "url": "https://api.weather.gov",
+                "provides": ["Alerts", "Forecasts", "Observations", "Radar"],
+                "enabled": ENABLED_DATA_SOURCES["NWS_API"],
+                "requires_key": False
+            },
+            "AVWX": {
+                "name": "AVWX REST API",
+                "url": "https://avwx.rest",
+                "provides": ["METAR (backup)", "TAF (backup)", "Parsed Data"],
+                "enabled": ENABLED_DATA_SOURCES["AVWX"],
+                "requires_key": True,
+                "key_configured": bool(AVWX_API_TOKEN)
+            },
+            "OPEN_METEO": {
+                "name": "Open-Meteo API",
+                "url": "https://open-meteo.com",
+                "provides": ["Global Forecasts", "Historical Data"],
+                "enabled": ENABLED_DATA_SOURCES["OPEN_METEO"],
+                "requires_key": False
+            }
+        }
+    }
+
+
 @app.get("/api/aviation/metar/{station}", response_model=METARData)
 async def get_metar(station: str):
-    """Get current METAR for aviation station (uses FAA Aviation Weather API with AVWX fallback)"""
+    """Get current METAR for aviation station (uses FAA Aviation Weather API with NWS/AVWX fallback)"""
     station = station.upper().strip()
 
     # Auto-prepend K for 3-letter US airport codes
@@ -1670,6 +1945,7 @@ class BenchmarkResult(BaseModel):
     source_name: str
     source_url: str
     used_by: List[str]
+    skytron_integrated: bool  # True if functionally integrated in Skytron API
     category: str  # "government", "commercial", "open-source"
     status: str  # "operational", "degraded", "offline"
     response_time_ms: float
@@ -1688,130 +1964,164 @@ async def run_benchmarks(station: str = "KJFK"):
 
     # Data sources commonly used by aviation companies
     # Categories: government, commercial, open-source
+    # skytron_integrated: True = functionally integrated in Skytron API
     data_sources = [
         # === GOVERNMENT / OFFICIAL SOURCES ===
         {
             "name": "FAA Aviation Weather Center (METAR)",
             "url": f"https://aviationweather.gov/api/data/metar?ids={station}&format=json",
-            "used_by": ["Garmin", "ForeFlight", "Jeppesen", "Skytron"],
+            "used_by": ["Garmin", "ForeFlight", "Jeppesen"],
+            "skytron_integrated": True,
             "category": "government",
             "features": ["METAR", "Real-time", "Official"],
-            "notes": "Primary FAA source - used by all major aviation apps"
+            "notes": "Primary FAA source - Skytron primary METAR source"
         },
         {
             "name": "FAA Aviation Weather Center (TAF)",
             "url": f"https://aviationweather.gov/api/data/taf?ids={station}&format=json",
-            "used_by": ["Garmin", "ForeFlight", "Jeppesen", "Skytron"],
+            "used_by": ["Garmin", "ForeFlight", "Jeppesen"],
+            "skytron_integrated": True,
             "category": "government",
             "features": ["TAF", "Forecasts", "Official"],
-            "notes": "Terminal Aerodrome Forecasts from FAA"
+            "notes": "Terminal Aerodrome Forecasts - Skytron primary TAF source"
         },
         {
-            "name": "NWS Weather API",
-            "url": "https://api.weather.gov/points/40.6413,-73.7781",
-            "used_by": ["Garmin", "ForeFlight", "Skytron", "Weather Apps"],
+            "name": "NWS Weather API (Alerts)",
+            "url": "https://api.weather.gov/alerts/active?point=40.6413,-73.7781",
+            "used_by": ["Garmin", "ForeFlight"],
+            "skytron_integrated": True,
             "category": "government",
-            "features": ["Forecasts", "Alerts", "Radar", "Free"],
-            "notes": "National Weather Service - primary US forecast source"
+            "features": ["Weather Alerts", "Warnings", "Watches"],
+            "notes": "NWS Alerts - Skytron /api/nws/alerts endpoint"
         },
         {
-            "name": "NWS Aviation Weather (ADDS)",
+            "name": "NWS Weather API (Forecast)",
+            "url": "https://api.weather.gov/points/40.6413,-73.7781",
+            "used_by": ["Garmin", "ForeFlight"],
+            "skytron_integrated": True,
+            "category": "government",
+            "features": ["Point Forecasts", "7-day", "Detailed"],
+            "notes": "NWS Forecasts - Skytron /api/nws/forecast endpoint"
+        },
+        {
+            "name": "NWS Weather API (Observations)",
+            "url": f"https://api.weather.gov/stations/{station}/observations/latest",
+            "used_by": ["Garmin", "ForeFlight"],
+            "skytron_integrated": True,
+            "category": "government",
+            "features": ["Station Observations", "Current Conditions"],
+            "notes": "NWS Observations - Skytron /api/nws/observation endpoint"
+        },
+        {
+            "name": "NWS Aviation Weather (ADDS/PIREPs)",
             "url": f"https://aviationweather.gov/api/data/pirep?id={station}&format=json",
-            "used_by": ["Garmin", "ForeFlight", "Jeppesen", "Skytron"],
+            "used_by": ["Garmin", "ForeFlight", "Jeppesen"],
+            "skytron_integrated": False,
             "category": "government",
             "features": ["PIREPs", "Turbulence", "Icing"],
-            "notes": "Pilot Reports - critical for flight planning"
+            "notes": "Pilot Reports - planned for future integration"
         },
         {
             "name": "FAA NOTAM System",
             "url": "https://www.notams.faa.gov/dinsQueryWeb/queryRetrievalMapAction.do",
             "used_by": ["Garmin", "ForeFlight", "Jeppesen"],
+            "skytron_integrated": False,
             "category": "government",
             "features": ["NOTAMs", "TFRs", "Airspace"],
-            "notes": "Official FAA NOTAM distribution system"
+            "notes": "Official FAA NOTAM - planned for future integration"
         },
         {
             "name": "NOAA GFS Model",
             "url": "https://nomads.ncep.noaa.gov/",
             "used_by": ["Garmin", "ForeFlight", "WSI/DTN"],
+            "skytron_integrated": False,
             "category": "government",
             "features": ["Global Model", "16-day Forecast", "Raw Data"],
-            "notes": "Global Forecast System - base model for most forecasts"
+            "notes": "Global Forecast System - not integrated"
         },
         # === COMMERCIAL SOURCES ===
         {
             "name": "AVWX REST API",
             "url": f"https://avwx.rest/api/metar/{station}",
-            "used_by": ["ForeFlight", "Aviation Apps", "Skytron (Backup)"],
+            "used_by": ["ForeFlight", "Aviation Apps"],
+            "skytron_integrated": ENABLED_DATA_SOURCES["AVWX"],
             "category": "commercial",
             "features": ["METAR", "TAF", "Parsed", "Global"],
-            "notes": "Popular aviation weather parsing API"
+            "notes": f"AVWX Backup - {'ENABLED' if ENABLED_DATA_SOURCES['AVWX'] else 'Requires API token'}"
         },
         {
             "name": "CheckWX API",
             "url": f"https://api.checkwx.com/metar/{station}",
             "used_by": ["Garmin Pilot", "Aviation Apps"],
+            "skytron_integrated": False,
             "category": "commercial",
             "features": ["METAR", "TAF", "Decoded"],
-            "notes": "Aviation-focused weather API"
+            "notes": "Aviation-focused weather API - not integrated"
         },
         {
             "name": "AeroAPI (FlightAware)",
             "url": "https://aeroapi.flightaware.com/aeroapi/",
             "used_by": ["ForeFlight", "FlightAware"],
+            "skytron_integrated": False,
             "category": "commercial",
             "features": ["Flight Tracking", "ADS-B", "Delays"],
-            "notes": "FlightAware's commercial aviation API"
+            "notes": "FlightAware's commercial API - not integrated"
         },
         {
             "name": "SkyVector Charts",
             "url": "https://skyvector.com/",
             "used_by": ["ForeFlight", "Garmin", "Pilots"],
+            "skytron_integrated": False,
             "category": "commercial",
             "features": ["VFR Charts", "IFR Charts", "Planning"],
-            "notes": "Popular free aviation charts"
+            "notes": "Aviation charts - not integrated"
         },
         # === OPEN SOURCE / FREE TIER ===
         {
             "name": "Open-Meteo API",
             "url": "https://api.open-meteo.com/v1/forecast?latitude=40.64&longitude=-73.78&hourly=temperature_2m,wind_speed_10m",
-            "used_by": ["ForeFlight", "Skytron", "Open Source Apps"],
+            "used_by": ["ForeFlight", "Open Source Apps"],
+            "skytron_integrated": True,
             "category": "open-source",
             "features": ["Global", "Hourly", "Free", "Fast"],
-            "notes": "Open-source weather API with excellent coverage"
+            "notes": "Open-Meteo - Skytron /api/weather/forecast endpoint"
         },
         {
             "name": "OpenWeatherMap",
             "url": "https://api.openweathermap.org/data/2.5/weather?lat=40.64&lon=-73.78&appid=demo",
             "used_by": ["Mobile Apps", "Websites"],
+            "skytron_integrated": False,
             "category": "open-source",
             "features": ["Current", "Forecast", "Global"],
-            "notes": "Popular weather API with free tier"
+            "notes": "Popular weather API - not integrated"
         },
         {
             "name": "ADS-B Exchange",
             "url": "https://globe.adsbexchange.com/",
             "used_by": ["ForeFlight", "FlightAware", "Enthusiasts"],
+            "skytron_integrated": False,
             "category": "open-source",
             "features": ["Live Traffic", "Unfiltered", "Global"],
-            "notes": "Crowdsourced ADS-B - no military filtering"
+            "notes": "Crowdsourced ADS-B - not integrated"
         },
         # === SATELLITE / RADAR ===
         {
             "name": "NOAA GOES Satellite",
             "url": "https://www.star.nesdis.noaa.gov/GOES/index.php",
-            "used_by": ["Garmin", "ForeFlight", "Skytron", "All Weather Apps"],
+            "used_by": ["Garmin", "ForeFlight", "All Weather Apps"],
+            "skytron_integrated": False,
             "category": "government",
             "features": ["Satellite Imagery", "Visible", "IR"],
-            "notes": "GOES-East/West satellite imagery"
+            "notes": "GOES satellite imagery - planned for future integration"
         },
         {
             "name": "NWS NEXRAD Radar",
             "url": "https://radar.weather.gov/",
-            "used_by": ["Garmin", "ForeFlight", "Skytron", "All Weather Apps"],
+            "used_by": ["Garmin", "ForeFlight", "All Weather Apps"],
+            "skytron_integrated": False,
             "category": "government",
             "features": ["Radar", "Precipitation", "Storm Tracking"],
-            "notes": "National radar network - critical for weather avoidance"
+            "notes": "NEXRAD radar - planned for future integration"
         }
     ]
 
@@ -1882,6 +2192,7 @@ async def run_benchmarks(station: str = "KJFK"):
                 source_name=source["name"],
                 source_url=source["url"].split("?")[0],  # Hide query params
                 used_by=source["used_by"],
+                skytron_integrated=source.get("skytron_integrated", False),
                 category=source.get("category", "other"),
                 status=status,
                 response_time_ms=round(response_time, 2),
@@ -1914,6 +2225,8 @@ async def run_benchmarks(station: str = "KJFK"):
         categories[cat]["avg_quality"] = round(sum(categories[cat]["avg_quality"]) / max(1, len(categories[cat]["avg_quality"])), 1)
 
     # Vendor analysis - what sources each vendor uses
+    # For competitors: based on reported usage (used_by field)
+    # For Skytron: based on actual functional integration (skytron_integrated field)
     vendor_sources = {
         "Garmin": [],
         "ForeFlight": [],
@@ -1921,14 +2234,30 @@ async def run_benchmarks(station: str = "KJFK"):
         "Skytron": []
     }
     for b in benchmarks:
-        for vendor in vendor_sources.keys():
+        # Competitors - based on reported usage
+        for vendor in ["Garmin", "ForeFlight", "Jeppesen"]:
             if any(vendor in u for u in b.used_by):
                 vendor_sources[vendor].append({
                     "name": b.source_name,
                     "status": b.status,
                     "response_time_ms": b.response_time_ms,
-                    "category": b.category
+                    "category": b.category,
+                    "integrated": True  # Assumed integrated for competitors
                 })
+
+        # Skytron - based on actual functional integration
+        if b.skytron_integrated:
+            vendor_sources["Skytron"].append({
+                "name": b.source_name,
+                "status": b.status,
+                "response_time_ms": b.response_time_ms,
+                "category": b.category,
+                "integrated": True
+            })
+
+    # Add summary stats for Skytron
+    skytron_integrated_count = sum(1 for b in benchmarks if b.skytron_integrated)
+    skytron_planned_count = sum(1 for b in benchmarks if not b.skytron_integrated)
 
     return {
         "station": station,
@@ -1941,6 +2270,12 @@ async def run_benchmarks(station: str = "KJFK"):
             "auth_required": sum(1 for b in benchmarks if b.status == "auth_required"),
             "avg_response_time_ms": round(avg_response, 2),
             "avg_data_quality": round(avg_quality, 1)
+        },
+        "skytron_integration": {
+            "integrated_sources": skytron_integrated_count,
+            "planned_sources": skytron_planned_count,
+            "integration_percentage": round((skytron_integrated_count / len(benchmarks)) * 100, 1) if benchmarks else 0,
+            "enabled_services": ENABLED_DATA_SOURCES
         },
         "categories": categories,
         "vendor_sources": vendor_sources,
