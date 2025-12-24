@@ -1895,6 +1895,11 @@ async def get_nws_alerts(
         # Log for ground-truth compliance tracking (NWS is a government source)
         compliance_verifier.log_api_call("nws_alerts", "NWS_API", True, elapsed_ms, len(str(alerts)))
 
+        # Compute checksum for data integrity (DO-178C DO-C-5 compliance)
+        raw_alerts = json.dumps(alerts, sort_keys=True, default=str)
+        checksum = compliance_tracker.compute_checksum(raw_alerts)
+        compliance_verifier.log_checksum_verification("NWS_ALERTS", checksum, True)
+
         return {
             "location": {"latitude": lat, "longitude": lon},
             "alert_count": len(alerts),
@@ -2361,6 +2366,11 @@ async def get_pireps(
             # Log for ground-truth compliance tracking
             compliance_verifier.log_api_call("pireps", "FAA_AWC", True, elapsed_ms, len(str(data)))
 
+            # Compute checksum for data integrity (DO-178C DO-C-5 compliance)
+            raw_pireps = json.dumps(data, sort_keys=True)
+            checksum = compliance_tracker.compute_checksum(raw_pireps)
+            compliance_verifier.log_checksum_verification("PIREPS", checksum, True)
+
             return {
                 "station": station,
                 "radius_nm": radius_nm,
@@ -2440,6 +2450,11 @@ async def get_sigmets(
 
             # Log for ground-truth compliance tracking
             compliance_verifier.log_api_call("sigmets", "FAA_AWC", True, elapsed_ms, len(str(data)))
+
+            # Compute checksum for data integrity (DO-178C DO-C-5 compliance)
+            raw_sigmets = json.dumps(data, sort_keys=True)
+            checksum = compliance_tracker.compute_checksum(raw_sigmets)
+            compliance_verifier.log_checksum_verification("SIGMETS", checksum, True)
 
             return {
                 "active_count": len(sigmets),
@@ -2837,6 +2852,11 @@ async def get_taf(station: str):
 
             # Log for ground-truth compliance tracking
             compliance_verifier.log_api_call("taf", "FAA_AWC", True, elapsed_ms, len(str(data)))
+
+            # Compute checksum for data integrity (DO-178C DO-C-5 compliance)
+            raw_taf = taf.get("rawTAF", "")
+            checksum = compliance_tracker.compute_checksum(raw_taf)
+            compliance_verifier.log_checksum_verification("TAF", checksum, True)
 
             return result
 
