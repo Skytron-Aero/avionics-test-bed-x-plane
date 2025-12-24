@@ -34,6 +34,11 @@ ENABLED_DATA_SOURCES = {
     "NWS_API": True,  # NWS Weather API (api.weather.gov) - always enabled (no key needed)
     "AVWX": bool(AVWX_API_TOKEN),  # AVWX requires API token
     "OPEN_METEO": True,  # Open-Meteo - always enabled (no key needed)
+    "PIREPS": True,  # Pilot Reports from FAA AWC
+    "SIGMETS_AIRMETS": True,  # SIGMETs and AIRMETs from FAA AWC
+    "NEXRAD": True,  # NEXRAD Radar from NWS
+    "GOES_SATELLITE": True,  # GOES Satellite imagery
+    "NOTAMS": True,  # NOTAMs from FAA
 }
 
 
@@ -674,9 +679,436 @@ async def get_data_sources():
                 "provides": ["Global Forecasts", "Historical Data"],
                 "enabled": ENABLED_DATA_SOURCES["OPEN_METEO"],
                 "requires_key": False
+            },
+            "PIREPS": {
+                "name": "Pilot Reports (PIREPs)",
+                "url": "https://aviationweather.gov",
+                "provides": ["Turbulence", "Icing", "Sky Conditions"],
+                "enabled": ENABLED_DATA_SOURCES["PIREPS"],
+                "requires_key": False
+            },
+            "SIGMETS_AIRMETS": {
+                "name": "SIGMETs & AIRMETs",
+                "url": "https://aviationweather.gov",
+                "provides": ["Significant Weather", "Airmen's Advisories"],
+                "enabled": ENABLED_DATA_SOURCES["SIGMETS_AIRMETS"],
+                "requires_key": False
+            },
+            "NEXRAD": {
+                "name": "NEXRAD Radar",
+                "url": "https://radar.weather.gov",
+                "provides": ["Precipitation", "Storm Tracking", "Radar Imagery"],
+                "enabled": ENABLED_DATA_SOURCES["NEXRAD"],
+                "requires_key": False
+            },
+            "GOES_SATELLITE": {
+                "name": "GOES Satellite",
+                "url": "https://www.star.nesdis.noaa.gov",
+                "provides": ["Visible Imagery", "Infrared", "Water Vapor"],
+                "enabled": ENABLED_DATA_SOURCES["GOES_SATELLITE"],
+                "requires_key": False
+            },
+            "NOTAMS": {
+                "name": "NOTAMs",
+                "url": "https://aviationweather.gov",
+                "provides": ["Airport Notices", "TFRs", "Airspace Restrictions"],
+                "enabled": ENABLED_DATA_SOURCES["NOTAMS"],
+                "requires_key": False
             }
         }
     }
+
+
+# ==================== PIREPs (PILOT REPORTS) ====================
+
+class PIREP(BaseModel):
+    """Pilot Report data"""
+    receipt_time: str
+    observation_time: Optional[str] = None
+    aircraft_type: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    altitude_ft: Optional[int] = None
+    report_type: str  # "PIREP" or "AIREP"
+    raw_text: str
+    turbulence: Optional[str] = None
+    icing: Optional[str] = None
+    sky_conditions: Optional[List[Dict]] = None  # Can be a list of cloud layers
+    weather: Optional[str] = None
+    temperature_c: Optional[float] = None
+    wind_direction: Optional[int] = None
+    wind_speed: Optional[int] = None
+
+
+@app.get("/api/aviation/pireps")
+async def get_pireps(
+    station: str = Query("KJFK", description="Reference station ICAO code"),
+    radius_nm: int = Query(100, description="Search radius in nautical miles"),
+    hours: int = Query(2, description="Hours of PIREPs to retrieve (max 12)")
+):
+    """Get Pilot Reports (PIREPs) within radius of a station"""
+    station = station.upper().strip()
+    if len(station) == 3 and station.isalpha():
+        station = "K" + station
+
+    hours = min(hours, 12)  # Cap at 12 hours
+    start_time = datetime.now(timezone.utc)
+
+    # FAA AWC PIREP API - uses station ID and distance
+    url = f"https://aviationweather.gov/api/data/pirep?id={station}&dist={radius_nm}&age={hours}&format=json"
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url, timeout=15.0)
+            elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            response.raise_for_status()
+            data = response.json()
+
+            pireps = []
+            for p in data:
+                # Build turbulence info
+                turb_info = None
+                if p.get("tbInt1"):
+                    turb_info = f"{p.get('tbInt1', '')} {p.get('tbType1', '')}".strip()
+                    if p.get("tbBas1") or p.get("tbTop1"):
+                        turb_info += f" FL{p.get('tbBas1', '')}-{p.get('tbTop1', '')}"
+
+                # Build icing info
+                ice_info = None
+                if p.get("icgInt1"):
+                    ice_info = f"{p.get('icgInt1', '')} {p.get('icgType1', '')}".strip()
+                    if p.get("icgBas1") or p.get("icgTop1"):
+                        ice_info += f" FL{p.get('icgBas1', '')}-{p.get('icgTop1', '')}"
+
+                pireps.append(PIREP(
+                    receipt_time=p.get("receiptTime", ""),
+                    observation_time=str(p.get("obsTime")) if p.get("obsTime") else None,
+                    aircraft_type=p.get("acType"),
+                    latitude=p.get("lat"),
+                    longitude=p.get("lon"),
+                    altitude_ft=int(p.get("fltLvl", 0) * 100) if p.get("fltLvl") else None,
+                    report_type=p.get("pirepType", "PIREP"),
+                    raw_text=p.get("rawOb", ""),
+                    turbulence=turb_info,
+                    icing=ice_info,
+                    sky_conditions=p.get("clouds"),
+                    weather=p.get("wxString") if p.get("wxString") else None,
+                    temperature_c=p.get("temp"),
+                    wind_direction=p.get("wdir"),
+                    wind_speed=p.get("wspd")
+                ))
+
+            health_tracker.record_call("PIREPS", True, elapsed_ms)
+
+            return {
+                "station": station,
+                "radius_nm": radius_nm,
+                "hours": hours,
+                "count": len(pireps),
+                "pireps": pireps,
+                "data_source": "FAA_AWC",
+                "fetched_at": datetime.now(timezone.utc).isoformat()
+            }
+
+        except Exception as e:
+            health_tracker.record_call("PIREPS", False, 0)
+            raise HTTPException(status_code=503, detail=f"Failed to fetch PIREPs: {str(e)}")
+
+
+# ==================== SIGMETs & AIRMETs ====================
+
+class SIGMET(BaseModel):
+    """SIGMET/AIRMET data"""
+    airmet_id: Optional[str] = None
+    sigmet_id: Optional[str] = None
+    hazard_type: str  # TURB, ICE, IFR, MTN OBSCN, etc.
+    severity: Optional[str] = None
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
+    altitude_low_ft: Optional[int] = None
+    altitude_high_ft: Optional[int] = None
+    raw_text: str
+    region: Optional[str] = None
+    data_type: str  # "SIGMET" or "AIRMET"
+
+
+@app.get("/api/aviation/sigmets")
+async def get_sigmets(
+    hazard: Optional[str] = Query(None, description="Filter by hazard: convective, turb, ice, ifr, mtn"),
+    region: Optional[str] = Query(None, description="Region: us, atlantic, pacific, gulf")
+):
+    """Get active SIGMETs (Significant Meteorological Information)"""
+    start_time = datetime.now(timezone.utc)
+
+    # Build URL with filters
+    url = "https://aviationweather.gov/api/data/sigmet?format=json"
+    if hazard:
+        url += f"&hazard={hazard}"
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url, timeout=15.0)
+            elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            response.raise_for_status()
+            data = response.json()
+
+            def parse_time_value(val):
+                """Convert timestamp or string to ISO string"""
+                if val is None:
+                    return None
+                if isinstance(val, int):
+                    return datetime.fromtimestamp(val, tz=timezone.utc).isoformat()
+                return str(val)
+
+            sigmets = []
+            for s in data:
+                sigmets.append(SIGMET(
+                    sigmet_id=s.get("sigmetId"),
+                    hazard_type=s.get("hazard", "UNKNOWN"),
+                    severity=s.get("severity"),
+                    valid_from=parse_time_value(s.get("validTimeFrom")),
+                    valid_to=parse_time_value(s.get("validTimeTo")),
+                    altitude_low_ft=s.get("altitudeLow"),
+                    altitude_high_ft=s.get("altitudeHigh"),
+                    raw_text=s.get("rawSigmet", s.get("rawAirmet", "")),
+                    region=s.get("region"),
+                    data_type="SIGMET"
+                ))
+
+            health_tracker.record_call("SIGMETS", True, elapsed_ms)
+
+            return {
+                "active_count": len(sigmets),
+                "sigmets": sigmets,
+                "data_source": "FAA_AWC",
+                "fetched_at": datetime.now(timezone.utc).isoformat()
+            }
+
+        except Exception as e:
+            health_tracker.record_call("SIGMETS", False, 0)
+            raise HTTPException(status_code=503, detail=f"Failed to fetch SIGMETs: {str(e)}")
+
+
+@app.get("/api/aviation/airmets")
+async def get_airmets(
+    hazard: Optional[str] = Query(None, description="Filter by hazard: turb, ice, ifr, mtn")
+):
+    """Get active AIRMETs (Airmen's Meteorological Information)"""
+    start_time = datetime.now(timezone.utc)
+
+    url = "https://aviationweather.gov/api/data/airmet?format=json"
+    if hazard:
+        url += f"&hazard={hazard}"
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url, timeout=15.0)
+            elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            response.raise_for_status()
+            data = response.json()
+
+            def parse_time_value(val):
+                """Convert timestamp or string to ISO string"""
+                if val is None:
+                    return None
+                if isinstance(val, int):
+                    return datetime.fromtimestamp(val, tz=timezone.utc).isoformat()
+                return str(val)
+
+            airmets = []
+            for a in data:
+                airmets.append(SIGMET(
+                    airmet_id=a.get("airmetId"),
+                    hazard_type=a.get("hazard", "UNKNOWN"),
+                    severity=a.get("severity"),
+                    valid_from=parse_time_value(a.get("validTimeFrom")),
+                    valid_to=parse_time_value(a.get("validTimeTo")),
+                    altitude_low_ft=a.get("altitudeLow"),
+                    altitude_high_ft=a.get("altitudeHigh"),
+                    raw_text=a.get("rawAirmet", ""),
+                    region=a.get("region"),
+                    data_type="AIRMET"
+                ))
+
+            health_tracker.record_call("AIRMETS", True, elapsed_ms)
+
+            return {
+                "active_count": len(airmets),
+                "airmets": airmets,
+                "data_source": "FAA_AWC",
+                "fetched_at": datetime.now(timezone.utc).isoformat()
+            }
+
+        except Exception as e:
+            health_tracker.record_call("AIRMETS", False, 0)
+            raise HTTPException(status_code=503, detail=f"Failed to fetch AIRMETs: {str(e)}")
+
+
+# ==================== NEXRAD RADAR ====================
+
+@app.get("/api/radar/nexrad")
+async def get_nexrad_radar(
+    station: Optional[str] = Query(None, description="Specific radar station (e.g., KOKX)"),
+    lat: Optional[float] = Query(None, description="Latitude for nearest radar"),
+    lon: Optional[float] = Query(None, description="Longitude for nearest radar")
+):
+    """Get NEXRAD radar station info and data links"""
+    start_time = datetime.now(timezone.utc)
+
+    async with httpx.AsyncClient() as client:
+        try:
+            # Get radar station info from NWS
+            if station:
+                station = station.upper()
+            elif lat and lon:
+                # Find nearest radar
+                points_url = f"https://api.weather.gov/points/{lat},{lon}"
+                headers = {"User-Agent": NWS_USER_AGENT}
+                points_resp = await client.get(points_url, headers=headers, timeout=10.0)
+                if points_resp.status_code == 200:
+                    points_data = points_resp.json()
+                    radar_station = points_data.get("properties", {}).get("radarStation")
+                    if radar_station:
+                        station = radar_station
+
+            elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            health_tracker.record_call("NEXRAD", True, elapsed_ms)
+
+            # Return radar data links
+            radar_base = "https://radar.weather.gov"
+            ridge_base = "https://mrms.ncep.noaa.gov/data"
+
+            return {
+                "station": station or "CONUS",
+                "radar_links": {
+                    "interactive_map": f"{radar_base}/",
+                    "station_page": f"{radar_base}/station/{station}/standard" if station else None,
+                    "ridge_lite": f"{radar_base}/ridge/lite/{station}_loop.gif" if station else None,
+                    "conus_composite": f"{ridge_base}/RIDGEII/CONUS/BREF_AGL/",
+                    "conus_loop": f"{radar_base}/ridge/standard/CONUS_loop.gif"
+                },
+                "products": ["Base Reflectivity", "Composite Reflectivity", "Velocity", "Precipitation"],
+                "coverage": "CONUS + territories",
+                "update_frequency": "5-10 minutes",
+                "data_source": "NWS_NEXRAD",
+                "fetched_at": datetime.now(timezone.utc).isoformat()
+            }
+
+        except Exception as e:
+            health_tracker.record_call("NEXRAD", False, 0)
+            raise HTTPException(status_code=503, detail=f"Failed to get radar info: {str(e)}")
+
+
+# ==================== GOES SATELLITE ====================
+
+@app.get("/api/satellite/goes")
+async def get_goes_satellite(
+    region: str = Query("CONUS", description="Region: CONUS, FULL_DISK, MESOSCALE"),
+    product: str = Query("GEOCOLOR", description="Product: GEOCOLOR, Band02, Band13, etc.")
+):
+    """Get GOES satellite imagery links and metadata"""
+    start_time = datetime.now(timezone.utc)
+
+    try:
+        # GOES-East (GOES-16) and GOES-West (GOES-18) imagery
+        goes_base = "https://cdn.star.nesdis.noaa.gov"
+
+        regions = {
+            "CONUS": "CONUS",
+            "FULL_DISK": "DISK",
+            "MESOSCALE": "MESO"
+        }
+
+        products = {
+            "GEOCOLOR": "GEOCOLOR",  # True color day, IR night
+            "Band02": "02",  # Visible
+            "Band13": "13",  # Clean IR longwave
+            "Band14": "14",  # IR longwave
+            "AirMass": "AirMass",
+            "Sandwich": "Sandwich",
+            "DayCloudPhase": "DayCloudPhase"
+        }
+
+        region_code = regions.get(region.upper(), "CONUS")
+        product_code = products.get(product, "GEOCOLOR")
+
+        elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        health_tracker.record_call("GOES_SATELLITE", True, elapsed_ms)
+
+        return {
+            "satellite": {
+                "GOES-East": "GOES-16 (75.2°W)",
+                "GOES-West": "GOES-18 (137.2°W)"
+            },
+            "region": region,
+            "product": product,
+            "imagery_links": {
+                "goes_east_latest": f"{goes_base}/GOES16/ABI/SECTOR/{region_code}/{product_code}/latest.jpg",
+                "goes_west_latest": f"{goes_base}/GOES18/ABI/SECTOR/{region_code}/{product_code}/latest.jpg",
+                "goes_east_loop": f"{goes_base}/GOES16/ABI/SECTOR/{region_code}/{product_code}/",
+                "goes_west_loop": f"{goes_base}/GOES18/ABI/SECTOR/{region_code}/{product_code}/",
+                "interactive_viewer": "https://www.star.nesdis.noaa.gov/GOES/index.php"
+            },
+            "available_products": list(products.keys()),
+            "available_regions": list(regions.keys()),
+            "update_frequency": "1-5 minutes (varies by region)",
+            "data_source": "NOAA_GOES",
+            "fetched_at": datetime.now(timezone.utc).isoformat()
+        }
+
+    except Exception as e:
+        health_tracker.record_call("GOES_SATELLITE", False, 0)
+        raise HTTPException(status_code=503, detail=f"Failed to get satellite info: {str(e)}")
+
+
+# ==================== NOTAMs ====================
+
+class NOTAM(BaseModel):
+    """NOTAM data"""
+    notam_id: str
+    facility_designator: Optional[str] = None
+    notam_type: str  # D, FDC, TFR, etc.
+    classification: Optional[str] = None
+    effective_start: str
+    effective_end: str
+    text: str
+    location: Optional[str] = None
+    affected_fir: Optional[str] = None
+
+
+@app.get("/api/aviation/notams/{station}")
+async def get_notams(station: str):
+    """Get NOTAMs information and links for an airport"""
+    station = station.upper().strip()
+    start_time = datetime.now(timezone.utc)
+
+    # Auto-prepend K for 3-letter US airport codes
+    if len(station) == 3 and station.isalpha():
+        station = "K" + station
+
+    try:
+        elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        health_tracker.record_call("NOTAMS", True, elapsed_ms)
+
+        # NOTAMs are available via FAA NOTAM Search
+        # Provide direct links to official sources
+        return {
+            "station": station,
+            "notam_links": {
+                "faa_notam_search": f"https://notams.aim.faa.gov/notamSearch/search?searchType=0&icaoCode={station}",
+                "faa_tfr": "https://tfr.faa.gov/tfr2/list.html",
+                "pilotweb": f"https://pilotweb.nas.faa.gov/PilotWeb/notamSearch.do?keyword={station}",
+                "skyvector": f"https://skyvector.com/airport/{station}"
+            },
+            "categories": ["Airport NOTAMs (D)", "FDC NOTAMs", "TFRs", "GPS NOTAMs", "Military NOTAMs"],
+            "note": "NOTAMs require FAA NOTAM Search - links provided to official sources",
+            "data_source": "FAA_NOTAM",
+            "fetched_at": datetime.now(timezone.utc).isoformat()
+        }
+
+    except Exception as e:
+        health_tracker.record_call("NOTAMS", False, 0)
+        raise HTTPException(status_code=503, detail=f"Failed to get NOTAM info: {str(e)}")
 
 
 @app.get("/api/aviation/metar/{station}", response_model=METARData)
@@ -2013,22 +2445,40 @@ async def run_benchmarks(station: str = "KJFK"):
             "notes": "NWS Observations - Skytron /api/nws/observation endpoint"
         },
         {
-            "name": "NWS Aviation Weather (ADDS/PIREPs)",
-            "url": f"https://aviationweather.gov/api/data/pirep?id={station}&format=json",
+            "name": "PIREPs (Pilot Reports)",
+            "url": f"https://aviationweather.gov/api/data/pirep?id={station}&dist=100&format=json",
             "used_by": ["Garmin", "ForeFlight", "Jeppesen"],
-            "skytron_integrated": False,
+            "skytron_integrated": True,
             "category": "government",
             "features": ["PIREPs", "Turbulence", "Icing"],
-            "notes": "Pilot Reports - planned for future integration"
+            "notes": "Pilot Reports - Skytron /api/aviation/pireps endpoint"
         },
         {
-            "name": "FAA NOTAM System",
-            "url": "https://www.notams.faa.gov/dinsQueryWeb/queryRetrievalMapAction.do",
+            "name": "SIGMETs (Significant Weather)",
+            "url": "https://aviationweather.gov/api/data/sigmet?format=json",
             "used_by": ["Garmin", "ForeFlight", "Jeppesen"],
-            "skytron_integrated": False,
+            "skytron_integrated": True,
+            "category": "government",
+            "features": ["SIGMETs", "Convective", "Hazards"],
+            "notes": "SIGMETs - Skytron /api/aviation/sigmets endpoint"
+        },
+        {
+            "name": "AIRMETs (Airmen's Advisories)",
+            "url": "https://aviationweather.gov/api/data/airmet?format=json",
+            "used_by": ["Garmin", "ForeFlight", "Jeppesen"],
+            "skytron_integrated": True,
+            "category": "government",
+            "features": ["AIRMETs", "IFR", "Mountain Obscuration"],
+            "notes": "AIRMETs - Skytron /api/aviation/airmets endpoint"
+        },
+        {
+            "name": "FAA NOTAMs",
+            "url": f"https://notams.aim.faa.gov/notamSearch/search?searchType=0&icaoCode={station}",
+            "used_by": ["Garmin", "ForeFlight", "Jeppesen"],
+            "skytron_integrated": True,
             "category": "government",
             "features": ["NOTAMs", "TFRs", "Airspace"],
-            "notes": "Official FAA NOTAM - planned for future integration"
+            "notes": "NOTAMs - Skytron /api/aviation/notams endpoint (links to FAA)"
         },
         {
             "name": "NOAA GFS Model",
@@ -2107,21 +2557,21 @@ async def run_benchmarks(station: str = "KJFK"):
         # === SATELLITE / RADAR ===
         {
             "name": "NOAA GOES Satellite",
-            "url": "https://www.star.nesdis.noaa.gov/GOES/index.php",
+            "url": "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/CONUS/GEOCOLOR/latest.jpg",
             "used_by": ["Garmin", "ForeFlight", "All Weather Apps"],
-            "skytron_integrated": False,
+            "skytron_integrated": True,
             "category": "government",
             "features": ["Satellite Imagery", "Visible", "IR"],
-            "notes": "GOES satellite imagery - planned for future integration"
+            "notes": "GOES Satellite - Skytron /api/satellite/goes endpoint"
         },
         {
             "name": "NWS NEXRAD Radar",
             "url": "https://radar.weather.gov/",
             "used_by": ["Garmin", "ForeFlight", "All Weather Apps"],
-            "skytron_integrated": False,
+            "skytron_integrated": True,
             "category": "government",
             "features": ["Radar", "Precipitation", "Storm Tracking"],
-            "notes": "NEXRAD radar - planned for future integration"
+            "notes": "NEXRAD Radar - Skytron /api/radar/nexrad endpoint"
         }
     ]
 
