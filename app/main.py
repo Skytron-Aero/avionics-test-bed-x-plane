@@ -2282,6 +2282,12 @@ async def competitive_analysis_dashboard():
     return FileResponse(os.path.join(STATIC_DIR, "competitive-analysis.html"))
 
 
+@app.get("/live-map")
+async def live_map():
+    """Serve the live weather map with overlays and profile view"""
+    return FileResponse(os.path.join(STATIC_DIR, "live-map.html"))
+
+
 # ==================== PIREPs (PILOT REPORTS) ====================
 
 class PIREP(BaseModel):
