@@ -685,7 +685,7 @@
 
         .trip-waypoint-marker.departure { background: #22c55e; }
         .trip-waypoint-marker.destination { background: #ef4444; }
-        .trip-waypoint-marker.divert { background: #f59e0b; }
+        .trip-waypoint-marker.divert { background: #ef4444; border: 2px solid #fca5a5; }
         .trip-waypoint-marker.enroute { background: #f97316; }
         .trip-waypoint-marker.enroute-airport { background: #22c55e; border: 2px solid #f97316; }
 
@@ -3410,38 +3410,57 @@
         async function loadMetarStations() {
             metarMarkers.clearLayers();
 
-            for (const station of metarStations) {
+            // Fetch all stations in parallel for much faster loading
+            const fetchPromises = metarStations.map(async (station) => {
                 try {
                     const response = await fetch(`/api/aviation/metar/${station.id}`);
                     if (response.ok) {
                         const data = await response.json();
-                        metarData[station.id] = data;
-
-                        const flightRules = data.flight_rules || 'VFR';
-                        const color = flightRulesColors[flightRules] || '#22c55e';
-
-                        const marker = L.circleMarker([station.lat, station.lon], {
-                            radius: 8,
-                            fillColor: color,
-                            color: '#ffffff',
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.8
-                        });
-
-                        marker.on('click', () => showStationInfo(station.id, data));
-                        marker.bindTooltip(station.id, {
-                            permanent: false,
-                            direction: 'top',
-                            className: 'station-tooltip'
-                        });
-
-                        metarMarkers.addLayer(marker);
+                        return { station, data, success: true };
                     }
+                    return { station, success: false };
                 } catch (error) {
                     console.error(`Failed to load METAR for ${station.id}:`, error);
+                    return { station, success: false };
                 }
-            }
+            });
+
+            const results = await Promise.all(fetchPromises);
+
+            // Process results and create markers
+            results.forEach(({ station, data, success }) => {
+                if (success && data) {
+                    metarData[station.id] = data;
+
+                    const flightRules = data.flight_rules || 'VFR';
+                    const color = flightRulesColors[flightRules] || '#22c55e';
+
+                    const marker = L.circleMarker([station.lat, station.lon], {
+                        radius: 8,
+                        fillColor: color,
+                        color: '#ffffff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    });
+
+                    marker.on('click', (e) => {
+                        // In waypoint mode, let the click pass through to add waypoint
+                        if (waypointMode) {
+                            return; // Don't show station info, let waypoint handler work
+                        }
+                        L.DomEvent.stopPropagation(e);
+                        showStationInfo(station.id, data);
+                    });
+                    marker.bindTooltip(station.id, {
+                        permanent: false,
+                        direction: 'top',
+                        className: 'station-tooltip'
+                    });
+
+                    metarMarkers.addLayer(marker);
+                }
+            });
 
             if (overlayState.stations) {
                 metarMarkers.addTo(map);
@@ -3523,6 +3542,14 @@
             document.getElementById('stationInfo').classList.remove('visible');
         }
 
+        // Close station info when clicking on map (but not on markers)
+        map.on('click', function(e) {
+            // Don't close if in waypoint mode (that has its own handler)
+            if (!waypointMode) {
+                closeStationInfo();
+            }
+        });
+
         // Trip Summary Panel Functions
         function toggleTripSummary() {
             const panel = document.getElementById('tripSummary');
@@ -3539,6 +3566,144 @@
             const panel = document.getElementById('tripSummary');
             panel.classList.remove('visible');
             panel.classList.remove('expanded');
+        }
+
+        // Calculate avoidance waypoints around a restricted polygon
+        function calculateAvoidanceWaypoints(entryLat, entryLon, exitLat, exitLon, polygon, zoneName) {
+            if (!polygon || polygon.length < 3) return [];
+
+            // Calculate polygon centroid
+            let centroidLat = 0, centroidLon = 0;
+            polygon.forEach(p => {
+                centroidLat += p[0];
+                centroidLon += p[1];
+            });
+            centroidLat /= polygon.length;
+            centroidLon /= polygon.length;
+
+            // Calculate route direction vector
+            const routeDirLat = exitLat - entryLat;
+            const routeDirLon = exitLon - entryLon;
+
+            // Calculate perpendicular vector (rotated 90 degrees)
+            const perpLat = -routeDirLon;
+            const perpLon = routeDirLat;
+
+            // Determine which side of the route the centroid is on
+            const toCentroidLat = centroidLat - entryLat;
+            const toCentroidLon = centroidLon - entryLon;
+            const dot = toCentroidLat * perpLat + toCentroidLon * perpLon;
+
+            // Calculate polygon bounding box for offset distance
+            let minLat = Infinity, maxLat = -Infinity;
+            let minLon = Infinity, maxLon = -Infinity;
+            polygon.forEach(p => {
+                minLat = Math.min(minLat, p[0]);
+                maxLat = Math.max(maxLat, p[0]);
+                minLon = Math.min(minLon, p[1]);
+                maxLon = Math.max(maxLon, p[1]);
+            });
+
+            const polyWidth = maxLon - minLon;
+            const polyHeight = maxLat - minLat;
+            const offsetDist = Math.max(polyWidth, polyHeight) * 0.6 + 0.15; // Buffer distance
+
+            // Go around on the opposite side of the centroid
+            const offsetDir = dot > 0 ? -1 : 1;
+
+            // Normalize perpendicular vector
+            const perpLen = Math.sqrt(perpLat * perpLat + perpLon * perpLon);
+            const normPerpLat = perpLat / perpLen;
+            const normPerpLon = perpLon / perpLen;
+
+            // Create two waypoints: one before and one after the polygon
+            const midLat = (entryLat + exitLat) / 2;
+            const midLon = (entryLon + exitLon) / 2;
+
+            // First waypoint: before entering restricted area, offset perpendicular
+            const wp1Lat = entryLat + normPerpLat * offsetDist * offsetDir;
+            const wp1Lon = entryLon + normPerpLon * offsetDist * offsetDir;
+
+            // Middle waypoint: at midpoint, maximum offset
+            const wpMidLat = midLat + normPerpLat * offsetDist * offsetDir * 1.2;
+            const wpMidLon = midLon + normPerpLon * offsetDist * offsetDir * 1.2;
+
+            // Last waypoint: after exiting restricted area, offset perpendicular
+            const wp2Lat = exitLat + normPerpLat * offsetDist * offsetDir;
+            const wp2Lon = exitLon + normPerpLon * offsetDist * offsetDir;
+
+            return [
+                { lat: wp1Lat, lon: wp1Lon, name: `DVT-${zoneName.substring(0, 3)}1` },
+                { lat: wpMidLat, lon: wpMidLon, name: `DVT-${zoneName.substring(0, 3)}2` },
+                { lat: wp2Lat, lon: wp2Lon, name: `DVT-${zoneName.substring(0, 3)}3` }
+            ];
+        }
+
+        // Check if direct route intersects any restricted/prohibited airspace
+        function findRestrictedIntersections(depStation, destStation, cruiseAltitude) {
+            const intersections = [];
+            const numPoints = 50;
+
+            for (let i = 0; i <= numPoints; i++) {
+                const t = i / numPoints;
+                const lat = depStation.lat + t * (destStation.lat - depStation.lat);
+                const lon = depStation.lon + t * (destStation.lon - depStation.lon);
+
+                // Calculate altitude at this point
+                let altitude = cruiseAltitude;
+                if (t < 0.15) altitude = (t / 0.15) * cruiseAltitude;
+                else if (t > 0.85) altitude = ((1 - t) / 0.15) * cruiseAltitude;
+
+                // Check restricted airspace
+                airspaceData.restricted.forEach(zone => {
+                    if (pointInPolygon(lat, lon, zone.polygon)) {
+                        if (altitude >= (zone.floor || 0) && altitude <= zone.ceiling) {
+                            const existing = intersections.find(x => x.zone.name === zone.name);
+                            if (!existing) {
+                                intersections.push({
+                                    zone: zone,
+                                    type: 'restricted',
+                                    entryT: t,
+                                    exitT: t,
+                                    entryLat: lat,
+                                    entryLon: lon,
+                                    exitLat: lat,
+                                    exitLon: lon
+                                });
+                            } else {
+                                existing.exitT = t;
+                                existing.exitLat = lat;
+                                existing.exitLon = lon;
+                            }
+                        }
+                    }
+                });
+
+                // Check prohibited airspace
+                airspaceData.prohibited.forEach(zone => {
+                    if (pointInPolygon(lat, lon, zone.polygon)) {
+                        const existing = intersections.find(x => x.zone.name === zone.name);
+                        if (!existing) {
+                            intersections.push({
+                                zone: zone,
+                                type: 'prohibited',
+                                entryT: t,
+                                exitT: t,
+                                entryLat: lat,
+                                entryLon: lon,
+                                exitLat: lat,
+                                exitLon: lon
+                            });
+                        } else {
+                            existing.exitT = t;
+                            existing.exitLat = lat;
+                            existing.exitLon = lon;
+                        }
+                    }
+                });
+            }
+
+            return intersections;
         }
 
         // Calculate comprehensive route with hazard avoidance
@@ -3631,10 +3796,57 @@
                 distance: 0
             });
 
-            // Check for hazards and generate avoidance waypoints
-            const numCheckPoints = 20;
-            let cumulativeDistance = 0;
+            // Find all restricted/prohibited airspace intersections first
+            const restrictedIntersections = findRestrictedIntersections(depStation, destStation, routeData.cruiseAltitude);
 
+            // Generate avoidance waypoints for each intersection
+            const avoidanceWaypointsAdded = new Set();
+            restrictedIntersections.forEach(intersection => {
+                const zone = intersection.zone;
+
+                // Add hazard record
+                routeData.hazards.push({
+                    type: intersection.type,
+                    severity: 'critical',
+                    name: zone.name,
+                    description: `${intersection.type === 'prohibited' ? 'Prohibited' : 'Restricted'} airspace ${zone.name}`,
+                    location: Math.round(intersection.entryT * distance),
+                    action: 'Route deviation required'
+                });
+
+                // Calculate proper avoidance waypoints
+                if (!avoidanceWaypointsAdded.has(zone.name)) {
+                    const avoidWaypoints = calculateAvoidanceWaypoints(
+                        intersection.entryLat, intersection.entryLon,
+                        intersection.exitLat, intersection.exitLon,
+                        zone.polygon, zone.name
+                    );
+
+                    avoidWaypoints.forEach((wp, idx) => {
+                        const wpDist = Math.round((intersection.entryT + idx * (intersection.exitT - intersection.entryT) / (avoidWaypoints.length - 1 || 1)) * distance);
+                        routeData.waypoints.push({
+                            name: wp.name,
+                            type: 'divert',
+                            lat: wp.lat,
+                            lon: wp.lon,
+                            distance: wpDist,
+                            reason: `Avoiding ${zone.name}`
+                        });
+                    });
+
+                    routeData.avoidanceManeuvers.push({
+                        type: 'lateral',
+                        reason: zone.name,
+                        distance: Math.round(intersection.entryT * distance),
+                        waypointsAdded: avoidWaypoints.length
+                    });
+
+                    avoidanceWaypointsAdded.add(zone.name);
+                }
+            });
+
+            // Check for other hazards along the route
+            const numCheckPoints = 20;
             for (let i = 1; i < numCheckPoints; i++) {
                 const t = i / numCheckPoints;
                 const lat = depStation.lat + t * (destStation.lat - depStation.lat);
@@ -3645,54 +3857,6 @@
                 let altitude = routeData.cruiseAltitude;
                 if (t < 0.15) altitude = (t / 0.15) * routeData.cruiseAltitude;
                 else if (t > 0.85) altitude = ((1 - t) / 0.15) * routeData.cruiseAltitude;
-
-                // Check for restricted airspace
-                let inRestricted = false;
-                let restrictedZone = null;
-                airspaceData.restricted.forEach(zone => {
-                    if (pointInPolygon(lat, lon, zone.polygon)) {
-                        if (altitude >= (zone.floor || 0) && altitude <= zone.ceiling) {
-                            inRestricted = true;
-                            restrictedZone = zone;
-                        }
-                    }
-                });
-
-                // Check for prohibited airspace
-                airspaceData.prohibited.forEach(zone => {
-                    if (pointInPolygon(lat, lon, zone.polygon)) {
-                        inRestricted = true;
-                        restrictedZone = zone;
-                    }
-                });
-
-                if (inRestricted && restrictedZone) {
-                    routeData.hazards.push({
-                        type: 'restricted',
-                        severity: 'critical',
-                        name: restrictedZone.name,
-                        description: `Restricted airspace ${restrictedZone.name}`,
-                        location: pointDistance,
-                        action: 'Route deviation required'
-                    });
-
-                    // Add avoidance waypoint
-                    const avoidLat = lat + 0.5 * (Math.random() > 0.5 ? 1 : -1);
-                    const avoidLon = lon + 0.5 * (Math.random() > 0.5 ? 1 : -1);
-                    routeData.waypoints.push({
-                        name: `AVOID-${restrictedZone.name.substring(0, 4)}`,
-                        type: 'divert',
-                        lat: avoidLat,
-                        lon: avoidLon,
-                        distance: pointDistance,
-                        reason: `Avoiding ${restrictedZone.name}`
-                    });
-                    routeData.avoidanceManeuvers.push({
-                        type: 'lateral',
-                        reason: restrictedZone.name,
-                        distance: pointDistance
-                    });
-                }
 
                 // Check for turbulence
                 flightHazards.turbulenceZones.forEach(zone => {
@@ -3858,16 +4022,47 @@
 
         // Update trip summary panel with route data
         function updateTripSummary(routeData) {
+            // Calculate actual route distance including diversions
+            let actualDistance = 0;
+            const R = 3440.065; // Earth radius in nautical miles
+            for (let i = 0; i < routeData.waypoints.length - 1; i++) {
+                const wp1 = routeData.waypoints[i];
+                const wp2 = routeData.waypoints[i + 1];
+                const lat1 = wp1.lat * Math.PI / 180;
+                const lat2 = wp2.lat * Math.PI / 180;
+                const dLat = (wp2.lat - wp1.lat) * Math.PI / 180;
+                const dLon = (wp2.lon - wp1.lon) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                          Math.cos(lat1) * Math.cos(lat2) *
+                          Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                actualDistance += R * c;
+            }
+
+            // Check if there are diversions
+            const hasDiversions = routeData.avoidanceManeuvers && routeData.avoidanceManeuvers.length > 0;
+            const diversionCount = routeData.waypoints.filter(wp => wp.type === 'divert').length;
+            const directDistance = routeData.distance;
+            const displayDistance = hasDiversions ? Math.round(actualDistance) : Math.round(directDistance);
+            const extraDistance = hasDiversions ? Math.round(actualDistance - directDistance) : 0;
+
+            // Recalculate time based on actual distance if there are diversions
+            const cruiseSpeed = 450;
+            const cruiseTime = displayDistance / cruiseSpeed;
+            const adjustedTime = hasDiversions ? cruiseTime * 1.1 : routeData.estimatedTime; // Add 10% for diversions
+            const hours = Math.floor(adjustedTime);
+            const mins = Math.round((adjustedTime - hours) * 60);
+
             // Update mini display
-            document.getElementById('tripMiniDistance').textContent = `${Math.round(routeData.distance)} NM`;
-            const hours = Math.floor(routeData.estimatedTime);
-            const mins = Math.round((routeData.estimatedTime - hours) * 60);
+            document.getElementById('tripMiniDistance').textContent = `${displayDistance} NM`;
             document.getElementById('tripMiniTime').textContent = `${hours}h ${mins}m`;
 
             // Update overview
             document.getElementById('tripDepAirport').textContent = routeData.departure.id;
             document.getElementById('tripDestAirport').textContent = routeData.destination.id;
-            document.getElementById('tripDistance').textContent = `${Math.round(routeData.distance)} NM`;
+            document.getElementById('tripDistance').textContent = hasDiversions
+                ? `${displayDistance} NM (+${extraDistance})`
+                : `${displayDistance} NM`;
             document.getElementById('tripTime').textContent = `${hours}:${mins.toString().padStart(2, '0')}`;
             document.getElementById('tripFuel').textContent = `${routeData.fuelPlan.total} gal`;
             document.getElementById('tripAltitude').textContent = `FL${Math.round(routeData.cruiseAltitude / 100)}`;
@@ -3896,6 +4091,7 @@
                     <div class="trip-hazard ${hazard.severity}">
                         <div class="trip-hazard-icon">
                             ${hazard.type === 'restricted' ? '⛔' :
+                              hazard.type === 'prohibited' ? '🚫' :
                               hazard.type === 'turbulence' ? '🌀' :
                               hazard.type === 'icing' ? '❄️' :
                               hazard.type === 'weather' ? '🌧' :
@@ -4389,6 +4585,42 @@
             // Fit map to route
             const bounds = L.latLngBounds(highResCoords);
             map.fitBounds(bounds, { padding: [50, 50] });
+
+            // Add diversion waypoint markers for restricted airspace avoidance
+            const diversionWaypoints = waypoints.filter(wp => wp.type === 'divert');
+            diversionWaypoints.forEach((wp, idx) => {
+                const diversionIcon = L.divIcon({
+                    html: `<div style="
+                        background: rgba(239, 68, 68, 0.9);
+                        color: white;
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 9px;
+                        font-weight: bold;
+                        border: 2px solid #fca5a5;
+                        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.5);
+                    ">D${idx + 1}</div>`,
+                    className: 'diversion-marker',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+
+                const marker = L.marker([wp.lat, wp.lon], { icon: diversionIcon }).addTo(map);
+                marker.bindTooltip(`
+                    <div style="font-family: system-ui; font-size: 11px;">
+                        <div style="font-weight: 600; color: #ef4444; margin-bottom: 4px;">
+                            Diversion Waypoint
+                        </div>
+                        <div><b>${wp.name}</b></div>
+                        <div style="font-size: 10px; color: #9ca3af; margin-top: 2px;">${wp.reason || 'Airspace avoidance'}</div>
+                    </div>
+                `, { direction: 'top', offset: [0, -10] });
+                fuelStopMarkers.addLayer(marker); // Reuse fuel stop layer for cleanup
+            });
 
             // Add optional fuel stop markers (only if fuel stop required)
             if (routeData.fuelPlan.fuelStopRequired) {
@@ -5891,15 +6123,23 @@
             if (optimizedPath && optimizedPath.length > 0) {
                 ctx.setLineDash([]);
 
+                // Get first and last waypoint positions
+                const firstWp = optimizedPath[0];
+                const lastWp = optimizedPath[optimizedPath.length - 1];
+                const firstX = padding + firstWp.t * (width - 2 * padding);
+                const firstY = height - padding - (firstWp.altitude / 40000) * (height - 2 * padding);
+                const lastX = padding + lastWp.t * (width - 2 * padding);
+                const lastY = height - padding - (lastWp.altitude / 40000) * (height - 2 * padding);
+
                 // Draw flight path shadow for depth
                 ctx.beginPath();
-                ctx.moveTo(padding, height - padding);
-                for (const wp of optimizedPath) {
+                ctx.moveTo(firstX, firstY + 2 / zoom);
+                for (let i = 1; i < optimizedPath.length; i++) {
+                    const wp = optimizedPath[i];
                     const x = padding + wp.t * (width - 2 * padding);
                     const y = height - padding - (wp.altitude / 40000) * (height - 2 * padding);
                     ctx.lineTo(x, y + 2 / zoom);
                 }
-                ctx.lineTo(width - padding, height - padding);
                 ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
                 ctx.lineWidth = 4 / zoom;
                 ctx.stroke();
@@ -5907,7 +6147,7 @@
                 // Draw main flight path with phase-based coloring
                 let currentPhase = null;
                 ctx.beginPath();
-                ctx.moveTo(padding, height - padding);
+                ctx.moveTo(firstX, firstY);
 
                 for (let i = 0; i < optimizedPath.length; i++) {
                     const wp = optimizedPath[i];
@@ -5933,7 +6173,6 @@
                         ctx.strokeStyle = '#6366f1'; // Indigo for cruise
                     }
                 }
-                ctx.lineTo(width - padding, height - padding);
                 ctx.lineWidth = 2.5 / zoom;
                 ctx.stroke();
 
@@ -6036,6 +6275,8 @@
 
             // Y-axis labels (altitude) - only visible range with collision detection
             ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 1;
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'right';
 
@@ -6336,11 +6577,14 @@
 
                 // Airspace info - comprehensive detection
                 if (overlayState.airspace) {
-                    const routeLat = depStation.lat + progress * (destStation.lat - depStation.lat);
-                    const routeLon = depStation.lon + progress * (destStation.lon - depStation.lon);
+                  try {
+                    // Simplified airspace detection based on altitude
+                    const routeLat = depStation?.lat + progress * ((destStation?.lat || 0) - (depStation?.lat || 0));
+                    const routeLon = depStation?.lon + progress * ((destStation?.lon || 0) - (depStation?.lon || 0));
 
-                    // Point-in-polygon test function
+                    // Simple point-in-polygon test
                     const pointInPolygon = (lat, lon, polygon) => {
+                        if (!polygon || !Array.isArray(polygon)) return false;
                         let inside = false;
                         for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
                             const xi = polygon[i][0], yi = polygon[i][1];
@@ -6352,13 +6596,13 @@
                         return inside;
                     };
 
-                    // Point-in-circle test
-                    const pointInCircle = (lat, lon, center, radiusNM) => {
-                        const dLat = lat - center[0];
-                        const dLon = lon - center[1];
-                        const distDeg = Math.sqrt(dLat * dLat + dLon * dLon);
-                        const distNM = distDeg * 60; // Approximate degrees to NM
-                        return distNM <= radiusNM;
+                    // Point-in-circle test for TFRs
+                    const pointInCircle = (lat, lon, center, radius) => {
+                        if (!center) return false;
+                        const dlat = lat - center[0];
+                        const dlon = lon - center[1];
+                        const dist = Math.sqrt(dlat * dlat + dlon * dlon);
+                        return dist <= radius;
                     };
 
                     let foundAirspaces = [];
@@ -6401,9 +6645,9 @@
                         });
                     });
 
-                    // Check Class D airspaces
+                    // Check Class D airspaces (use polygon, not circle)
                     airspaceData.classD.forEach(zone => {
-                        if (pointInCircle(routeLat, routeLon, zone.center, zone.radius)) {
+                        if (zone.polygon && pointInPolygon(routeLat, routeLon, zone.polygon)) {
                             if (altitude <= zone.ceiling) {
                                 foundAirspaces.push({
                                     type: 'Class D',
@@ -6517,6 +6761,14 @@
                             <span class="value">No ATC required</span>
                         </div>`;
                     }
+                  } catch (err) {
+                    console.error('Airspace detection error:', err);
+                    // Airspace detection failed, show default
+                    content += `<div class="profile-tooltip-row airspace">
+                        <span class="label">Airspace</span>
+                        <span class="value">--</span>
+                    </div>`;
+                  }
                 }
 
                 // Icing info
