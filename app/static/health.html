@@ -3,20 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Health Dashboard - Aviation Weather API</title>
+    <title>Data Health Dashboard - SkyEye</title>
     <style>
         :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #12121a;
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
             --bg-card: rgba(255, 255, 255, 0.03);
             --text-primary: #ffffff;
             --text-secondary: rgba(255, 255, 255, 0.7);
             --text-tertiary: rgba(255, 255, 255, 0.4);
             --border-color: rgba(255, 255, 255, 0.08);
-            --accent: #6366f1;
+            --accent: #6b7280;
             --success: #22c55e;
             --warning: #f59e0b;
             --danger: #ef4444;
+        }
+
+        /* Light Mode */
+        :root.light-mode {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #e8e8e8;
+            --bg-card: rgba(0, 0, 0, 0.04);
+            --text-primary: #1a1a1a;
+            --text-secondary: rgba(0, 0, 0, 0.65);
+            --text-tertiary: rgba(0, 0, 0, 0.45);
+            --border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .light-mode .top-navbar {
+            background: rgba(245, 245, 245, 0.95);
+        }
+
+        .light-mode .nav-brand svg.orca-logo {
+            color: #1a1a1a;
         }
 
         * {
@@ -40,35 +59,83 @@
             left: 0;
             right: 0;
             height: 48px;
-            background: rgba(10, 10, 15, 0.95);
+            background: rgba(10, 10, 10, 0.95);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
             padding: 0 24px;
             z-index: 9999;
         }
 
+        .nav-content {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            justify-content: center;
+            position: relative;
+        }
+
         .nav-brand {
+            position: absolute;
+            left: 0;
             display: flex;
             align-items: center;
             gap: 10px;
             font-weight: 600;
             font-size: 14px;
             color: var(--text-primary);
+            text-decoration: none;
         }
 
-        .nav-brand svg {
-            width: 24px;
-            height: 24px;
-            color: var(--accent);
+        .nav-brand svg.orca-logo {
+            width: auto;
+            height: 20px;
+            color: #ffffff;
         }
 
         .nav-links {
             display: flex;
             gap: 4px;
         }
+
+        .nav-right {
+            position: absolute;
+            right: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-secondary);
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .theme-toggle svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .theme-toggle .sun-icon { display: none; }
+        .theme-toggle .moon-icon { display: block; }
+        .light-mode .theme-toggle .sun-icon { display: block; }
+        .light-mode .theme-toggle .moon-icon { display: none; }
 
         .nav-link {
             padding: 8px 16px;
@@ -89,7 +156,7 @@
         }
 
         .nav-link.active {
-            background: rgba(99, 102, 241, 0.15);
+            background: rgba(107, 114, 128, 0.15);
             color: var(--accent);
         }
 
@@ -305,7 +372,7 @@
         }
 
         .data-source-badge.third-party {
-            background: rgba(99, 102, 241, 0.15);
+            background: rgba(107, 114, 128, 0.15);
             color: var(--accent);
         }
 
@@ -313,7 +380,7 @@
             font-family: 'SF Mono', Monaco, monospace;
             font-size: 12px;
             color: var(--accent);
-            background: rgba(99, 102, 241, 0.1);
+            background: rgba(107, 114, 128, 0.1);
             padding: 8px 12px;
             border-radius: 8px;
             margin: 12px 0;
@@ -345,8 +412,8 @@
         }
 
         .data-field.primary {
-            background: rgba(99, 102, 241, 0.15);
-            color: rgba(99, 102, 241, 0.9);
+            background: rgba(107, 114, 128, 0.15);
+            color: rgba(107, 114, 128, 0.9);
             font-weight: 500;
         }
 
@@ -477,54 +544,74 @@
 <body>
     <!-- Top Navigation Bar -->
     <nav class="top-navbar">
-        <div class="nav-brand">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-            Aviation Weather API
-        </div>
-        <div class="nav-links">
-            <a href="/" class="nav-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                    <polyline points="9 22 9 12 15 12 15 22"/>
+        <div class="nav-content">
+            <a href="/" class="nav-brand">
+                <svg class="orca-logo" viewBox="0 0 798 257" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M67.8809 234.41C186.564 258.373 307.51 270.119 360.879 234.41C414.248 198.702 779.734 36.4014 796.092 14.7603C812.45 -6.88083 723.078 -6.93654 548.57 29.5108C375.251 65.7097 321.828 80.6187 159.348 125.963L155.986 126.901C-9.12734 172.979 -50.8019 210.448 67.8809 234.41Z"/>
                 </svg>
-                Weather
+                SkyEye
             </a>
-            <a href="/live-map" class="nav-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                </svg>
-                Live Map
-            </a>
-            <a href="/health-dashboard" class="nav-link active">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                </svg>
-                Health
-            </a>
-            <a href="/compliance-dashboard" class="nav-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 11l3 3L22 4"/>
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                </svg>
-                Compliance
-            </a>
-            <a href="/benchmarks-dashboard" class="nav-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 20V10"/>
-                    <path d="M18 20V4"/>
-                    <path d="M6 20v-4"/>
-                </svg>
-                Benchmarks
-            </a>
-            <a href="/competitive-analysis-dashboard" class="nav-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-                </svg>
-                Analysis
-            </a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        <polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                    Weather
+                </a>
+                <a href="/live-map" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                    Live Map
+                </a>
+                <a href="/health-dashboard" class="nav-link active">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                    Health
+                </a>
+                <a href="/compliance-dashboard" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 11l3 3L22 4"/>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                    Compliance
+                </a>
+                <a href="/benchmarks-dashboard" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 20V10"/>
+                        <path d="M18 20V4"/>
+                        <path d="M6 20v-4"/>
+                    </svg>
+                    Benchmarks
+                </a>
+                <a href="/competitive-analysis-dashboard" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                    </svg>
+                    Analysis
+                </a>
+            </div>
+            <div class="nav-right">
+                <button class="theme-toggle" onclick="toggleTheme()">
+                    <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                    <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                </button>
+            </div>
         </div>
     </nav>
 
@@ -924,6 +1011,18 @@
 
         // Auto-refresh every 30 seconds
         autoRefreshInterval = setInterval(loadHealthData, 30000);
+
+        // Theme toggle
+        let isLightMode = localStorage.getItem('theme') === 'light';
+        if (isLightMode) {
+            document.documentElement.classList.add('light-mode');
+        }
+
+        function toggleTheme() {
+            isLightMode = !isLightMode;
+            document.documentElement.classList.toggle('light-mode', isLightMode);
+            localStorage.setItem('theme', isLightMode ? 'light' : 'dark');
+        }
     </script>
 </body>
 </html>

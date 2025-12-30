@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Aviation Weather</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,16 +12,16 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         :root {
-            --bg-primary: #000000;
-            --bg-secondary: #0a0a0a;
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
             --bg-card: rgba(255, 255, 255, 0.03);
             --bg-card-hover: rgba(255, 255, 255, 0.06);
             --border-color: rgba(255, 255, 255, 0.08);
             --text-primary: #ffffff;
             --text-secondary: rgba(255, 255, 255, 0.6);
             --text-tertiary: rgba(255, 255, 255, 0.4);
-            --accent: #3b82f6;
-            --accent-glow: rgba(59, 130, 246, 0.3);
+            --accent: #6b7280;
+            --accent-glow: rgba(107, 114, 128, 0.3);
             --success: #10b981;
             --warning: #f59e0b;
             --danger: #ef4444;
@@ -31,15 +31,127 @@
             --lifr: #a855f7;
         }
 
+        /* Light Mode */
+        :root.light-mode {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #e8e8e8;
+            --bg-card: rgba(0, 0, 0, 0.04);
+            --bg-card-hover: rgba(0, 0, 0, 0.08);
+            --text-primary: #1a1a1a;
+            --text-secondary: rgba(0, 0, 0, 0.65);
+            --text-tertiary: rgba(0, 0, 0, 0.45);
+            --border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .light-mode .top-navbar {
+            background: rgba(245, 245, 245, 0.95);
+        }
+
+        .light-mode .nav-brand svg.orca-logo {
+            color: #1a1a1a;
+        }
+
+        .light-mode .leaflet-tile-pane {
+            filter: invert(1) hue-rotate(180deg) saturate(0.3) brightness(1.1);
+        }
+
+        .light-mode .leaflet-overlay-pane,
+        .light-mode .leaflet-marker-pane {
+            filter: none;
+        }
+
+        /* Light mode - hide background gradient */
+        .light-mode .bg-gradient {
+            opacity: 0;
+        }
+
+        /* Light mode dashboard cards and panels */
+        .light-mode .card {
+            background: var(--bg-card);
+            border-color: var(--border-color);
+        }
+
+        .light-mode .card h3 {
+            color: var(--text-primary);
+        }
+
+        .light-mode .search-input {
+            background: rgba(0, 0, 0, 0.05);
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+
+        .light-mode .search-input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .light-mode .nav-link:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .light-mode .nav-link.active {
+            background: rgba(107, 114, 128, 0.15);
+        }
+
+        /* Light mode text fixes for better contrast */
+        .light-mode .stat-value,
+        .light-mode .stat-label,
+        .light-mode .card-title,
+        .light-mode .section-title,
+        .light-mode .form-group label,
+        .light-mode .regulation-form label,
+        .light-mode .legend-title,
+        .light-mode .legend-label,
+        .light-mode .map-legend span,
+        .light-mode .health-text,
+        .light-mode .empty-state p,
+        .light-mode h1, .light-mode h2, .light-mode h3 {
+            color: var(--text-primary);
+        }
+
+        .light-mode .data-value,
+        .light-mode .metar-raw,
+        .light-mode .taf-raw,
+        .light-mode input,
+        .light-mode select {
+            color: var(--text-primary);
+        }
+
+        .light-mode .data-label,
+        .light-mode .quick-action {
+            color: var(--text-secondary);
+        }
+
+        .light-mode input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .light-mode .map-stat-card {
+            background: rgba(255, 255, 255, 0.85);
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .light-mode .map-stat-value {
+            color: var(--text-primary);
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
+        /* Prevent browser zoom and scaling */
+        html {
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+
         html, body {
             height: 100%;
             overflow: hidden;
+            touch-action: pan-x pan-y;
         }
 
         body {
@@ -49,6 +161,10 @@
             line-height: 1.5;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
         }
 
         .bg-gradient {
@@ -58,8 +174,8 @@
             right: 0;
             bottom: 0;
             background:
-                radial-gradient(ellipse 80% 50% at 20% -20%, rgba(59, 130, 246, 0.15), transparent),
-                radial-gradient(ellipse 60% 40% at 80% 100%, rgba(168, 85, 247, 0.1), transparent);
+                radial-gradient(ellipse 80% 50% at 20% -20%, rgba(107, 114, 128, 0.08), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 100%, rgba(107, 114, 128, 0.05), transparent);
             pointer-events: none;
             z-index: 0;
         }
@@ -67,53 +183,53 @@
         /* Dashboard Layout - 3:2 Landscape */
         .dashboard {
             display: grid;
-            grid-template-columns: minmax(320px, 380px) 1fr minmax(280px, 340px);
-            grid-template-rows: auto 1fr;
-            gap: 16px;
-            height: 100vh;
-            padding: 16px;
-            position: relative;
+            grid-template-columns: minmax(280px, 340px) 1fr minmax(260px, 320px);
+            grid-template-rows: 1fr;
+            gap: 10px;
+            height: calc(100vh - 49px);
+            max-height: calc(100vh - 49px);
+            padding: 8px;
+            position: fixed;
+            top: 49px;
+            left: 0;
+            right: 0;
+            bottom: 0;
             z-index: 1;
-        }
-
-        /* Header spans full width */
-        .dashboard-header {
-            grid-column: 1 / -1;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 16px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            backdrop-filter: blur(20px);
+            overflow: hidden;
+            box-sizing: border-box;
         }
 
         /* Left Panel - Search & Station Info */
         .panel-left {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
             overflow-y: auto;
-            padding-right: 8px;
+            overflow-x: hidden;
+            padding-right: 6px;
+            min-height: 0;
         }
 
         /* Center Panel - Main Content */
         .panel-center {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
             overflow-y: auto;
-            padding: 0 8px;
+            overflow-x: hidden;
+            padding: 0 6px;
+            min-height: 0;
         }
 
         /* Right Panel - Weather Details */
         .panel-right {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
             overflow-y: auto;
-            padding-left: 8px;
+            overflow-x: hidden;
+            padding-left: 6px;
+            min-height: 0;
         }
 
         /* Scrollbar styling */
@@ -156,12 +272,11 @@
         .logo-icon {
             width: 48px;
             height: 48px;
-            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            background: linear-gradient(135deg, #4a4a4a, #6b7280);
             border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 8px 32px var(--accent-glow);
         }
 
         .logo-icon svg {
@@ -183,8 +298,8 @@
         .health-status {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 10px 18px;
+            gap: 6px;
+            padding: 6px 12px;
             background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: 100px;
@@ -193,8 +308,8 @@
         }
 
         .health-dot {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
             background: var(--text-tertiary);
             transition: all 0.3s ease;
@@ -202,7 +317,7 @@
 
         .health-dot.healthy {
             background: var(--success);
-            box-shadow: 0 0 12px var(--success);
+            box-shadow: 0 0 8px var(--success);
             animation: pulse 2s infinite;
         }
 
@@ -212,7 +327,7 @@
         }
 
         .health-text {
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 500;
             color: var(--text-secondary);
         }
@@ -234,9 +349,9 @@
 
         .search-icon {
             position: absolute;
-            left: 20px;
-            width: 20px;
-            height: 20px;
+            left: 14px;
+            width: 16px;
+            height: 16px;
             color: var(--text-tertiary);
             pointer-events: none;
             transition: color 0.3s ease;
@@ -244,10 +359,10 @@
 
         input, select {
             font-family: inherit;
-            font-size: 16px;
-            padding: 16px 20px 16px 52px;
+            font-size: 14px;
+            padding: 10px 14px 10px 38px;
             border: 1px solid var(--border-color);
-            border-radius: 16px;
+            border-radius: 10px;
             background: var(--bg-card);
             color: var(--text-primary);
             width: 100%;
@@ -273,13 +388,13 @@
 
         .search-results {
             position: absolute;
-            top: calc(100% + 8px);
+            top: calc(100% + 4px);
             left: 0;
             right: 0;
             background: rgba(20, 20, 20, 0.95);
             border: 1px solid var(--border-color);
-            border-radius: 16px;
-            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
             display: none;
             z-index: 100;
             overflow: hidden;
@@ -297,7 +412,7 @@
         }
 
         .search-result-item {
-            padding: 16px 20px;
+            padding: 10px 14px;
             cursor: pointer;
             transition: all 0.2s ease;
             border-bottom: 1px solid var(--border-color);
@@ -313,18 +428,18 @@
 
         .search-result-item .icao {
             font-weight: 600;
-            font-size: 15px;
-            margin-bottom: 2px;
+            font-size: 13px;
+            margin-bottom: 1px;
         }
 
         .search-result-item .name {
-            font-size: 13px;
+            font-size: 11px;
             color: var(--text-tertiary);
         }
 
         .grid {
             display: grid;
-            gap: 20px;
+            gap: 12px;
         }
 
         .grid-2 {
@@ -338,26 +453,28 @@
         .card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 16px;
+            border-radius: 12px;
+            padding: 12px;
             backdrop-filter: blur(40px);
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
             flex-shrink: 0;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         .card.compact {
-            padding: 12px;
+            padding: 8px;
         }
 
         .card.compact .card-header {
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
 
         .card.compact .regulation-form {
-            gap: 10px;
-            margin-bottom: 12px;
+            gap: 8px;
+            margin-bottom: 8px;
         }
 
         .card.compact .form-group {
@@ -393,32 +510,30 @@
         .card:hover {
             background: var(--bg-card-hover);
             border-color: rgba(255, 255, 255, 0.12);
-            transform: translateY(-2px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
         }
 
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 24px;
+            margin-bottom: 8px;
         }
 
         .card-title {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 1.5px;
+            letter-spacing: 1px;
             color: var(--text-tertiary);
         }
 
         .flight-rules {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
-            padding: 6px 14px;
+            padding: 4px 10px;
             border-radius: 100px;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
         }
 
         .flight-rules.vfr {
@@ -443,9 +558,9 @@
         }
 
         .station-name {
-            font-size: 28px;
+            font-size: 20px;
             font-weight: 700;
-            letter-spacing: -1px;
+            letter-spacing: -0.5px;
             margin-bottom: 2px;
             background: linear-gradient(135deg, #fff, rgba(255,255,255,0.8));
             -webkit-background-clip: text;
@@ -454,12 +569,12 @@
         }
 
         .observation-time {
-            font-size: 11px;
+            font-size: 10px;
             color: var(--text-tertiary);
-            margin-bottom: 16px;
+            margin-bottom: 8px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
         }
 
         .observation-time::before {
@@ -474,15 +589,15 @@
         .data-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
+            gap: 8px;
         }
 
         .data-item {
             display: flex;
             flex-direction: column;
-            padding: 10px 12px;
+            padding: 8px 10px;
             background: rgba(255, 255, 255, 0.02);
-            border-radius: 10px;
+            border-radius: 8px;
             border: 1px solid rgba(255, 255, 255, 0.04);
             transition: all 0.3s ease;
             min-width: 0;
@@ -495,25 +610,25 @@
         }
 
         .data-label {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
             color: var(--text-tertiary);
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
 
         .data-value {
-            font-size: 18px;
+            font-size: 15px;
             font-weight: 600;
-            letter-spacing: -0.3px;
+            letter-spacing: -0.2px;
             word-break: break-word;
         }
 
         .data-value.large {
-            font-size: 24px;
+            font-size: 18px;
             font-weight: 700;
-            letter-spacing: -0.5px;
+            letter-spacing: -0.3px;
             background: linear-gradient(135deg, #fff, rgba(255,255,255,0.7));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -521,36 +636,36 @@
         }
 
         .data-unit {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 400;
             color: var(--text-tertiary);
-            margin-left: 4px;
+            margin-left: 3px;
         }
 
         .raw-text {
             font-family: 'SF Mono', 'Fira Code', ui-monospace, monospace;
-            font-size: 10px;
+            font-size: 9px;
             background: rgba(0, 0, 0, 0.3);
-            padding: 10px 12px;
-            border-radius: 8px;
+            padding: 6px 8px;
+            border-radius: 6px;
             word-break: break-word;
             overflow-wrap: anywhere;
-            margin-top: 24px;
+            margin-top: 10px;
             word-break: break-all;
             color: var(--text-secondary);
             border: 1px solid rgba(255, 255, 255, 0.05);
-            line-height: 1.8;
+            line-height: 1.6;
         }
 
         .section-header {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin: 0 0 12px;
+            gap: 10px;
+            margin: 0 0 8px;
         }
 
         .section-title {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             letter-spacing: -0.3px;
         }
@@ -565,16 +680,67 @@
         .chart-container {
             position: relative;
             height: 300px;
-            margin-bottom: 24px;
+            margin-bottom: 12px;
         }
 
         /* Weather Map Styles */
         .weather-map {
             width: 100%;
-            height: 280px;
+            height: 100%;
+            min-height: 400px;
             border-radius: 12px;
             overflow: hidden;
             background: rgba(0, 0, 0, 0.3);
+            flex-grow: 1;
+        }
+
+        #weatherMapCard {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .weather-map-container {
+            position: relative;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .map-stats-overlay {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        .map-stat-card {
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 6px 10px;
+            text-align: center;
+            pointer-events: auto;
+        }
+
+        .map-stat-value {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+        }
+
+        .map-stat-label {
+            font-size: 0.55rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-tertiary);
         }
 
         .map-layer-toggles {
@@ -616,12 +782,12 @@
         .map-legend {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-top: 12px;
-            padding: 10px 14px;
+            gap: 10px;
+            margin-top: 8px;
+            padding: 8px 10px;
             background: rgba(255, 255, 255, 0.02);
-            border-radius: 10px;
-            font-size: 11px;
+            border-radius: 8px;
+            font-size: 10px;
         }
 
         .map-legend .legend-title {
@@ -637,6 +803,25 @@
             height: 8px;
             border-radius: 4px;
             min-width: 120px;
+        }
+
+        .legend-gradient.radar {
+            background: linear-gradient(to right,
+                transparent 0%,
+                #00ff00 20%,
+                #ffff00 40%,
+                #ff8800 60%,
+                #ff0000 80%,
+                #ff00ff 100%);
+        }
+
+        .legend-gradient.satellite {
+            background: linear-gradient(to right,
+                transparent 0%,
+                rgba(100,100,100,0.3) 25%,
+                rgba(150,150,150,0.5) 50%,
+                rgba(200,200,200,0.7) 75%,
+                rgba(255,255,255,0.9) 100%);
         }
 
         .legend-gradient.precipitation {
@@ -700,17 +885,18 @@
 
         .leaflet-control-zoom {
             border: none !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+            box-shadow: none !important;
         }
 
         .leaflet-control-zoom a {
-            background: rgba(30, 30, 30, 0.95) !important;
+            background: var(--bg-card) !important;
             color: var(--text-primary) !important;
-            border: 1px solid rgba(255,255,255,0.1) !important;
+            border: 1px solid var(--border-color) !important;
+            transition: background 0.2s ease !important;
         }
 
         .leaflet-control-zoom a:hover {
-            background: rgba(50, 50, 50, 0.95) !important;
+            background: var(--bg-secondary) !important;
         }
 
         .leaflet-control-zoom-in {
@@ -721,14 +907,9 @@
             border-radius: 0 0 8px 8px !important;
         }
 
+        /* Hide map attribution/watermarks */
         .leaflet-control-attribution {
-            background: rgba(0,0,0,0.7) !important;
-            color: var(--text-tertiary) !important;
-            font-size: 9px !important;
-        }
-
-        .leaflet-control-attribution a {
-            color: var(--text-secondary) !important;
+            display: none !important;
         }
 
         /* Route line on map */
@@ -750,17 +931,17 @@
 
         .chart-tabs {
             display: flex;
-            gap: 8px;
-            margin-bottom: 24px;
+            gap: 6px;
+            margin-bottom: 12px;
             flex-wrap: wrap;
         }
 
         .chart-tab {
-            padding: 10px 20px;
+            padding: 6px 14px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border-color);
             border-radius: 100px;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 500;
             color: var(--text-secondary);
             cursor: pointer;
@@ -776,7 +957,6 @@
             background: var(--accent);
             border-color: var(--accent);
             color: white;
-            box-shadow: 0 4px 16px var(--accent-glow);
         }
 
         .forecast-scroll {
@@ -796,15 +976,15 @@
             text-align: left;
             font-weight: 600;
             color: var(--text-tertiary);
-            padding: 16px;
-            font-size: 11px;
+            padding: 10px;
+            font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 1px;
             border-bottom: 1px solid var(--border-color);
         }
 
         .forecast-table td {
-            padding: 16px;
+            padding: 10px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.03);
             transition: all 0.2s ease;
         }
@@ -816,53 +996,53 @@
         .regulation-form {
             display: flex;
             flex-direction: column;
-            gap: 16px;
-            margin-bottom: 20px;
+            gap: 8px;
+            margin-bottom: 10px;
         }
 
         .form-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
         }
 
         .form-group {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 4px;
         }
 
         .form-group label {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
             color: var(--text-tertiary);
         }
 
         .form-group input,
         .form-group select {
-            padding: 14px 16px;
-            padding-left: 16px;
+            padding: 8px 10px;
+            padding-left: 10px;
         }
 
         select {
-            padding-left: 16px;
+            padding-left: 10px;
             cursor: pointer;
             appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 16px center;
+            background-position: right 10px center;
         }
 
         button {
             font-family: inherit;
-            font-size: 15px;
+            font-size: 12px;
             font-weight: 600;
-            padding: 16px 32px;
+            padding: 10px 20px;
             border: none;
-            border-radius: 14px;
-            background: linear-gradient(135deg, var(--accent), #6366f1);
+            border-radius: 8px;
+            background: linear-gradient(135deg, #4a4a4a, #6b7280);
             color: #fff;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -871,23 +1051,22 @@
         }
 
         button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 32px var(--accent-glow);
+            opacity: 0.9;
         }
 
         button:active {
-            transform: translateY(0);
+            opacity: 0.8;
         }
 
         .status-badge {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            font-size: 14px;
+            gap: 6px;
+            font-size: 11px;
             font-weight: 600;
-            padding: 12px 20px;
-            border-radius: 12px;
-            margin-top: 16px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-top: 8px;
         }
 
         .status-badge.compliant {
@@ -909,14 +1088,14 @@
 
         .empty-state {
             text-align: center;
-            padding: 64px 32px;
+            padding: 32px 16px;
             color: var(--text-tertiary);
         }
 
         .empty-state-icon {
-            width: 64px;
-            height: 64px;
-            margin: 0 auto 20px;
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 12px;
             opacity: 0.3;
         }
 
@@ -928,11 +1107,11 @@
         }
 
         .taf-period {
-            padding: 20px;
-            border-radius: 16px;
+            padding: 12px;
+            border-radius: 12px;
             background: rgba(255, 255, 255, 0.02);
             border: 1px solid rgba(255, 255, 255, 0.04);
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             transition: all 0.3s ease;
         }
 
@@ -946,17 +1125,17 @@
         }
 
         .taf-period-header {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             color: var(--accent);
         }
 
         .taf-period-details {
             display: flex;
             flex-wrap: wrap;
-            gap: 24px;
-            font-size: 14px;
+            gap: 12px;
+            font-size: 13px;
             color: var(--text-secondary);
         }
 
@@ -973,12 +1152,12 @@
         }
 
         .valid-period {
-            font-size: 13px;
+            font-size: 12px;
             color: var(--text-tertiary);
-            margin-bottom: 20px;
-            padding: 12px 16px;
+            margin-bottom: 12px;
+            padding: 8px 12px;
             background: rgba(255, 255, 255, 0.02);
-            border-radius: 10px;
+            border-radius: 8px;
             display: inline-block;
         }
 
@@ -1009,10 +1188,171 @@
         .error-message {
             background: rgba(239, 68, 68, 0.1);
             color: var(--danger);
-            padding: 16px 20px;
-            border-radius: 12px;
-            font-size: 14px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
             border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        /* Loading retry state styles */
+        .loading-retry-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            gap: 12px;
+            min-height: 100px;
+        }
+
+        .loading-spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .retry-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        .error-minimized {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            text-align: center;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            transition: all 0.2s ease;
+        }
+
+        .error-minimized:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .error-minimized .error-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .error-minimized .error-details {
+            display: none;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .error-minimized.expanded .error-details {
+            display: block;
+        }
+
+        /* Final error state (after max retries) */
+        .error-state-final {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .error-message-minimized {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            background: rgba(239, 68, 68, 0.08);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .error-message-minimized .error-icon {
+            width: 16px;
+            height: 16px;
+            color: var(--danger);
+            flex-shrink: 0;
+        }
+
+        .error-message-minimized span {
+            flex: 1;
+        }
+
+        .retry-btn {
+            padding: 4px 10px;
+            font-size: 11px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .retry-btn:hover {
+            opacity: 0.85;
+        }
+
+        .error-details-expandable {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .error-details-expandable .expand-toggle {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .error-details-expandable .expand-toggle::before {
+            content: '▶';
+            font-size: 8px;
+            transition: transform 0.2s;
+        }
+
+        .error-details-expandable.expanded .expand-toggle::before {
+            transform: rotate(90deg);
+        }
+
+        .error-details-expandable .error-full-details {
+            display: none;
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .error-details-expandable.expanded .error-full-details {
+            display: block;
+        }
+
+        /* Light mode adjustments */
+        .light-mode .error-minimized {
+            background: rgba(0, 0, 0, 0.03);
+        }
+
+        .light-mode .error-minimized:hover {
+            background: rgba(0, 0, 0, 0.06);
+        }
+
+        .light-mode .error-details-expandable {
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        .light-mode .error-details-expandable .error-full-details {
+            background: rgba(0, 0, 0, 0.05);
         }
 
         .result-notes {
@@ -1048,8 +1388,8 @@
         .hero-stats {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-bottom: 40px;
+            gap: 8px;
+            margin-bottom: 16px;
         }
 
         @media (max-width: 768px) {
@@ -1061,8 +1401,8 @@
         .stat-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 24px;
+            border-radius: 12px;
+            padding: 10px 14px;
             text-align: center;
             backdrop-filter: blur(40px);
             transition: all 0.3s ease;
@@ -1070,15 +1410,13 @@
 
         .stat-card:hover {
             background: var(--bg-card-hover);
-            transform: translateY(-4px);
-            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.2);
         }
 
         .stat-value {
-            font-size: 32px;
+            font-size: 18px;
             font-weight: 700;
-            letter-spacing: -1px;
-            margin-bottom: 4px;
+            letter-spacing: -0.5px;
+            margin-bottom: 2px;
             background: linear-gradient(135deg, #fff, rgba(255,255,255,0.7));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -1086,26 +1424,26 @@
         }
 
         .stat-label {
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 500;
             color: var(--text-tertiary);
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
         }
 
         .quick-actions {
             display: flex;
-            gap: 12px;
+            gap: 6px;
             flex-wrap: wrap;
-            margin-top: 16px;
+            margin-top: 8px;
         }
 
         .quick-action {
-            padding: 10px 18px;
+            padding: 5px 10px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border-color);
             border-radius: 100px;
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 500;
             color: var(--text-secondary);
             cursor: pointer;
@@ -1120,15 +1458,15 @@
 
         .view-toggle {
             display: flex;
-            gap: 8px;
+            gap: 6px;
         }
 
         .view-btn {
-            padding: 8px 16px;
+            padding: 5px 10px;
             background: transparent;
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 12px;
+            border-radius: 6px;
+            font-size: 10px;
             color: var(--text-tertiary);
             cursor: pointer;
             transition: all 0.2s ease;
@@ -1149,35 +1487,35 @@
         .flight-plan-inputs {
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            margin-bottom: 20px;
+            gap: 8px;
+            margin-bottom: 12px;
         }
 
         .waypoint-row {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px;
+            gap: 10px;
+            padding: 10px;
             background: rgba(255, 255, 255, 0.02);
-            border-radius: 12px;
+            border-radius: 10px;
             border: 1px solid rgba(255, 255, 255, 0.04);
         }
 
         .waypoint-marker {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
             letter-spacing: 0.5px;
             flex-shrink: 0;
         }
 
         .waypoint-marker.departure {
-            background: linear-gradient(135deg, var(--accent), #6366f1);
+            background: linear-gradient(135deg, #4a4a4a, #6b7280);
             color: white;
         }
 
@@ -1194,16 +1532,16 @@
 
         .waypoint-fields {
             display: flex;
-            gap: 12px;
+            gap: 8px;
             flex: 1;
             flex-wrap: wrap;
         }
 
         .waypoint-fields input {
-            padding: 12px 16px;
-            padding-left: 16px;
+            padding: 8px 12px;
+            padding-left: 12px;
             flex: 1;
-            min-width: 120px;
+            min-width: 100px;
         }
 
         .waypoint-fields .waypoint-name {
@@ -1218,9 +1556,9 @@
 
         .waypoint-actions {
             display: flex;
-            gap: 12px;
+            gap: 8px;
             flex-wrap: wrap;
-            margin-bottom: 24px;
+            margin-bottom: 12px;
         }
 
         .add-waypoint-btn {
@@ -1229,8 +1567,8 @@
             color: var(--text-secondary);
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 12px 20px;
+            gap: 6px;
+            padding: 8px 14px;
         }
 
         .add-waypoint-btn:hover {
@@ -1263,14 +1601,14 @@
 
         /* Profile Chart */
         .profile-header {
-            margin-bottom: 16px;
-            padding-bottom: 12px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
             border-bottom: 1px solid var(--border-color);
         }
 
         .profile-stats {
             display: flex;
-            gap: 24px;
+            gap: 16px;
             flex-wrap: wrap;
         }
 
@@ -1280,7 +1618,7 @@
         }
 
         .profile-stat-value {
-            font-size: 20px;
+            font-size: 16px;
             font-weight: 700;
             letter-spacing: -0.5px;
             background: linear-gradient(135deg, #fff, rgba(255,255,255,0.7));
@@ -1290,7 +1628,7 @@
         }
 
         .profile-stat-label {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 1px;
@@ -1323,9 +1661,9 @@
         }
 
         .waypoint-detail-card {
-            padding: 16px;
+            padding: 10px;
             background: rgba(255, 255, 255, 0.02);
-            border-radius: 12px;
+            border-radius: 10px;
             border: 1px solid rgba(255, 255, 255, 0.04);
         }
 
@@ -1333,12 +1671,12 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
 
         .waypoint-detail-name {
             font-weight: 600;
-            font-size: 15px;
+            font-size: 13px;
         }
 
         .waypoint-detail-conditions {
@@ -1386,12 +1724,12 @@
         .overlay-controls {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             flex-wrap: wrap;
-            margin-bottom: 12px;
-            padding: 16px;
+            margin-bottom: 10px;
+            padding: 10px;
             background: rgba(255, 255, 255, 0.02);
-            border-radius: 12px;
+            border-radius: 10px;
             border: 1px solid rgba(255, 255, 255, 0.04);
         }
 
@@ -1430,7 +1768,6 @@
             background: var(--accent);
             border-color: var(--accent);
             color: white;
-            box-shadow: 0 4px 12px var(--accent-glow);
         }
 
         .overlay-btn svg {
@@ -1463,7 +1800,7 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            padding: 20px 0;
+            padding: 12px 0;
             font-size: 11px;
             color: var(--text-tertiary);
             text-align: right;
@@ -1472,9 +1809,9 @@
         /* Hover Indicator */
         .hover-indicator {
             position: absolute;
-            top: 20px;
+            top: 12px;
             left: 0;
-            bottom: 20px;
+            bottom: 12px;
             width: 2px;
             pointer-events: none;
             opacity: 0;
@@ -1515,9 +1852,9 @@
             left: 16px;
             background: rgba(0, 0, 0, 0.95);
             border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 12px;
-            padding: 14px;
-            min-width: 180px;
+            border-radius: 10px;
+            padding: 10px;
+            min-width: 160px;
             backdrop-filter: blur(20px);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
         }
@@ -1526,8 +1863,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
-            padding-bottom: 10px;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
@@ -1573,19 +1910,19 @@
         /* Legend Sections */
         .profile-legend {
             display: flex;
-            gap: 20px;
+            gap: 12px;
             justify-content: center;
             flex-wrap: wrap;
-            margin-bottom: 12px;
-            padding: 10px 16px;
+            margin-bottom: 10px;
+            padding: 8px 12px;
             background: rgba(255, 255, 255, 0.02);
-            border-radius: 10px;
+            border-radius: 8px;
         }
 
         .legend-section {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 12px;
         }
 
         .legend-title {
@@ -1626,8 +1963,8 @@
         }
 
         .simplify-btn.active {
-            background: linear-gradient(135deg, #8b5cf6, #6366f1);
-            border-color: #8b5cf6;
+            background: linear-gradient(135deg, #4a4a4a, #6b7280);
+            border-color: #6b7280;
             color: white;
         }
 
@@ -1638,11 +1975,11 @@
 
         .simplified-view {
             display: none;
-            padding: 20px;
-            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(99, 102, 241, 0.05));
-            border: 1px solid rgba(139, 92, 246, 0.2);
-            border-radius: 16px;
-            margin-top: 20px;
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(107, 114, 128, 0.1), rgba(107, 114, 128, 0.05));
+            border: 1px solid rgba(107, 114, 128, 0.2);
+            border-radius: 12px;
+            margin-top: 12px;
         }
 
         .simplified-view.active {
@@ -1651,37 +1988,37 @@
         }
 
         .simplified-summary {
-            font-size: 18px;
+            font-size: 14px;
             font-weight: 600;
             color: var(--text-primary);
-            margin-bottom: 16px;
-            line-height: 1.5;
+            margin-bottom: 12px;
+            line-height: 1.4;
         }
 
         .simplified-details {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
         }
 
         .simplified-item {
             display: flex;
             align-items: flex-start;
-            gap: 12px;
-            padding: 12px;
+            gap: 10px;
+            padding: 10px;
             background: rgba(255, 255, 255, 0.03);
-            border-radius: 10px;
+            border-radius: 8px;
         }
 
         .simplified-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            font-size: 16px;
+            font-size: 14px;
         }
 
         .simplified-icon.temp { background: rgba(239, 68, 68, 0.2); }
@@ -1696,25 +2033,25 @@
         }
 
         .simplified-label {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: var(--text-tertiary);
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
 
         .simplified-value {
-            font-size: 14px;
+            font-size: 12px;
             color: var(--text-primary);
-            line-height: 1.4;
+            line-height: 1.3;
         }
 
         .taf-simplified-period {
-            padding: 16px;
+            padding: 12px;
             background: rgba(255, 255, 255, 0.02);
-            border-radius: 12px;
-            margin-bottom: 12px;
+            border-radius: 10px;
+            margin-bottom: 8px;
             border-left: 3px solid var(--accent);
         }
 
@@ -1723,29 +2060,29 @@
         }
 
         .taf-simplified-time {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             color: var(--accent);
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .taf-simplified-summary {
-            font-size: 14px;
+            font-size: 12px;
             color: var(--text-primary);
-            line-height: 1.5;
+            line-height: 1.4;
         }
 
         /* TAF Summary Banner */
         .taf-summary-banner {
-            padding: 16px 20px;
-            border-radius: 12px;
-            margin-bottom: 16px;
-            font-size: 15px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            font-size: 13px;
             font-weight: 500;
-            line-height: 1.5;
+            line-height: 1.4;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
 
         .taf-summary-banner.good {
@@ -1783,7 +2120,6 @@
 
         .taf-period-card:hover {
             background: rgba(255, 255, 255, 0.05);
-            transform: translateX(4px);
         }
 
         .taf-period-card.sun {
@@ -1795,7 +2131,7 @@
         }
 
         .taf-period-card.rain {
-            border-left-color: #3b82f6;
+            border-left-color: #6b7280;
         }
 
         .taf-period-card.storm {
@@ -1811,7 +2147,7 @@
         }
 
         .taf-period-card.from {
-            border-left-color: #3b82f6;
+            border-left-color: #6b7280;
         }
 
         .taf-period-card.tempo {
@@ -1819,7 +2155,7 @@
         }
 
         .taf-period-card.becmg {
-            border-left-color: #8b5cf6;
+            border-left-color: #6b7280;
         }
 
         .taf-period-card.prob {
@@ -1867,7 +2203,7 @@
             position: relative;
             width: 100%;
             height: 500px;
-            background: linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%);
+            background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 50%, #2a2a2a 100%);
             border-radius: 20px;
             overflow: hidden;
             border: 1px solid var(--border-color);
@@ -1906,12 +2242,11 @@
 
         .terrain-3d-btn:hover {
             background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-1px);
         }
 
         .terrain-3d-btn.active {
-            background: rgba(59, 130, 246, 0.3);
-            border-color: rgba(59, 130, 246, 0.5);
+            background: rgba(107, 114, 128, 0.3);
+            border-color: rgba(107, 114, 128, 0.5);
         }
 
         .terrain-legend {
@@ -2025,29 +2360,86 @@
             left: 0;
             right: 0;
             height: 48px;
-            background: rgba(10, 10, 15, 0.95);
+            background: rgba(10, 10, 10, 0.95);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
             padding: 0 24px;
             z-index: 9999;
         }
 
+        .nav-content {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            justify-content: center;
+            position: relative;
+        }
+
         .nav-brand {
+            position: absolute;
+            left: 0;
             display: flex;
             align-items: center;
             gap: 10px;
             font-weight: 600;
             font-size: 14px;
             color: var(--text-primary);
+            text-decoration: none;
         }
 
-        .nav-brand svg {
-            width: 24px;
-            height: 24px;
-            color: var(--accent);
+        .nav-brand svg.orca-logo {
+            width: auto;
+            height: 20px;
+            color: #ffffff;
+        }
+
+        .health-status {
+            position: absolute;
+            right: 48px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-primary);
+            flex-shrink: 0;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--text-tertiary);
+        }
+
+        .theme-toggle .sun-icon {
+            display: none;
+        }
+
+        .theme-toggle .moon-icon {
+            display: inline;
+        }
+
+        .light-mode .theme-toggle .sun-icon {
+            display: inline;
+        }
+
+        .light-mode .theme-toggle .moon-icon {
+            display: none;
         }
 
         .nav-links {
@@ -2074,7 +2466,7 @@
         }
 
         .nav-link.active {
-            background: rgba(59, 130, 246, 0.15);
+            background: rgba(107, 114, 128, 0.15);
             color: var(--accent);
         }
 
@@ -2092,20 +2484,21 @@
 <body>
     <!-- Top Navigation Bar -->
     <nav class="top-navbar">
-        <div class="nav-brand">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-            Aviation Weather API
-        </div>
-        <div class="nav-links">
-            <a href="/" class="nav-link active">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                    <polyline points="9 22 9 12 15 12 15 22"/>
+        <div class="nav-content">
+            <a href="/" class="nav-brand">
+                <svg class="orca-logo" viewBox="0 0 798 257" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M67.8809 234.41C186.564 258.373 307.51 270.119 360.879 234.41C414.248 198.702 779.734 36.4014 796.092 14.7603C812.45 -6.88083 723.078 -6.93654 548.57 29.5108C375.251 65.7097 321.828 80.6187 159.348 125.963L155.986 126.901C-9.12734 172.979 -50.8019 210.448 67.8809 234.41Z"/>
                 </svg>
-                Weather
+                SkyEye
             </a>
+            <div class="nav-links">
+                <a href="/" class="nav-link active">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        <polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                    Weather
+                </a>
             <a href="/live-map" class="nav-link">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="10"/>
@@ -2139,47 +2532,34 @@
                     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
                 </svg>
                 Analysis
-            </a>
+                </a>
+            </div>
+            <div class="health-status">
+                <div class="health-dot" id="healthDot"></div>
+                <span class="health-text" id="healthText">Connecting...</span>
+            </div>
+            <div class="theme-toggle" onclick="toggleTheme()" title="Toggle Light/Dark Mode" role="button" tabindex="0">
+                    <svg class="moon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </div>
         </div>
     </nav>
     <div class="bg-gradient"></div>
 
     <!-- Dashboard Layout -->
     <div class="dashboard">
-        <!-- Header -->
-        <div class="dashboard-header">
-            <div class="logo">
-                <div class="logo-icon" style="width: 36px; height: 36px; border-radius: 10px;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                    </svg>
-                </div>
-                <h1 style="font-size: 1.25rem;">Aviation Weather</h1>
-            </div>
-            <div class="hero-stats" id="heroStats" style="display: flex; gap: 24px; margin: 0;">
-                <div class="stat-card" style="padding: 8px 16px; border-radius: 8px;">
-                    <div class="stat-value" id="statTemp" style="font-size: 1.1rem;">--</div>
-                    <div class="stat-label" style="font-size: 0.65rem;">TEMP</div>
-                </div>
-                <div class="stat-card" style="padding: 8px 16px; border-radius: 8px;">
-                    <div class="stat-value" id="statWind" style="font-size: 1.1rem;">--</div>
-                    <div class="stat-label" style="font-size: 0.65rem;">WIND</div>
-                </div>
-                <div class="stat-card" style="padding: 8px 16px; border-radius: 8px;">
-                    <div class="stat-value" id="statVis" style="font-size: 1.1rem;">--</div>
-                    <div class="stat-label" style="font-size: 0.65rem;">VIS</div>
-                </div>
-                <div class="stat-card" style="padding: 8px 16px; border-radius: 8px;">
-                    <div class="stat-value" id="statAlt" style="font-size: 1.1rem;">--</div>
-                    <div class="stat-label" style="font-size: 0.65rem;">ALT</div>
-                </div>
-            </div>
-            <div class="health-status">
-                <div class="health-dot" id="healthDot"></div>
-                <span class="health-text" id="healthText">Connecting...</span>
-            </div>
-        </div>
-
         <!-- Left Panel - Search & METAR/TAF -->
         <div class="panel-left">
             <div class="card compact">
@@ -2193,30 +2573,30 @@
                     </div>
                     <div class="search-results" id="searchResults"></div>
                 </div>
-                <div class="quick-actions" style="margin-top: 10px; gap: 6px;">
-                    <div class="quick-action" data-station="KLAX" data-lat="33.94" data-lon="-118.41" style="padding: 6px 10px; font-size: 0.75rem;">KLAX</div>
-                    <div class="quick-action" data-station="KJFK" data-lat="40.64" data-lon="-73.78" style="padding: 6px 10px; font-size: 0.75rem;">KJFK</div>
-                    <div class="quick-action" data-station="KORD" data-lat="41.98" data-lon="-87.90" style="padding: 6px 10px; font-size: 0.75rem;">KORD</div>
-                    <div class="quick-action" data-station="KATL" data-lat="33.64" data-lon="-84.43" style="padding: 6px 10px; font-size: 0.75rem;">KATL</div>
+                <div class="quick-actions" style="margin-top: 8px; gap: 4px;">
+                    <div class="quick-action" data-station="KLAX" data-lat="33.94" data-lon="-118.41" style="padding: 4px 8px; font-size: 0.7rem;">KLAX</div>
+                    <div class="quick-action" data-station="KJFK" data-lat="40.64" data-lon="-73.78" style="padding: 4px 8px; font-size: 0.7rem;">KJFK</div>
+                    <div class="quick-action" data-station="KORD" data-lat="41.98" data-lon="-87.90" style="padding: 4px 8px; font-size: 0.7rem;">KORD</div>
+                    <div class="quick-action" data-station="KATL" data-lat="33.64" data-lon="-84.43" style="padding: 4px 8px; font-size: 0.7rem;">KATL</div>
                 </div>
             </div>
 
             <div class="card compact flex-grow" id="metarCard" style="overflow-y: auto;">
-                <div class="empty-state" style="padding: 20px 10px;">
-                    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 32px; height: 32px;">
+                <div class="empty-state" style="padding: 12px 8px;">
+                    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px;">
                         <path d="M12 2v2m0 16v2M4 12H2m20 0h-2m-2.05-6.95l-1.41 1.41m-9.9 9.9l-1.41 1.41m0-12.72l1.41 1.41m9.9 9.9l1.41 1.41"/>
                         <circle cx="12" cy="12" r="4"/>
                     </svg>
-                    <p style="font-size: 0.8rem;">Search for METAR</p>
+                    <p style="font-size: 0.7rem;">Search for METAR</p>
                 </div>
             </div>
 
             <div class="card compact flex-grow" id="tafCard" style="overflow-y: auto;">
-                <div class="empty-state" style="padding: 20px 10px;">
-                    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 32px; height: 32px;">
+                <div class="empty-state" style="padding: 12px 8px;">
+                    <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 24px; height: 24px;">
                         <path d="M3 15h4l3-9 4 18 3-9h4"/>
                     </svg>
-                    <p style="font-size: 0.8rem;">Search for TAF</p>
+                    <p style="font-size: 0.7rem;">Search for TAF</p>
                 </div>
             </div>
         </div>
@@ -2229,17 +2609,19 @@
             <div class="card-header">
                 <span class="card-title">Weather Map</span>
                 <div class="map-layer-toggles">
-                    <button class="map-layer-btn active" data-layer="precipitation" title="Precipitation">
+                    <button class="map-layer-btn active" data-layer="radar" title="Live Radar">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 2v10l7 7"/>
                         </svg>
-                        <span>Rain</span>
+                        <span>Radar</span>
                     </button>
-                    <button class="map-layer-btn" data-layer="clouds" title="Clouds">
+                    <button class="map-layer-btn" data-layer="satellite" title="Satellite IR">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v4m0 14v4M4.22 4.22l2.83 2.83m9.9 9.9l2.83 2.83M1 12h4m14 0h4M4.22 19.78l2.83-2.83m9.9-9.9l2.83-2.83"/>
                         </svg>
-                        <span>Clouds</span>
+                        <span>Satellite</span>
                     </button>
                     <button class="map-layer-btn" data-layer="temp" title="Temperature">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2253,16 +2635,35 @@
                         </svg>
                         <span>Wind</span>
                     </button>
-                    <button class="map-layer-btn" data-layer="pressure" title="Pressure">
+                    <button class="map-layer-btn" data-layer="clouds" title="Clouds">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M12 6v6l4 2"/>
+                            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
                         </svg>
-                        <span>Press</span>
+                        <span>Clouds</span>
                     </button>
                 </div>
             </div>
-            <div id="weatherMap" class="weather-map"></div>
+            <div class="weather-map-container">
+                <div id="weatherMap" class="weather-map"></div>
+                <div class="map-stats-overlay" id="heroStats">
+                    <div class="map-stat-card">
+                        <div class="map-stat-value" id="statTemp">--</div>
+                        <div class="map-stat-label">TEMP</div>
+                    </div>
+                    <div class="map-stat-card">
+                        <div class="map-stat-value" id="statWind">--</div>
+                        <div class="map-stat-label">WIND</div>
+                    </div>
+                    <div class="map-stat-card">
+                        <div class="map-stat-value" id="statVis">--</div>
+                        <div class="map-stat-label">VIS</div>
+                    </div>
+                    <div class="map-stat-card">
+                        <div class="map-stat-value" id="statAlt">--</div>
+                        <div class="map-stat-label">ALT</div>
+                    </div>
+                </div>
+            </div>
             <div class="map-legend" id="mapLegend">
                 <span class="legend-title">Precipitation (mm/h)</span>
                 <div class="legend-gradient precipitation"></div>
@@ -2272,143 +2673,6 @@
                     <span>Moderate</span>
                     <span>Heavy</span>
                 </div>
-            </div>
-        </div>
-
-        <div class="section-header">
-            <h2 class="section-title">Journey Profile</h2>
-            <div class="section-line"></div>
-        </div>
-        <div class="card" id="journeyCard">
-            <div class="card-header">
-                <span class="card-title">Flight Plan</span>
-                <button class="view-btn" id="clearRouteBtn" style="background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.3); color: #ef4444;">Clear</button>
-            </div>
-
-            <div class="flight-plan-inputs">
-                <div class="waypoint-row" data-index="0">
-                    <div class="waypoint-marker departure">DEP</div>
-                    <div class="waypoint-fields">
-                        <input type="text" class="waypoint-name" placeholder="Departure (e.g., KLAX)" data-index="0">
-                        <input type="number" class="waypoint-alt" placeholder="Alt (ft)" value="0" data-index="0">
-                        <input type="number" class="waypoint-lat" placeholder="Lat" step="0.01" data-index="0" style="display:none;">
-                        <input type="number" class="waypoint-lon" placeholder="Lon" step="0.01" data-index="0" style="display:none;">
-                    </div>
-                </div>
-
-                <div id="waypointsList"></div>
-
-                <div class="waypoint-row" data-index="dest">
-                    <div class="waypoint-marker arrival">ARR</div>
-                    <div class="waypoint-fields">
-                        <input type="text" class="waypoint-name" placeholder="Arrival (e.g., KSFO)" data-index="dest">
-                        <input type="number" class="waypoint-alt" placeholder="Alt (ft)" value="0" data-index="dest">
-                        <input type="number" class="waypoint-lat" placeholder="Lat" step="0.01" data-index="dest" style="display:none;">
-                        <input type="number" class="waypoint-lon" placeholder="Lon" step="0.01" data-index="dest" style="display:none;">
-                    </div>
-                </div>
-            </div>
-
-            <div class="waypoint-actions">
-                <button class="add-waypoint-btn" id="addWaypointBtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 5v14M5 12h14"/>
-                    </svg>
-                    Add Waypoint
-                </button>
-                <button id="calculateRouteBtn">Calculate Route Weather</button>
-            </div>
-
-            <div id="profileContainer" style="display: none;">
-                <div class="profile-header">
-                    <div class="profile-stats">
-                        <div class="profile-stat">
-                            <span class="profile-stat-value" id="totalDistance">--</span>
-                            <span class="profile-stat-label">Total NM</span>
-                        </div>
-                        <div class="profile-stat">
-                            <span class="profile-stat-value" id="maxAltitude">--</span>
-                            <span class="profile-stat-label">Max Alt</span>
-                        </div>
-                        <div class="profile-stat">
-                            <span class="profile-stat-value" id="avgConditions">--</span>
-                            <span class="profile-stat-label">Conditions</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="overlay-controls">
-                    <span class="overlay-label">Overlays:</span>
-                    <button class="overlay-btn active" data-overlay="clouds">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-                        </svg>
-                        Clouds
-                    </button>
-                    <button class="overlay-btn" data-overlay="visibility">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                            <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                        Visibility
-                    </button>
-                    <button class="overlay-btn" data-overlay="precipitation">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-                        </svg>
-                        Precip
-                    </button>
-                    <button class="overlay-btn" data-overlay="terrain">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 20L12 4 2 20h20z"/>
-                            <path d="M12 20v-8"/>
-                        </svg>
-                        Terrain
-                    </button>
-                </div>
-
-                <div class="profile-chart-wrapper">
-                    <div class="profile-chart-container">
-                        <canvas id="profileChart"></canvas>
-                        <div class="hover-indicator" id="hoverIndicator">
-                            <div class="hover-line"></div>
-                            <div class="hover-tooltip" id="hoverTooltip">
-                                <div class="hover-tooltip-header">
-                                    <span class="hover-location" id="hoverLocation">--</span>
-                                    <span class="hover-conditions" id="hoverConditions">--</span>
-                                </div>
-                                <div class="hover-tooltip-grid">
-                                    <div><span>Alt:</span> <strong id="hoverAlt">--</strong></div>
-                                    <div><span>Dist:</span> <strong id="hoverDist">--</strong></div>
-                                    <div><span>Temp:</span> <strong id="hoverTemp">--</strong></div>
-                                    <div><span>Wind:</span> <strong id="hoverWind">--</strong></div>
-                                    <div><span>Clouds:</span> <strong id="hoverClouds">--</strong></div>
-                                    <div><span>Vis:</span> <strong id="hoverVis">--</strong></div>
-                                    <div><span>Precip:</span> <strong id="hoverPrecip">--</strong></div>
-                                    <div><span>Terrain:</span> <strong id="hoverTerrain">--</strong></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="altitude-scale" id="altitudeScale"></div>
-                </div>
-
-                <div class="profile-legend">
-                    <div class="legend-section">
-                        <span class="legend-title">Flight Rules:</span>
-                        <div class="legend-item"><span class="legend-color vfr"></span>VFR</div>
-                        <div class="legend-item"><span class="legend-color mvfr"></span>MVFR</div>
-                        <div class="legend-item"><span class="legend-color ifr"></span>IFR</div>
-                        <div class="legend-item"><span class="legend-color lifr"></span>LIFR</div>
-                    </div>
-                    <div class="legend-section" id="terrainLegend" style="display: none;">
-                        <span class="legend-title">Terrain:</span>
-                        <div class="legend-item"><span class="legend-color terrain-safe"></span>Safe (>1000')</div>
-                        <div class="legend-item"><span class="legend-color terrain-caution"></span>Caution (500-1000')</div>
-                        <div class="legend-item"><span class="legend-color terrain-warning"></span>Warning (<500')</div>
-                    </div>
-                </div>
-                <div id="waypointDetails"></div>
             </div>
         </div>
         </div>
@@ -2491,6 +2755,123 @@
         let forecastData = null;
         let currentChartType = 'temperature';
 
+        // Comprehensive list of US airports for geolocation
+        const US_AIRPORTS = [
+            // Major hubs
+            {"icao": "KLAX", "name": "Los Angeles International", "lat": 33.94, "lon": -118.41},
+            {"icao": "KJFK", "name": "John F Kennedy International", "lat": 40.64, "lon": -73.78},
+            {"icao": "KORD", "name": "Chicago O'Hare International", "lat": 41.98, "lon": -87.90},
+            {"icao": "KATL", "name": "Hartsfield-Jackson Atlanta", "lat": 33.64, "lon": -84.43},
+            {"icao": "KDFW", "name": "Dallas/Fort Worth International", "lat": 32.90, "lon": -97.04},
+            {"icao": "KDEN", "name": "Denver International", "lat": 39.86, "lon": -104.67},
+            {"icao": "KSFO", "name": "San Francisco International", "lat": 37.62, "lon": -122.38},
+            {"icao": "KLAS", "name": "Las Vegas McCarran", "lat": 36.08, "lon": -115.15},
+            {"icao": "KSEA", "name": "Seattle-Tacoma International", "lat": 47.45, "lon": -122.31},
+            {"icao": "KMCO", "name": "Orlando International", "lat": 28.43, "lon": -81.31},
+            {"icao": "KPHX", "name": "Phoenix Sky Harbor", "lat": 33.43, "lon": -112.01},
+            {"icao": "KIAH", "name": "Houston Intercontinental", "lat": 29.98, "lon": -95.34},
+            {"icao": "KMIA", "name": "Miami International", "lat": 25.79, "lon": -80.29},
+            {"icao": "KEWR", "name": "Newark Liberty International", "lat": 40.69, "lon": -74.17},
+            {"icao": "KBOS", "name": "Boston Logan International", "lat": 42.36, "lon": -71.01},
+            {"icao": "KMSP", "name": "Minneapolis-St Paul", "lat": 44.88, "lon": -93.22},
+            {"icao": "KDTW", "name": "Detroit Metro Wayne County", "lat": 42.21, "lon": -83.35},
+            {"icao": "KPHL", "name": "Philadelphia International", "lat": 39.87, "lon": -75.24},
+            {"icao": "KLGA", "name": "LaGuardia", "lat": 40.78, "lon": -73.87},
+            {"icao": "KFLL", "name": "Fort Lauderdale Hollywood", "lat": 26.07, "lon": -80.15},
+            {"icao": "KBWI", "name": "Baltimore/Washington", "lat": 39.18, "lon": -76.67},
+            {"icao": "KSLC", "name": "Salt Lake City International", "lat": 40.79, "lon": -111.98},
+            {"icao": "KDCA", "name": "Ronald Reagan Washington", "lat": 38.85, "lon": -77.04},
+            {"icao": "KIAD", "name": "Washington Dulles", "lat": 38.94, "lon": -77.46},
+            {"icao": "KSAN", "name": "San Diego International", "lat": 32.73, "lon": -117.19},
+            {"icao": "KTPA", "name": "Tampa International", "lat": 27.98, "lon": -82.53},
+            {"icao": "KPDX", "name": "Portland International", "lat": 45.59, "lon": -122.60},
+            {"icao": "KSTL", "name": "St Louis Lambert", "lat": 38.75, "lon": -90.37},
+            {"icao": "KBNA", "name": "Nashville International", "lat": 36.12, "lon": -86.68},
+            {"icao": "KAUS", "name": "Austin-Bergstrom", "lat": 30.19, "lon": -97.67},
+            {"icao": "KSAT", "name": "San Antonio International", "lat": 29.53, "lon": -98.47},
+            {"icao": "KSMF", "name": "Sacramento International", "lat": 38.70, "lon": -121.59},
+            {"icao": "KCLT", "name": "Charlotte Douglas", "lat": 35.21, "lon": -80.94},
+            {"icao": "KRDU", "name": "Raleigh-Durham", "lat": 35.88, "lon": -78.79},
+            {"icao": "KMCI", "name": "Kansas City International", "lat": 39.30, "lon": -94.71},
+            {"icao": "KCLE", "name": "Cleveland Hopkins", "lat": 41.41, "lon": -81.85},
+            {"icao": "KIND", "name": "Indianapolis International", "lat": 39.72, "lon": -86.29},
+            {"icao": "KCMH", "name": "Columbus John Glenn", "lat": 39.99, "lon": -82.89},
+            {"icao": "KPIT", "name": "Pittsburgh International", "lat": 40.49, "lon": -80.23},
+            {"icao": "KOAK", "name": "Oakland International", "lat": 37.72, "lon": -122.22},
+            {"icao": "KSJC", "name": "San Jose Norman Mineta", "lat": 37.36, "lon": -121.93},
+            {"icao": "KABQ", "name": "Albuquerque International", "lat": 35.04, "lon": -106.61},
+            {"icao": "KOMA", "name": "Omaha Eppley Airfield", "lat": 41.30, "lon": -95.89},
+            {"icao": "KMKE", "name": "Milwaukee Mitchell", "lat": 42.95, "lon": -87.90},
+            {"icao": "KBUF", "name": "Buffalo Niagara", "lat": 42.94, "lon": -78.73},
+            {"icao": "KPVD", "name": "Providence TF Green", "lat": 41.72, "lon": -71.43},
+            {"icao": "KRNO", "name": "Reno-Tahoe International", "lat": 39.50, "lon": -119.77},
+            {"icao": "KBOI", "name": "Boise Air Terminal", "lat": 43.56, "lon": -116.22},
+            {"icao": "KHOU", "name": "Houston Hobby", "lat": 29.65, "lon": -95.28},
+            {"icao": "KMDW", "name": "Chicago Midway", "lat": 41.79, "lon": -87.75},
+            {"icao": "KDAL", "name": "Dallas Love Field", "lat": 32.85, "lon": -96.85},
+            {"icao": "KBUR", "name": "Hollywood Burbank", "lat": 34.20, "lon": -118.36},
+            {"icao": "KSNA", "name": "John Wayne Orange County", "lat": 33.68, "lon": -117.87},
+            {"icao": "KONT", "name": "Ontario International", "lat": 34.06, "lon": -117.60},
+            {"icao": "KANC", "name": "Anchorage Ted Stevens", "lat": 61.17, "lon": -150.00},
+            {"icao": "PHNL", "name": "Honolulu Daniel K Inouye", "lat": 21.32, "lon": -157.92}
+        ];
+
+        // Calculate distance between two points (haversine formula)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 3440.065; // Earth radius in nautical miles
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // Find nearest airport to given coordinates
+        function findNearestAirport(lat, lon) {
+            let nearest = null;
+            let minDistance = Infinity;
+
+            for (const airport of US_AIRPORTS) {
+                const distance = calculateDistance(lat, lon, airport.lat, airport.lon);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearest = { ...airport, distance: Math.round(distance) };
+                }
+            }
+            return nearest;
+        }
+
+        // Get user location and load nearest airport data
+        async function loadNearestAirport() {
+            if (!navigator.geolocation) {
+                console.log('Geolocation not supported');
+                return;
+            }
+
+            try {
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        enableHighAccuracy: false,
+                        timeout: 5000,
+                        maximumAge: 300000 // Cache for 5 minutes
+                    });
+                });
+
+                const { latitude, longitude } = position.coords;
+                const nearest = findNearestAirport(latitude, longitude);
+
+                if (nearest) {
+                    console.log(`Found nearest airport: ${nearest.icao} (${nearest.distance} nm away)`);
+                    loadStationData(nearest.icao, nearest.lat, nearest.lon);
+                }
+            } catch (error) {
+                console.log('Geolocation error or denied:', error.message);
+                // Default to a major hub if geolocation fails
+            }
+        }
+
         // Chart.js global config for dark theme
         Chart.defaults.color = 'rgba(255, 255, 255, 0.6)';
         Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.08)';
@@ -2499,7 +2880,269 @@
         let weatherMap = null;
         let currentWeatherLayer = null;
         let routeLayerGroup = null;
+        let radarLayer = null;
+        let satelliteLayer = null;
+        let radarTimestamp = null;
+        let windParticleSystem = null;
         const OWM_API_KEY = ''; // OpenWeatherMap API key (free tier works without key for tiles)
+
+        // Wind Particle Animation System
+        class WindParticleSystem {
+            constructor(map, canvasId) {
+                this.map = map;
+                this.canvas = null;
+                this.ctx = null;
+                this.particles = [];
+                this.animationId = null;
+                this.isActive = false;
+                this.particleCount = 500;
+                this.fadeAmount = 0.97;
+
+                this.createCanvas(canvasId);
+                this.updateParticleCount();
+                this.initParticles();
+                this.bindMapEvents();
+            }
+
+            createCanvas(canvasId) {
+                // Create canvas overlay
+                this.canvas = document.createElement('canvas');
+                this.canvas.id = canvasId;
+                this.canvas.style.cssText = `
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                    z-index: 450;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                `;
+
+                const mapContainer = this.map.getContainer();
+                mapContainer.appendChild(this.canvas);
+                this.ctx = this.canvas.getContext('2d');
+                this.resizeCanvas();
+            }
+
+            resizeCanvas() {
+                const rect = this.map.getContainer().getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+                this.updateParticleCount();
+                this.initParticles();
+            }
+
+            updateParticleCount() {
+                // Reduce particle density when zoomed in
+                const zoom = this.map.getZoom();
+                const baseCount = 500;
+
+                // At zoom 4 (default), use full count
+                // Reduce significantly as zoom increases
+                if (zoom <= 4) {
+                    this.particleCount = baseCount;
+                } else if (zoom <= 6) {
+                    this.particleCount = Math.floor(baseCount * 0.5);
+                } else if (zoom <= 8) {
+                    this.particleCount = Math.floor(baseCount * 0.25);
+                } else if (zoom <= 10) {
+                    this.particleCount = Math.floor(baseCount * 0.12);
+                } else {
+                    this.particleCount = Math.floor(baseCount * 0.06);
+                }
+            }
+
+            bindMapEvents() {
+                this.map.on('move', () => this.onMapMove());
+                this.map.on('zoomend', () => this.onZoomEnd());
+                this.map.on('resize', () => this.resizeCanvas());
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+
+            onMapMove() {
+                // Reset particles on map movement for smoother experience
+                if (this.isActive) {
+                    this.initParticles();
+                }
+            }
+
+            onZoomEnd() {
+                // Update particle count based on new zoom level
+                if (this.isActive) {
+                    this.updateParticleCount();
+                    this.initParticles();
+                }
+            }
+
+            initParticles() {
+                this.particles = [];
+                for (let i = 0; i < this.particleCount; i++) {
+                    this.particles.push(this.createParticle());
+                }
+            }
+
+            createParticle() {
+                return {
+                    x: Math.random() * this.canvas.width,
+                    y: Math.random() * this.canvas.height,
+                    age: Math.random() * 10,
+                    maxAge: 10 + Math.random() * 8
+                };
+            }
+
+            // Generate wind vector based on position (simulated global wind patterns)
+            getWindVector(x, y) {
+                const bounds = this.map.getBounds();
+                const lat = bounds.getSouth() + (1 - y / this.canvas.height) * (bounds.getNorth() - bounds.getSouth());
+                const lon = bounds.getWest() + (x / this.canvas.width) * (bounds.getEast() - bounds.getWest());
+
+                // Simulate realistic wind patterns
+                // Trade winds near equator (east to west)
+                // Westerlies in mid-latitudes (west to east)
+                // Polar easterlies near poles
+
+                const time = Date.now() / 50000; // Slow time factor for variation
+
+                let u, v; // Wind components (u = east-west, v = north-south)
+
+                if (Math.abs(lat) < 30) {
+                    // Trade winds - blow east to west with slight poleward component
+                    u = -2 - Math.sin(lon * 0.1 + time) * 0.5;
+                    v = lat > 0 ? 0.3 : -0.3;
+                } else if (Math.abs(lat) < 60) {
+                    // Westerlies - blow west to east, stronger at 45 degrees
+                    const strength = 1 + Math.cos((Math.abs(lat) - 45) * Math.PI / 30);
+                    u = 2 * strength + Math.sin(lon * 0.05 + lat * 0.1 + time) * 0.8;
+                    v = Math.sin(lon * 0.1 + time * 2) * 0.5;
+                } else {
+                    // Polar easterlies
+                    u = -1.5 + Math.cos(lon * 0.08 + time) * 0.4;
+                    v = lat > 0 ? -0.2 : 0.2;
+                }
+
+                // Add some turbulence/variation
+                const turbulence = 0.3;
+                u += (Math.sin(x * 0.01 + y * 0.02 + time * 3) * turbulence);
+                v += (Math.cos(x * 0.02 + y * 0.01 + time * 2.5) * turbulence);
+
+                // Scale based on zoom level
+                const zoom = this.map.getZoom();
+                const scale = Math.pow(2, zoom - 4) * 0.08;
+
+                return { u: u * scale, v: v * scale };
+            }
+
+            updateParticles() {
+                for (let i = 0; i < this.particles.length; i++) {
+                    const p = this.particles[i];
+                    const wind = this.getWindVector(p.x, p.y);
+
+                    // Store previous position for trail
+                    p.prevX = p.x;
+                    p.prevY = p.y;
+
+                    // Update position
+                    p.x += wind.u;
+                    p.y -= wind.v; // Negative because canvas y is inverted
+                    p.age++;
+
+                    // Reset particle if it's too old or out of bounds
+                    if (p.age > p.maxAge ||
+                        p.x < 0 || p.x > this.canvas.width ||
+                        p.y < 0 || p.y > this.canvas.height) {
+
+                        // Respawn at random edge or position
+                        if (Math.random() > 0.5) {
+                            // Spawn at edge opposite to wind direction
+                            const wind = this.getWindVector(this.canvas.width / 2, this.canvas.height / 2);
+                            if (Math.abs(wind.u) > Math.abs(wind.v)) {
+                                p.x = wind.u > 0 ? 0 : this.canvas.width;
+                                p.y = Math.random() * this.canvas.height;
+                            } else {
+                                p.x = Math.random() * this.canvas.width;
+                                p.y = wind.v > 0 ? this.canvas.height : 0;
+                            }
+                        } else {
+                            p.x = Math.random() * this.canvas.width;
+                            p.y = Math.random() * this.canvas.height;
+                        }
+                        p.age = 0;
+                        p.maxAge = 80 + Math.random() * 40;
+                        p.prevX = p.x;
+                        p.prevY = p.y;
+                    }
+                }
+            }
+
+            draw() {
+                // Fade existing trails
+                this.ctx.fillStyle = `rgba(0, 0, 0, ${1 - this.fadeAmount})`;
+                this.ctx.globalCompositeOperation = 'destination-out';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.globalCompositeOperation = 'source-over';
+
+                // Draw particles - thinner lines when zoomed in
+                const zoom = this.map.getZoom();
+                const lineWidth = zoom <= 4 ? 1 : zoom <= 6 ? 0.8 : 0.5;
+                this.ctx.lineWidth = lineWidth;
+
+                for (const p of this.particles) {
+                    if (p.prevX === undefined) continue;
+
+                    // Fade based on age
+                    const ageFactor = 1 - (p.age / p.maxAge);
+                    const alpha = Math.min(0.8, ageFactor * 0.8);
+
+                    if (alpha > 0.05) {
+                        this.ctx.beginPath();
+                        this.ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+                        this.ctx.moveTo(p.prevX, p.prevY);
+                        this.ctx.lineTo(p.x, p.y);
+                        this.ctx.stroke();
+                    }
+                }
+            }
+
+            animate() {
+                if (!this.isActive) return;
+
+                this.updateParticles();
+                this.draw();
+                this.animationId = requestAnimationFrame(() => this.animate());
+            }
+
+            start() {
+                if (this.isActive) return;
+                this.isActive = true;
+                this.canvas.style.opacity = '1';
+                this.initParticles();
+                this.animate();
+            }
+
+            stop() {
+                this.isActive = false;
+                this.canvas.style.opacity = '0';
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                    this.animationId = null;
+                }
+                // Clear canvas
+                setTimeout(() => {
+                    if (!this.isActive) {
+                        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                    }
+                }, 300);
+            }
+
+            destroy() {
+                this.stop();
+                if (this.canvas && this.canvas.parentNode) {
+                    this.canvas.parentNode.removeChild(this.canvas);
+                }
+            }
+        }
 
         function initWeatherMap() {
             // Initialize map centered on US
@@ -2520,8 +3163,14 @@
             // Initialize route layer group
             routeLayerGroup = L.layerGroup().addTo(weatherMap);
 
-            // Add default weather layer (precipitation)
-            setWeatherLayer('precipitation');
+            // Initialize wind particle system
+            windParticleSystem = new WindParticleSystem(weatherMap, 'windParticleCanvas');
+
+            // Load RainViewer layers
+            loadRainViewerLayers();
+
+            // Add default weather layer (radar)
+            setWeatherLayer('radar');
 
             // Setup layer toggle buttons
             document.querySelectorAll('.map-layer-btn').forEach(btn => {
@@ -2533,23 +3182,69 @@
             });
         }
 
+        // Load RainViewer radar and satellite layers
+        async function loadRainViewerLayers() {
+            try {
+                const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+                const data = await response.json();
+
+                // Load radar layer
+                if (data.radar && data.radar.past && data.radar.past.length > 0) {
+                    const latestRadar = data.radar.past[data.radar.past.length - 1];
+                    radarTimestamp = new Date(latestRadar.time * 1000);
+
+                    if (radarLayer) {
+                        weatherMap.removeLayer(radarLayer);
+                    }
+
+                    radarLayer = L.tileLayer(`https://tilecache.rainviewer.com${latestRadar.path}/256/{z}/{x}/{y}/4/1_1.png`, {
+                        opacity: 0.7,
+                        zIndex: 100
+                    });
+                }
+
+                // Load satellite/clouds layer
+                if (data.satellite && data.satellite.infrared && data.satellite.infrared.length > 0) {
+                    const latestSat = data.satellite.infrared[data.satellite.infrared.length - 1];
+
+                    if (satelliteLayer) {
+                        weatherMap.removeLayer(satelliteLayer);
+                    }
+
+                    satelliteLayer = L.tileLayer(`https://tilecache.rainviewer.com${latestSat.path}/256/{z}/{x}/{y}/0/0_0.png`, {
+                        opacity: 0.5,
+                        zIndex: 90
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load RainViewer layers:', error);
+            }
+        }
+
         function setWeatherLayer(layerType) {
             // Remove current layer
             if (currentWeatherLayer) {
                 weatherMap.removeLayer(currentWeatherLayer);
+                currentWeatherLayer = null;
             }
 
-            // OpenWeatherMap layer codes
-            const layerCodes = {
-                precipitation: 'precipitation_new',
-                clouds: 'clouds_new',
-                temp: 'temp_new',
-                wind: 'wind_new',
-                pressure: 'pressure_new'
-            };
+            // Also remove radar/satellite if switching away
+            if (radarLayer) weatherMap.removeLayer(radarLayer);
+            if (satelliteLayer) weatherMap.removeLayer(satelliteLayer);
+
+            // Control wind particle animation
+            if (windParticleSystem) {
+                if (layerType === 'wind') {
+                    windParticleSystem.start();
+                } else {
+                    windParticleSystem.stop();
+                }
+            }
 
             // Legend info for each layer
             const legendInfo = {
+                radar: { title: 'Precipitation Radar', labels: ['None', 'Light', 'Moderate', 'Heavy'] },
+                satellite: { title: 'Cloud Cover (IR)', labels: ['Clear', 'Thin', 'Medium', 'Thick'] },
                 precipitation: { title: 'Precipitation (mm/h)', labels: ['0', 'Light', 'Moderate', 'Heavy'] },
                 clouds: { title: 'Cloud Cover (%)', labels: ['0%', '25%', '50%', '100%'] },
                 temp: { title: 'Temperature', labels: ['-40°', '0°', '20°', '40°C'] },
@@ -2557,18 +3252,50 @@
                 pressure: { title: 'Pressure (hPa)', labels: ['950', '1000', '1025', '1050'] }
             };
 
-            // Add weather layer from OpenWeatherMap
-            const layerCode = layerCodes[layerType];
-            currentWeatherLayer = L.tileLayer(
-                `https://tile.openweathermap.org/map/${layerCode}/{z}/{x}/{y}.png?appid=9de243494c0b295cca9337e1e96b00e2`,
-                {
-                    opacity: 0.7,
-                    maxZoom: 19
+            // Handle RainViewer layers
+            if (layerType === 'radar') {
+                if (radarLayer) {
+                    radarLayer.addTo(weatherMap);
+                } else {
+                    // Fallback to OWM precipitation if radar not loaded
+                    currentWeatherLayer = L.tileLayer(
+                        `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=9de243494c0b295cca9337e1e96b00e2`,
+                        { opacity: 0.7, maxZoom: 19 }
+                    ).addTo(weatherMap);
                 }
-            ).addTo(weatherMap);
+            } else if (layerType === 'satellite') {
+                if (satelliteLayer) {
+                    satelliteLayer.addTo(weatherMap);
+                } else {
+                    // Fallback to OWM clouds if satellite not loaded
+                    currentWeatherLayer = L.tileLayer(
+                        `https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=9de243494c0b295cca9337e1e96b00e2`,
+                        { opacity: 0.7, maxZoom: 19 }
+                    ).addTo(weatherMap);
+                }
+            } else {
+                // OpenWeatherMap layer codes
+                const layerCodes = {
+                    precipitation: 'precipitation_new',
+                    clouds: 'clouds_new',
+                    temp: 'temp_new',
+                    wind: 'wind_new',
+                    pressure: 'pressure_new'
+                };
+
+                const layerCode = layerCodes[layerType];
+                if (layerCode) {
+                    currentWeatherLayer = L.tileLayer(
+                        `https://tile.openweathermap.org/map/${layerCode}/{z}/{x}/{y}.png?appid=9de243494c0b295cca9337e1e96b00e2`,
+                        { opacity: 0.7, maxZoom: 19 }
+                    ).addTo(weatherMap);
+                }
+            }
 
             // Update legend
-            updateMapLegend(layerType, legendInfo[layerType]);
+            if (legendInfo[layerType]) {
+                updateMapLegend(layerType, legendInfo[layerType]);
+            }
         }
 
         function updateMapLegend(layerType, info) {
@@ -2601,7 +3328,7 @@
                 wp.longitude || wp.lon
             ]);
             const routeLine = L.polyline(routeCoords, {
-                color: '#3b82f6',
+                color: '#6b7280',
                 weight: 3,
                 opacity: 0.8,
                 dashArray: '10, 10'
@@ -2615,7 +3342,7 @@
                 const lon = wp.longitude || wp.lon;
                 const alt = wp.altitude_ft || wp.alt || 0;
 
-                const markerColor = isFirst ? '#10b981' : (isLast ? '#ef4444' : '#3b82f6');
+                const markerColor = isFirst ? '#10b981' : (isLast ? '#ef4444' : '#6b7280');
                 const markerSize = (isFirst || isLast) ? 10 : 6;
 
                 const marker = L.circleMarker([lat, lon], {
@@ -2646,7 +3373,7 @@
             routeLayerGroup.clearLayers();
             L.circleMarker([lat, lon], {
                 radius: 8,
-                fillColor: '#3b82f6',
+                fillColor: '#6b7280',
                 color: '#ffffff',
                 weight: 2,
                 opacity: 1,
@@ -2764,13 +3491,50 @@
             ]);
         }
 
-        async function loadMetar(station) {
+        // Retry state tracking
+        const retryState = {
+            metar: { attempts: 0, maxAttempts: 5, retryDelay: 3000, timer: null },
+            taf: { attempts: 0, maxAttempts: 5, retryDelay: 3000, timer: null }
+        };
+
+        async function loadMetar(station, isRetry = false) {
             const card = document.getElementById('metarCard');
-            card.classList.add('loading');
+            const state = retryState.metar;
+
+            // Clear any existing retry timer
+            if (state.timer) {
+                clearTimeout(state.timer);
+                state.timer = null;
+            }
+
+            // Reset attempts if this is a new station (not a retry)
+            if (!isRetry) {
+                state.attempts = 0;
+            }
+
+            state.attempts++;
+
+            // Show loading state with retry info
+            if (state.attempts > 1) {
+                card.innerHTML = `
+                    <div class="loading-retry-state">
+                        <div class="loading-spinner"></div>
+                        <div class="retry-text">Retrying METAR... (${state.attempts}/${state.maxAttempts})</div>
+                        <div class="error-minimized" onclick="this.classList.toggle('expanded')">
+                            <span class="error-toggle">ⓘ Previous attempt failed</span>
+                            <div class="error-details">Connection issue - retrying automatically</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                card.classList.add('loading');
+            }
+
             try {
                 const res = await fetch(`${API_BASE}/aviation/metar/${station}`);
                 if (!res.ok) throw new Error('Station not found');
                 const data = await res.json();
+                state.attempts = 0; // Reset on success
 
                 document.getElementById('statTemp').textContent = data.temperature !== null ? `${data.temperature}°` : '--';
                 document.getElementById('statWind').textContent = data.wind_speed !== null ? `${data.wind_speed}kt` : '--';
@@ -2845,18 +3609,82 @@
                 `;
                 card.classList.add('fade-in');
             } catch (e) {
-                card.innerHTML = `<div class="error-message">Unable to load METAR for ${station}. Please verify the station code.</div>`;
+                // Retry logic for METAR
+                if (state.attempts < state.maxAttempts) {
+                    card.innerHTML = `
+                        <div class="loading-retry-state">
+                            <div class="loading-spinner"></div>
+                            <div class="retry-text">Retrying METAR in ${state.retryDelay/1000}s... (${state.attempts}/${state.maxAttempts})</div>
+                            <div class="error-minimized" onclick="this.classList.toggle('expanded')">
+                                <span class="error-toggle">ⓘ Connection issue</span>
+                                <div class="error-details">Unable to load METAR for ${station}. Retrying automatically...</div>
+                            </div>
+                        </div>
+                    `;
+                    state.timer = setTimeout(() => loadMetar(station, true), state.retryDelay);
+                } else {
+                    // Max retries reached - show final error with retry button
+                    card.innerHTML = `
+                        <div class="error-state-final">
+                            <div class="error-message-minimized">
+                                <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="12" y1="8" x2="12" y2="12"/>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                </svg>
+                                <span>METAR unavailable</span>
+                                <button class="retry-btn" onclick="loadMetar('${station}')">Retry</button>
+                            </div>
+                            <div class="error-details-expandable" onclick="this.classList.toggle('expanded')">
+                                <span class="expand-toggle">Show details</span>
+                                <div class="error-full-details">Unable to load METAR for ${station} after ${state.maxAttempts} attempts. The station may be temporarily unavailable.</div>
+                            </div>
+                        </div>
+                    `;
+                    state.attempts = 0; // Reset for manual retry
+                }
             }
             card.classList.remove('loading');
         }
 
-        async function loadTaf(station) {
+        async function loadTaf(station, isRetry = false) {
             const card = document.getElementById('tafCard');
-            card.classList.add('loading');
+            const state = retryState.taf;
+
+            // Clear any existing retry timer
+            if (state.timer) {
+                clearTimeout(state.timer);
+                state.timer = null;
+            }
+
+            // Reset attempts if this is a new station (not a retry)
+            if (!isRetry) {
+                state.attempts = 0;
+            }
+
+            state.attempts++;
+
+            // Show loading state with retry info
+            if (state.attempts > 1) {
+                card.innerHTML = `
+                    <div class="loading-retry-state">
+                        <div class="loading-spinner"></div>
+                        <div class="retry-text">Retrying TAF... (${state.attempts}/${state.maxAttempts})</div>
+                        <div class="error-minimized" onclick="this.classList.toggle('expanded')">
+                            <span class="error-toggle">ⓘ Previous attempt failed</span>
+                            <div class="error-details">Connection issue - retrying automatically</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                card.classList.add('loading');
+            }
+
             try {
                 const res = await fetch(`${API_BASE}/aviation/taf/${station}`);
                 if (!res.ok) throw new Error('TAF not found');
                 const data = await res.json();
+                state.attempts = 0; // Reset on success
 
                 const validFrom = new Date(data.valid_period_start).toLocaleString();
                 const validTo = new Date(data.valid_period_end).toLocaleString();
@@ -2921,7 +3749,40 @@
                 `;
                 card.classList.add('fade-in');
             } catch (e) {
-                card.innerHTML = `<div class="error-message">Unable to load TAF for ${station}. TAF may not be available for this station.</div>`;
+                // Retry logic for TAF
+                if (state.attempts < state.maxAttempts) {
+                    card.innerHTML = `
+                        <div class="loading-retry-state">
+                            <div class="loading-spinner"></div>
+                            <div class="retry-text">Retrying TAF in ${state.retryDelay/1000}s... (${state.attempts}/${state.maxAttempts})</div>
+                            <div class="error-minimized" onclick="this.classList.toggle('expanded')">
+                                <span class="error-toggle">ⓘ Connection issue</span>
+                                <div class="error-details">Unable to load TAF for ${station}. Retrying automatically...</div>
+                            </div>
+                        </div>
+                    `;
+                    state.timer = setTimeout(() => loadTaf(station, true), state.retryDelay);
+                } else {
+                    // Max retries reached - show final error with retry button
+                    card.innerHTML = `
+                        <div class="error-state-final">
+                            <div class="error-message-minimized">
+                                <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="12" y1="8" x2="12" y2="12"/>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                </svg>
+                                <span>TAF unavailable</span>
+                                <button class="retry-btn" onclick="loadTaf('${station}')">Retry</button>
+                            </div>
+                            <div class="error-details-expandable" onclick="this.classList.toggle('expanded')">
+                                <span class="expand-toggle">Show details</span>
+                                <div class="error-full-details">Unable to load TAF for ${station} after ${state.maxAttempts} attempts. TAF may not be available for this station.</div>
+                            </div>
+                        </div>
+                    `;
+                    state.attempts = 0; // Reset for manual retry
+                }
             }
             card.classList.remove('loading');
         }
@@ -2950,13 +3811,13 @@
                 case 'wind':
                     chartData = data.map(f => f.wind_speed_10m);
                     label = 'Wind Speed';
-                    color = '#3b82f6';
+                    color = '#6b7280';
                     unit = ' kt';
                     break;
                 case 'clouds':
                     chartData = data.map(f => f.cloud_cover);
                     label = 'Cloud Cover';
-                    color = '#8b5cf6';
+                    color = '#9ca3af';
                     unit = '%';
                     break;
                 case 'pressure':
@@ -4311,11 +5172,6 @@
             return directions[index];
         }
 
-        // Event listeners for journey profile
-        document.getElementById('addWaypointBtn').addEventListener('click', addWaypoint);
-        document.getElementById('calculateRouteBtn').addEventListener('click', calculateRouteWeather);
-        document.getElementById('clearRouteBtn').addEventListener('click', clearRoute);
-
         // Overlay button event listeners
         document.querySelectorAll('.overlay-btn').forEach(btn => {
             btn.addEventListener('click', () => toggleOverlay(btn.dataset.overlay));
@@ -4323,6 +5179,32 @@
 
         // Initialize
         checkHealth();
+        loadNearestAirport();
+
+        // Theme toggle - must be global for onclick handler
+        let isLightMode = localStorage.getItem('theme') === 'light';
+
+        function updateThemeIcons() {
+            const moonIcon = document.querySelector('.theme-toggle .moon-icon');
+            const sunIcon = document.querySelector('.theme-toggle .sun-icon');
+            if (moonIcon && sunIcon) {
+                moonIcon.style.display = isLightMode ? 'none' : 'block';
+                sunIcon.style.display = isLightMode ? 'block' : 'none';
+            }
+        }
+
+        if (isLightMode) {
+            document.documentElement.classList.add('light-mode');
+        }
+        // Update icons after DOM is ready
+        setTimeout(updateThemeIcons, 0);
+
+        window.toggleTheme = function() {
+            isLightMode = !isLightMode;
+            document.documentElement.classList.toggle('light-mode', isLightMode);
+            localStorage.setItem('theme', isLightMode ? 'light' : 'dark');
+            updateThemeIcons();
+        };
     </script>
 </body>
 </html>
