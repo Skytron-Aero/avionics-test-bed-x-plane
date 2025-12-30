@@ -3,22 +3,665 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Weather Map - Aviation Weather API</title>
+    <title>Live Weather Map - SkyEye</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #12121a;
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
             --bg-card: rgba(255, 255, 255, 0.03);
             --text-primary: #ffffff;
             --text-secondary: rgba(255, 255, 255, 0.7);
             --text-tertiary: rgba(255, 255, 255, 0.4);
             --border-color: rgba(255, 255, 255, 0.08);
-            --accent: #6366f1;
+            --accent: #6b7280;
             --success: #22c55e;
             --warning: #f59e0b;
             --danger: #ef4444;
+        }
+
+        /* Light Mode - Tesla-style greyscale UI */
+        :root.light-mode {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #e8e8e8;
+            --bg-card: rgba(0, 0, 0, 0.04);
+            --text-primary: #1a1a1a;
+            --text-secondary: rgba(0, 0, 0, 0.65);
+            --text-tertiary: rgba(0, 0, 0, 0.45);
+            --border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        /* Light mode specific overrides */
+        .light-mode .top-navbar {
+            background: rgba(245, 245, 245, 0.95);
+        }
+
+        .light-mode .sidebar {
+            background: rgba(245, 245, 245, 0.98);
+        }
+
+        .light-mode .station-info-panel {
+            background: rgba(245, 245, 245, 0.98);
+        }
+
+        .light-mode .profile-container {
+            background: rgba(235, 235, 235, 0.98);
+        }
+
+        .light-mode .trip-summary {
+            background: rgba(245, 245, 245, 0.98);
+        }
+
+        .light-mode .overlay-controls {
+            background: rgba(245, 245, 245, 0.95);
+        }
+
+        .light-mode .search-panel {
+            background: rgba(245, 245, 245, 0.98);
+        }
+
+        /* Invert Leaflet map tiles for light mode */
+        .light-mode .leaflet-tile-pane {
+            filter: invert(1) hue-rotate(180deg) saturate(0.3) brightness(1.1);
+        }
+
+        /* Keep overlay colors vibrant - don't apply greyscale to overlays */
+        .light-mode .leaflet-overlay-pane {
+            filter: none;
+        }
+
+        .light-mode .leaflet-marker-pane {
+            filter: none;
+        }
+
+        .light-mode .leaflet-control-zoom a {
+            background: rgba(245, 245, 245, 0.95) !important;
+            color: #1a1a1a !important;
+            border-color: rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .light-mode .leaflet-control-zoom a:hover {
+            background: rgba(230, 230, 230, 0.95) !important;
+        }
+
+        /* Theme toggle button */
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-primary);
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-card);
+        }
+
+        .theme-toggle svg {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+        }
+
+        .theme-toggle .sun-icon {
+            display: none;
+        }
+
+        .theme-toggle .moon-icon {
+            display: block;
+        }
+
+        .light-mode .theme-toggle .sun-icon {
+            display: block;
+        }
+
+        .light-mode .theme-toggle .moon-icon {
+            display: none;
+        }
+
+        /* Light mode tooltips and popups */
+        .light-mode .leaflet-tooltip {
+            background: rgba(255, 255, 255, 0.95);
+            color: #1a1a1a;
+            border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        .light-mode .leaflet-popup-content-wrapper {
+            background: rgba(255, 255, 255, 0.98);
+            color: #1a1a1a;
+        }
+
+        .light-mode .leaflet-popup-tip {
+            background: rgba(255, 255, 255, 0.98);
+        }
+
+        .light-mode .profile-tooltip {
+            background: rgba(255, 255, 255, 0.95) !important;
+            color: #1a1a1a !important;
+            border-color: rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .light-mode .profile-tooltip .label {
+            color: rgba(0, 0, 0, 0.6) !important;
+        }
+
+        .light-mode .overlay-btn {
+            background: rgba(0, 0, 0, 0.05);
+            color: #1a1a1a;
+            border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .light-mode .overlay-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        /* Light mode text fixes for better contrast */
+        .light-mode .stat-label,
+        .light-mode .profile-stat-label,
+        .light-mode .legend-title,
+        .light-mode .trip-summary-label,
+        .light-mode .trip-section-title,
+        .light-mode h1, .light-mode h2, .light-mode h3 {
+            color: var(--text-primary);
+        }
+
+        .light-mode .stat-value,
+        .light-mode .profile-stat-value,
+        .light-mode input,
+        .light-mode select {
+            color: var(--text-primary);
+        }
+
+        .light-mode input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .light-mode .overlay-toolbar {
+            background: rgba(245, 245, 245, 0.95);
+        }
+
+        .light-mode .form-row input,
+        .light-mode .form-row select {
+            background: rgba(0, 0, 0, 0.04);
+            color: #1a1a1a;
+            border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        .light-mode .form-row input::placeholder {
+            color: rgba(0, 0, 0, 0.4);
+        }
+
+        .light-mode .btn-secondary {
+            background: rgba(0, 0, 0, 0.08);
+            color: #1a1a1a;
+        }
+
+        .light-mode .btn-secondary:hover {
+            background: rgba(0, 0, 0, 0.12);
+        }
+
+        /* Light mode profile zoom controls */
+        .light-mode .profile-zoom-btn {
+            background: rgba(255, 255, 255, 0.95);
+            color: #1a1a1a;
+            border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        .light-mode .profile-zoom-btn:hover {
+            background: rgba(107, 114, 128, 0.15);
+            color: #4b5563;
+        }
+
+        .light-mode .profile-zoom-info {
+            background: rgba(255, 255, 255, 0.95);
+            color: #1a1a1a;
+            border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        .light-mode .profile-controls {
+            background: rgba(245, 245, 245, 0.9);
+        }
+
+        /* Light mode map journey tooltip */
+        .light-mode .map-journey-tooltip {
+            background: rgba(255, 255, 255, 0.98);
+            border-color: rgba(0, 0, 0, 0.15);
+            color: #1a1a1a;
+        }
+
+        .light-mode .mjt-header {
+            border-bottom-color: rgba(0, 0, 0, 0.1);
+            color: #1a1a1a;
+        }
+
+        .light-mode .mjt-stat-value {
+            color: #1a1a1a;
+        }
+
+        .light-mode .mjt-stat-label {
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        /* Light mode station info panel */
+        .light-mode .station-info {
+            background: rgba(255, 255, 255, 0.98);
+            border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .light-mode .station-info h2 {
+            color: #1a1a1a;
+        }
+
+        .light-mode .station-info .close-btn {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .light-mode .station-info .close-btn:hover {
+            color: #1a1a1a;
+        }
+
+        .light-mode .station-info .metar-raw {
+            background: rgba(0, 0, 0, 0.06);
+            color: #1a1a1a;
+        }
+
+        .light-mode .station-info .weather-item {
+            background: rgba(0, 0, 0, 0.04);
+        }
+
+        .light-mode .station-info .weather-item .label {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .light-mode .station-info .weather-item .value {
+            color: #1a1a1a;
+        }
+
+        /* Light mode flight rules badges - ensure visibility */
+        .light-mode .station-info .flight-rules.vfr {
+            background: rgba(34, 197, 94, 0.15);
+            color: #16a34a;
+        }
+
+        .light-mode .station-info .flight-rules.mvfr {
+            background: rgba(59, 130, 246, 0.15);
+            color: #2563eb;
+        }
+
+        .light-mode .station-info .flight-rules.ifr {
+            background: rgba(239, 68, 68, 0.15);
+            color: #dc2626;
+        }
+
+        .light-mode .station-info .flight-rules.lifr {
+            background: rgba(168, 85, 247, 0.15);
+            color: #9333ea;
+        }
+
+        /* Light mode route profile section */
+        .light-mode .profile-header {
+            background: rgba(245, 245, 245, 0.98);
+            border-color: rgba(0, 0, 0, 0.08);
+        }
+
+        .light-mode .profile-header h3 {
+            color: #1a1a1a;
+        }
+
+        .light-mode .route-input input {
+            background: rgba(0, 0, 0, 0.04);
+            color: #1a1a1a;
+            border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .light-mode .route-input input::placeholder {
+            color: rgba(0, 0, 0, 0.4);
+        }
+
+        .light-mode .route-input button {
+            background: rgba(0, 0, 0, 0.06);
+            color: #1a1a1a;
+            border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .light-mode .route-input button:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .light-mode .waypoint-btn,
+        .light-mode .stop-btn,
+        .light-mode .snap-btn {
+            background: rgba(0, 0, 0, 0.04);
+            color: #1a1a1a;
+            border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .light-mode .waypoint-btn:hover,
+        .light-mode .stop-btn:hover,
+        .light-mode .snap-btn:hover {
+            background: rgba(0, 0, 0, 0.08);
+        }
+
+        .light-mode .waypoint-btn.active {
+            background: rgba(34, 197, 94, 0.15);
+            border-color: rgba(34, 197, 94, 0.4);
+            color: #16a34a;
+        }
+
+        .light-mode .stop-btn.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.4);
+            color: #2563eb;
+        }
+
+        /* Light mode profile placeholder */
+        .light-mode .profile-placeholder {
+            color: rgba(0, 0, 0, 0.4);
+        }
+
+        .light-mode .profile-placeholder svg {
+            color: rgba(0, 0, 0, 0.25);
+        }
+
+        /* Light mode overlay buttons */
+        .light-mode .overlay-btn.active {
+            border-width: 1px;
+        }
+
+        .light-mode .overlay-btn.terrain.active {
+            background: rgba(139, 69, 19, 0.12);
+            border-color: rgba(139, 69, 19, 0.4);
+            color: #8b4513;
+        }
+
+        .light-mode .overlay-btn.clouds.active {
+            background: rgba(107, 114, 128, 0.12);
+            border-color: rgba(107, 114, 128, 0.4);
+            color: #4b5563;
+        }
+
+        .light-mode .overlay-btn.ceiling.active {
+            background: rgba(234, 179, 8, 0.12);
+            border-color: rgba(234, 179, 8, 0.4);
+            color: #b45309;
+        }
+
+        .light-mode .overlay-btn.visibility.active {
+            background: rgba(168, 85, 247, 0.12);
+            border-color: rgba(168, 85, 247, 0.4);
+            color: #7c3aed;
+        }
+
+        .light-mode .overlay-btn.airspace.active {
+            background: rgba(236, 72, 153, 0.12);
+            border-color: rgba(236, 72, 153, 0.4);
+            color: #db2777;
+        }
+
+        .light-mode .overlay-btn.icing.active {
+            background: rgba(6, 182, 212, 0.12);
+            border-color: rgba(6, 182, 212, 0.4);
+            color: #0891b2;
+        }
+
+        .light-mode .overlay-btn.turbulence.active {
+            background: rgba(249, 115, 22, 0.12);
+            border-color: rgba(249, 115, 22, 0.4);
+            color: #c2410c;
+        }
+
+        .light-mode .overlay-btn.winds.active {
+            background: rgba(34, 197, 94, 0.12);
+            border-color: rgba(34, 197, 94, 0.4);
+            color: #16a34a;
+        }
+
+        .light-mode .overlay-btn.temp.active {
+            background: rgba(239, 68, 68, 0.12);
+            border-color: rgba(239, 68, 68, 0.4);
+            color: #dc2626;
+        }
+
+        .light-mode .overlay-btn.precip.active {
+            background: rgba(59, 130, 246, 0.12);
+            border-color: rgba(59, 130, 246, 0.4);
+            color: #2563eb;
+        }
+
+        .light-mode .overlay-btn.radar.active {
+            background: rgba(34, 197, 94, 0.12);
+            border-color: rgba(34, 197, 94, 0.4);
+            color: #16a34a;
+        }
+
+        .light-mode .overlay-btn.stations.active {
+            background: rgba(107, 114, 128, 0.12);
+            border-color: rgba(107, 114, 128, 0.4);
+            color: #4b5563;
+        }
+
+        .light-mode .overlay-btn.simplify.active {
+            background: rgba(168, 85, 247, 0.12);
+            border-color: rgba(168, 85, 247, 0.4);
+            color: #7c3aed;
+        }
+
+        /* Light mode trip summary */
+        .light-mode .trip-summary-mini {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .light-mode .trip-mini-stat .stat-value {
+            color: #1a1a1a;
+        }
+
+        .light-mode .trip-mini-stat .stat-label {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .light-mode .trip-summary-expanded {
+            background: rgba(255, 255, 255, 0.98);
+            border-color: rgba(0, 0, 0, 0.12);
+        }
+
+        .light-mode .trip-overview-grid .trip-stat .trip-stat-value {
+            color: #1a1a1a;
+        }
+
+        .light-mode .trip-overview-grid .trip-stat .trip-stat-label {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .light-mode .trip-section {
+            background: rgba(0, 0, 0, 0.03);
+        }
+
+        .light-mode .trip-section-title {
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        .light-mode .trip-phase-info .trip-phase-name {
+            color: #1a1a1a;
+        }
+
+        .light-mode .trip-phase-info .trip-phase-details {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .light-mode .trip-phase-distance {
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        .light-mode .no-hazards {
+            color: rgba(0, 0, 0, 0.4);
+        }
+
+        /* Light mode custom markers */
+        .light-mode .custom-waypoint-marker {
+            border-color: rgba(0, 0, 0, 0.2);
+        }
+
+        .light-mode .custom-stop-marker {
+            border-color: rgba(0, 0, 0, 0.2);
+        }
+
+        /* Light mode navigation */
+        .light-mode .nav-link {
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        .light-mode .nav-link:hover {
+            background: rgba(0, 0, 0, 0.05);
+            color: #1a1a1a;
+        }
+
+        .light-mode .nav-link.active {
+            background: rgba(0, 0, 0, 0.08);
+            color: #1a1a1a;
+        }
+
+        .light-mode .nav-link svg {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .light-mode .nav-link.active svg {
+            color: var(--accent);
+        }
+
+        /* Light mode METAR station markers tooltip */
+        .light-mode .leaflet-tooltip.metar-tooltip {
+            background: rgba(255, 255, 255, 0.98);
+            color: #1a1a1a;
+            border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        /* Light mode hazard tooltips */
+        .light-mode .hazard-tooltip {
+            background: rgba(255, 255, 255, 0.98) !important;
+            color: #1a1a1a !important;
+            border-color: rgba(0, 0, 0, 0.15) !important;
+        }
+
+        /* Light mode stop/waypoint tooltips */
+        .light-mode .stop-tooltip,
+        .light-mode .waypoint-tooltip {
+            background: rgba(255, 255, 255, 0.98);
+            color: #1a1a1a;
+            border-color: rgba(0, 0, 0, 0.15);
+        }
+
+        /* Light mode resize divider */
+        .light-mode .resize-divider {
+            background: rgba(0, 0, 0, 0.03);
+            border-color: rgba(0, 0, 0, 0.08);
+        }
+
+        .light-mode .resize-divider:hover {
+            background: rgba(0, 0, 0, 0.08);
+        }
+
+        .light-mode .resize-handle {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .light-mode .resize-divider:hover .resize-handle {
+            background: var(--accent);
+        }
+
+        /* Light mode profile content */
+        .light-mode .profile-content {
+            background: rgba(235, 235, 235, 0.98);
+        }
+
+        /* Light mode profile canvas container */
+        .light-mode .profile-canvas-container {
+            background: #e8e8e8;
+        }
+
+        /* Light mode legends and info boxes */
+        .light-mode .legend,
+        .light-mode .info-box {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: rgba(0, 0, 0, 0.12);
+            color: #1a1a1a;
+        }
+
+        .light-mode .legend-title {
+            color: #1a1a1a;
+        }
+
+        .light-mode .legend-item {
+            color: rgba(0, 0, 0, 0.7);
+        }
+
+        /* Light mode map zoom controls already defined, but ensure attribution is readable */
+        .light-mode .leaflet-control-attribution {
+            background: rgba(255, 255, 255, 0.9) !important;
+            color: rgba(0, 0, 0, 0.6) !important;
+        }
+
+        .light-mode .leaflet-control-attribution a {
+            color: rgba(0, 0, 0, 0.8) !important;
+        }
+
+        /* Overlay Loading Bar */
+        .overlay-loading-bar {
+            position: fixed;
+            top: 48px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: transparent;
+            z-index: 9998;
+            pointer-events: none;
+        }
+
+        .overlay-loading-bar .bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent), #3b82f6, var(--accent));
+            background-size: 200% 100%;
+            transition: width 0.3s ease-out;
+            border-radius: 0 2px 2px 0;
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+        }
+
+        .overlay-loading-bar.active .bar-fill {
+            animation: loading-shimmer 1.5s linear infinite;
+        }
+
+        @keyframes loading-shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .overlay-loading-bar .bar-label {
+            position: absolute;
+            right: 12px;
+            top: 8px;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .overlay-loading-bar.active .bar-label {
+            opacity: 1;
+        }
+
+        .light-mode .overlay-loading-bar .bar-fill {
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
         }
 
         * {
@@ -43,17 +686,19 @@
             left: 0;
             right: 0;
             height: 48px;
-            background: rgba(10, 10, 15, 0.95);
+            background: rgba(10, 10, 10, 0.95);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
             padding: 0 24px;
             z-index: 9999;
         }
 
         .nav-brand {
+            position: absolute;
+            left: 24px;
             display: flex;
             align-items: center;
             gap: 10px;
@@ -62,15 +707,24 @@
             color: var(--text-primary);
         }
 
-        .nav-brand svg {
-            width: 24px;
-            height: 24px;
-            color: var(--accent);
+        .nav-brand svg.orca-logo {
+            width: auto;
+            height: 20px;
+            color: #ffffff;
+        }
+
+        .light-mode .nav-brand svg.orca-logo {
+            color: #1a1a1a;
         }
 
         .nav-links {
             display: flex;
             gap: 4px;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            right: 24px;
         }
 
         .nav-link {
@@ -92,7 +746,7 @@
         }
 
         .nav-link.active {
-            background: rgba(99, 102, 241, 0.15);
+            background: rgba(107, 114, 128, 0.15);
             color: var(--accent);
         }
 
@@ -108,7 +762,7 @@
             left: 0;
             right: 0;
             height: 52px;
-            background: rgba(10, 10, 15, 0.95);
+            background: rgba(10, 10, 10, 0.95);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border-color);
             display: flex;
@@ -163,11 +817,11 @@
         }
 
         .resize-divider:hover {
-            background: rgba(99, 102, 241, 0.2);
+            background: rgba(107, 114, 128, 0.2);
         }
 
         .resize-divider.dragging {
-            background: rgba(99, 102, 241, 0.3);
+            background: rgba(107, 114, 128, 0.3);
         }
 
         .resize-handle {
@@ -199,7 +853,7 @@
         }
 
         .control-panel {
-            background: rgba(10, 10, 15, 0.9);
+            background: rgba(10, 10, 10, 0.9);
             backdrop-filter: blur(20px);
             border: 1px solid var(--border-color);
             border-radius: 12px;
@@ -258,10 +912,10 @@
         /* Station Info Panel */
         .station-info {
             position: absolute;
-            top: 16px;
+            top: 80px; /* Below zoom controls */
             left: 16px;
             z-index: 1000;
-            background: rgba(10, 10, 15, 0.9);
+            background: rgba(10, 10, 10, 0.9);
             backdrop-filter: blur(20px);
             border: 1px solid var(--border-color);
             border-radius: 12px;
@@ -353,7 +1007,7 @@
             bottom: 12px;
             right: 12px;
             z-index: 1000;
-            background: rgba(10, 10, 15, 0.95);
+            background: rgba(10, 10, 10, 0.95);
             backdrop-filter: blur(16px);
             border: 1px solid var(--border-color);
             border-radius: 10px;
@@ -425,7 +1079,7 @@
         }
 
         .trip-summary-mini span {
-            background: rgba(99, 102, 241, 0.15);
+            background: rgba(107, 114, 128, 0.15);
             padding: 2px 8px;
             border-radius: 4px;
         }
@@ -476,7 +1130,7 @@
         .trip-overview {
             padding: 16px;
             border-bottom: 1px solid var(--border-color);
-            background: rgba(99, 102, 241, 0.05);
+            background: rgba(107, 114, 128, 0.05);
         }
 
         .trip-route-display {
@@ -575,7 +1229,7 @@
         }
 
         .trip-phase-icon.climb { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
-        .trip-phase-icon.cruise { background: rgba(99, 102, 241, 0.2); color: #6366f1; }
+        .trip-phase-icon.cruise { background: rgba(107, 114, 128, 0.2); color: #6b7280; }
         .trip-phase-icon.descent { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
 
         .trip-phase-info {
@@ -846,6 +1500,50 @@
             color: #22c55e;
         }
 
+        .profile-header .stop-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .profile-header .stop-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+            opacity: 1;
+        }
+
+        .profile-header .stop-btn.active {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: rgba(59, 130, 246, 0.5);
+            color: #3b82f6;
+        }
+
+        /* Custom stop markers */
+        .custom-stop-marker {
+            width: 28px;
+            height: 28px;
+            background: #3b82f6;
+            border: 2px solid white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 700;
+            color: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+
+        .custom-stop-marker:hover {
+            transform: scale(1.15);
+        }
+
+        .custom-stop-icon {
+            background: transparent !important;
+        }
+
         /* Custom waypoint markers */
         .custom-waypoint-marker {
             width: 24px;
@@ -878,6 +1576,11 @@
 
         /* Waypoint mode cursor */
         .leaflet-container.waypoint-mode {
+            cursor: crosshair !important;
+        }
+
+        /* Stop mode cursor */
+        .leaflet-container.stop-mode {
             cursor: crosshair !important;
         }
 
@@ -916,7 +1619,7 @@
             width: 28px;
             height: 28px;
             border: 1px solid var(--border-color);
-            background: rgba(10, 10, 15, 0.9);
+            background: rgba(10, 10, 10, 0.9);
             color: var(--text-secondary);
             border-radius: 4px;
             cursor: pointer;
@@ -929,14 +1632,14 @@
         }
 
         .profile-zoom-btn:hover {
-            background: rgba(99, 102, 241, 0.2);
+            background: rgba(107, 114, 128, 0.2);
             border-color: var(--primary);
             color: var(--text-primary);
         }
 
         .profile-zoom-info {
             padding: 4px 8px;
-            background: rgba(10, 10, 15, 0.9);
+            background: rgba(10, 10, 10, 0.9);
             border: 1px solid var(--border-color);
             border-radius: 4px;
             font-size: 10px;
@@ -948,7 +1651,7 @@
         /* Profile Hover Tooltip */
         .profile-tooltip {
             position: absolute;
-            background: rgba(10, 10, 15, 0.95);
+            background: rgba(10, 10, 10, 0.95);
             backdrop-filter: blur(10px);
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -1034,10 +1737,10 @@
         .journey-marker-dot {
             width: 12px;
             height: 12px;
-            background: #6366f1;
+            background: #6b7280;
             border: 2px solid #ffffff;
             border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5);
+            box-shadow: 0 2px 8px rgba(107, 114, 128, 0.5);
             position: relative;
             z-index: 2;
         }
@@ -1059,7 +1762,7 @@
             transform: translate(-50%, -50%);
             width: 24px;
             height: 24px;
-            background: rgba(99, 102, 241, 0.3);
+            background: rgba(107, 114, 128, 0.3);
             border-radius: 50%;
             animation: pulse 1.5s ease-out infinite;
             z-index: 1;
@@ -1103,7 +1806,7 @@
             width: 14px;
             height: 14px;
             background: #ffffff;
-            border: 3px solid #6366f1;
+            border: 3px solid #6b7280;
             border-radius: 50%;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
             z-index: 2;
@@ -1116,7 +1819,7 @@
             transform: translate(-50%, -50%);
             width: 24px;
             height: 24px;
-            background: rgba(99, 102, 241, 0.4);
+            background: rgba(107, 114, 128, 0.4);
             border-radius: 50%;
             animation: mapPulse 1.5s ease-out infinite;
             z-index: 1;
@@ -1145,7 +1848,7 @@
         }
 
         .map-journey-tooltip {
-            background: rgba(10, 10, 15, 0.95);
+            background: rgba(10, 10, 10, 0.95);
             backdrop-filter: blur(10px);
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -1224,8 +1927,8 @@
         }
 
         .overlay-btn.active {
-            background: rgba(99, 102, 241, 0.2);
-            border-color: rgba(99, 102, 241, 0.4);
+            background: rgba(107, 114, 128, 0.2);
+            border-color: rgba(107, 114, 128, 0.4);
             color: var(--accent);
         }
 
@@ -1289,9 +1992,20 @@
         }
 
         .overlay-btn.stations.active {
-            background: rgba(99, 102, 241, 0.2);
-            border-color: rgba(99, 102, 241, 0.4);
-            color: #6366f1;
+            background: rgba(107, 114, 128, 0.2);
+            border-color: rgba(107, 114, 128, 0.4);
+            color: #6b7280;
+        }
+
+        .overlay-btn.simplify {
+            font-size: 10px;
+            padding: 6px 10px;
+        }
+
+        .overlay-btn.simplify.active {
+            background: rgba(168, 85, 247, 0.2);
+            border-color: rgba(168, 85, 247, 0.4);
+            color: #a855f7;
         }
 
         .overlay-btn.visibility.active {
@@ -1312,7 +2026,7 @@
             bottom: 16px;
             left: 16px;
             z-index: 1000;
-            background: rgba(10, 10, 15, 0.9);
+            background: rgba(10, 10, 10, 0.9);
             backdrop-filter: blur(20px);
             border: 1px solid var(--border-color);
             border-radius: 12px;
@@ -1359,7 +2073,7 @@
         }
 
         .leaflet-control-zoom a {
-            background: rgba(10, 10, 15, 0.9) !important;
+            background: rgba(10, 10, 10, 0.9) !important;
             color: var(--text-primary) !important;
             border: 1px solid var(--border-color) !important;
             backdrop-filter: blur(20px);
@@ -1370,14 +2084,14 @@
         }
 
         .leaflet-popup-content-wrapper {
-            background: rgba(10, 10, 15, 0.95);
+            background: rgba(10, 10, 10, 0.95);
             border: 1px solid var(--border-color);
             border-radius: 8px;
             color: var(--text-primary);
         }
 
         .leaflet-popup-tip {
-            background: rgba(10, 10, 15, 0.95);
+            background: rgba(10, 10, 10, 0.95);
             border: 1px solid var(--border-color);
         }
 
@@ -1387,7 +2101,7 @@
             bottom: 16px;
             right: 16px;
             z-index: 1000;
-            background: rgba(10, 10, 15, 0.9);
+            background: rgba(10, 10, 10, 0.9);
             backdrop-filter: blur(20px);
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -1436,13 +2150,19 @@
     </style>
 </head>
 <body>
+    <!-- Overlay Loading Bar -->
+    <div class="overlay-loading-bar" id="overlayLoadingBar">
+        <div class="bar-fill"></div>
+        <span class="bar-label" id="loadingLabel">Loading...</span>
+    </div>
+
     <!-- Navigation -->
     <nav class="top-navbar">
         <div class="nav-brand">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            <svg class="orca-logo" viewBox="0 0 798 257" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M67.8809 234.41C186.564 258.373 307.51 270.119 360.879 234.41C414.248 198.702 779.734 36.4014 796.092 14.7603C812.45 -6.88083 723.078 -6.93654 548.57 29.5108C375.251 65.7097 321.828 80.6187 159.348 125.963L155.986 126.901C-9.12734 172.979 -50.8019 210.448 67.8809 234.41Z"/>
             </svg>
-            Skytron Aero
+            SkyEye
         </div>
         <div class="nav-links">
             <a href="/" class="nav-link">
@@ -1477,7 +2197,29 @@
                 </svg>
                 Benchmarks
             </a>
+            <a href="/competitive-analysis-dashboard" class="nav-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                </svg>
+                Analysis
+            </a>
         </div>
+        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
+            <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+            <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+        </button>
     </nav>
 
     <!-- Overlay Toolbar -->
@@ -1567,6 +2309,12 @@
                     <path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 6.9 8 11.7z"/>
                 </svg>
                 Stations
+            </button>
+            <button class="overlay-btn simplify" id="simplifyBtn" onclick="toggleSimplifyStations()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 6h16M4 12h10M4 18h6"/>
+                </svg>
+                Simplify
             </button>
         </div>
     </div>
@@ -1738,6 +2486,7 @@
                     <input type="text" id="destination" placeholder="TO" maxlength="4">
                     <button onclick="loadRoute()">Load Route</button>
                     <button id="waypointModeBtn" class="waypoint-btn" onclick="toggleWaypointMode()">+ Waypoints</button>
+                    <button id="stopModeBtn" class="stop-btn" onclick="toggleStopMode()">+ Stop</button>
                     <button id="snapModeBtn" class="snap-btn" onclick="toggleSnapMode()" style="display: none;">Snap: OFF</button>
                 </div>
             </div>
@@ -1774,6 +2523,25 @@
     </div>
 
     <script>
+        // Theme toggle functionality
+        let isLightMode = localStorage.getItem('theme') === 'light';
+
+        function toggleTheme() {
+            isLightMode = !isLightMode;
+            document.documentElement.classList.toggle('light-mode', isLightMode);
+            localStorage.setItem('theme', isLightMode ? 'light' : 'dark');
+
+            // Redraw profile canvas with new colors if visible
+            if (typeof currentRoute !== 'undefined' && currentRoute.dep && currentRoute.dest && document.getElementById('profileContainer').style.display !== 'none') {
+                drawProfile(currentRoute.dep, currentRoute.dest);
+            }
+        }
+
+        // Apply saved theme on load
+        if (isLightMode) {
+            document.documentElement.classList.add('light-mode');
+        }
+
         // Initialize map centered on CONUS
         const map = L.map('map', {
             zoomControl: true
@@ -2151,13 +2919,15 @@
                         opacity: 0.8
                     });
 
+                    const dewpointF = data.dewpoint !== null ? Math.round(data.dewpoint * 9/5 + 32) : null;
+                    const spreadF = data.dewpoint !== null ? Math.round((temp - data.dewpoint) * 9/5) : null;
                     polygon.bindTooltip(`
                         <div style="font-weight:600;margin-bottom:4px;color:${colors.color}">${station.id} Temperature</div>
                         <div style="font-size:10px;opacity:0.8;margin-bottom:6px">${category.desc}</div>
-                        <div><b>OAT:</b> ${temp}°C / ${tempF}°F</div>
+                        <div><b>OAT:</b> ${tempF}°F</div>
                         <div><b>Category:</b> ${category.name}</div>
-                        ${data.dewpoint !== null ? `<div><b>Dewpoint:</b> ${data.dewpoint}°C</div>` : ''}
-                        ${data.dewpoint !== null ? `<div><b>Spread:</b> ${(temp - data.dewpoint).toFixed(1)}°C</div>` : ''}
+                        ${dewpointF !== null ? `<div><b>Dewpoint:</b> ${dewpointF}°F</div>` : ''}
+                        ${spreadF !== null ? `<div><b>Spread:</b> ${spreadF}°F</div>` : ''}
                         ${data.altimeter ? `<div><b>Altimeter:</b> ${data.altimeter.toFixed(2)}"</div>` : ''}
                     `, { sticky: true });
                     temperatureLayer.addLayer(polygon);
@@ -2174,7 +2944,7 @@
                             font-weight: 600;
                             color: ${colors.color};
                             white-space: nowrap;
-                        ">${temp}°</div>`,
+                        ">${tempF}°F</div>`,
                         iconSize: [30, 18],
                         iconAnchor: [15, 9]
                     });
@@ -2260,11 +3030,13 @@
                         opacity: 0.8
                     });
 
+                    const dewpointF = dewpoint !== null ? Math.round(dewpoint * 9/5 + 32) : null;
+                    const spreadF = spread !== null ? Math.round(spread * 9/5) : null;
                     polygon.bindTooltip(`
                         <div style="font-weight:600;margin-bottom:4px;color:${precipColor}">${precipType}</div>
                         <div><b>Station:</b> ${station.id}</div>
-                        ${dewpoint !== null ? `<div><b>Dewpoint:</b> ${dewpoint}°C</div>` : ''}
-                        ${spread !== null ? `<div><b>Temp/DP Spread:</b> ${spread}°C</div>` : ''}
+                        ${dewpointF !== null ? `<div><b>Dewpoint:</b> ${dewpointF}°F</div>` : ''}
+                        ${spreadF !== null ? `<div><b>Temp/DP Spread:</b> ${spreadF}°F</div>` : ''}
                         ${data.weather_string ? `<div><b>Weather:</b> ${data.weather_string}</div>` : ''}
                         ${spread !== null && spread <= 3 ? `<div style="color:#f59e0b;font-size:10px;margin-top:4px">⚠ Low spread - fog/moisture risk</div>` : ''}
                     `, { sticky: true });
@@ -2363,13 +3135,15 @@
                         'LIFR': 'Low IFR - Ceiling <500 ft or Visibility <1 SM'
                     };
 
+                    const tempF = data.temperature !== null ? Math.round(data.temperature * 9/5 + 32) : null;
+                    const dewF = data.dewpoint !== null ? Math.round(data.dewpoint * 9/5 + 32) : null;
                     ring.bindTooltip(`
                         <div style="font-weight:600;margin-bottom:4px;color:${color}">${station.id} - ${flightRules}</div>
                         <div style="font-size:10px;opacity:0.8;margin-bottom:6px">${flightRulesDesc[flightRules] || ''}</div>
                         <div><b>Ceiling:</b> ${ceilingText}</div>
                         <div><b>Visibility:</b> ${data.visibility !== null ? data.visibility + ' SM' : 'N/A'}</div>
                         ${data.wind_speed ? `<div><b>Wind:</b> ${data.wind_direction}° @ ${data.wind_speed} kt</div>` : ''}
-                        ${data.temperature !== null ? `<div><b>Temp/Dewpoint:</b> ${data.temperature}°C / ${data.dewpoint}°C</div>` : ''}
+                        ${tempF !== null ? `<div><b>Temp/Dewpoint:</b> ${tempF}°F / ${dewF}°F</div>` : ''}
                     `, { sticky: true, className: 'ceiling-tooltip' });
 
                     ceilingLayer.addLayer(ring);
@@ -2868,7 +3642,60 @@
 
         // METAR stations layer
         let metarMarkers = L.layerGroup();
-        const metarStations = [
+        let dynamicStationsLoaded = false;
+
+        // Fetch all available METAR stations from FAA AWC API
+        async function fetchAllAirports() {
+            if (dynamicStationsLoaded) return;
+
+            try {
+                // Fetch station list from FAA Aviation Weather Center
+                const response = await fetch('https://aviationweather.gov/api/data/stationinfo?format=json');
+                if (response.ok) {
+                    const stations = await response.json();
+
+                    // Filter for US airports with valid coordinates
+                    // K* = Continental US, PA* = Alaska, PH* = Hawaii, PG* = Guam, etc.
+                    const usStations = stations.filter(s =>
+                        s.lat && s.lon &&
+                        s.icaoId &&
+                        (s.icaoId.startsWith('K') ||   // Continental US
+                         s.icaoId.startsWith('PA') ||  // Alaska
+                         s.icaoId.startsWith('PH') ||  // Hawaii
+                         s.icaoId.startsWith('PF') ||  // Alaska (some)
+                         s.icaoId.startsWith('PP') ||  // Pacific
+                         s.icaoId.startsWith('PG'))    // Guam/Marianas
+                    );
+
+                    // Add stations not already in the hardcoded list
+                    const existingIds = new Set(metarStations.map(s => s.id));
+                    let addedCount = 0;
+
+                    usStations.forEach(station => {
+                        if (!existingIds.has(station.icaoId)) {
+                            metarStations.push({
+                                id: station.icaoId,
+                                name: station.name || station.icaoId,
+                                lat: parseFloat(station.lat),
+                                lon: parseFloat(station.lon)
+                            });
+                            addedCount++;
+                        }
+                    });
+
+                    console.log(`Loaded ${addedCount} additional airports from FAA AWC (total: ${metarStations.length})`);
+                    dynamicStationsLoaded = true;
+                }
+            } catch (error) {
+                console.warn('Could not fetch dynamic airport list, using hardcoded stations:', error);
+            }
+        }
+
+        // Load airports on startup
+        fetchAllAirports();
+
+        // Base airport list (dynamically expanded by fetchAllAirports)
+        let metarStations = [
             // Major Hubs
             { id: 'KJFK', name: 'New York JFK', lat: 40.6413, lon: -73.7781 },
             { id: 'KLAX', name: 'Los Angeles', lat: 33.9425, lon: -118.4081 },
@@ -3003,7 +3830,313 @@
             { id: 'KILM', name: 'Wilmington NC', lat: 34.2706, lon: -77.9026 },
             { id: 'KRIC', name: 'Richmond', lat: 37.5052, lon: -77.3197 },
             { id: 'KORF', name: 'Norfolk', lat: 36.8946, lon: -76.2012 },
-            { id: 'KROA', name: 'Roanoke', lat: 37.3255, lon: -79.9754 }
+            { id: 'KROA', name: 'Roanoke', lat: 37.3255, lon: -79.9754 },
+            // Additional GA & Regional - Mountain West
+            { id: 'KGTF', name: 'Great Falls MT', lat: 47.4820, lon: -111.3707 },
+            { id: 'KHLN', name: 'Helena MT', lat: 46.6068, lon: -111.9827 },
+            { id: 'KBUT', name: 'Butte MT', lat: 45.9548, lon: -112.4972 },
+            { id: 'KLWT', name: 'Lewistown MT', lat: 47.0493, lon: -109.4673 },
+            { id: 'KGGW', name: 'Glasgow MT', lat: 48.2125, lon: -106.6147 },
+            { id: 'KSDY', name: 'Sidney MT', lat: 47.7069, lon: -104.1926 },
+            { id: 'KMLS', name: 'Miles City MT', lat: 46.4280, lon: -105.8862 },
+            { id: 'KDIK', name: 'Dickinson ND', lat: 46.7974, lon: -102.8020 },
+            { id: 'KBIS', name: 'Bismarck ND', lat: 46.7727, lon: -100.7468 },
+            { id: 'KMOT', name: 'Minot ND', lat: 48.2594, lon: -101.2803 },
+            { id: 'KGFK', name: 'Grand Forks ND', lat: 47.9493, lon: -97.1761 },
+            { id: 'KFAR', name: 'Fargo ND', lat: 46.9207, lon: -96.8158 },
+            { id: 'KABR', name: 'Aberdeen SD', lat: 45.4491, lon: -98.4218 },
+            { id: 'KPIR', name: 'Pierre SD', lat: 44.3827, lon: -100.2860 },
+            { id: 'KCUT', name: 'Custer SD', lat: 43.7333, lon: -103.6178 },
+            // Wyoming
+            { id: 'KSHR', name: 'Sheridan WY', lat: 44.7692, lon: -106.9803 },
+            { id: 'KCOD', name: 'Cody WY', lat: 44.5202, lon: -109.0238 },
+            { id: 'KRIW', name: 'Riverton WY', lat: 43.0642, lon: -108.4598 },
+            { id: 'KCPR', name: 'Casper WY', lat: 42.9080, lon: -106.4644 },
+            { id: 'KLAR', name: 'Laramie WY', lat: 41.3121, lon: -105.6750 },
+            { id: 'KCYS', name: 'Cheyenne WY', lat: 41.1557, lon: -104.8118 },
+            { id: 'KRKS', name: 'Rock Springs WY', lat: 41.5942, lon: -109.0652 },
+            // Nebraska & Kansas Rural
+            { id: 'KSNY', name: 'Sidney NE', lat: 41.1013, lon: -102.9853 },
+            { id: 'KAIA', name: 'Alliance NE', lat: 42.0532, lon: -102.8037 },
+            { id: 'KCDP', name: 'Chadron NE', lat: 42.8376, lon: -103.0954 },
+            { id: 'KVTN', name: 'Valentine NE', lat: 42.8578, lon: -100.5480 },
+            { id: 'KLBF', name: 'North Platte NE', lat: 41.1262, lon: -100.6837 },
+            { id: 'KGRI', name: 'Grand Island NE', lat: 40.9675, lon: -98.3096 },
+            { id: 'KEAR', name: 'Kearney NE', lat: 40.7270, lon: -99.0068 },
+            { id: 'KLNK', name: 'Lincoln NE', lat: 40.8510, lon: -96.7592 },
+            { id: 'KGLD', name: 'Goodland KS', lat: 39.3706, lon: -101.6990 },
+            { id: 'KHYS', name: 'Hays KS', lat: 38.8422, lon: -99.2732 },
+            { id: 'KSLN', name: 'Salina KS', lat: 38.7910, lon: -97.6522 },
+            { id: 'KMHK', name: 'Manhattan KS', lat: 39.1410, lon: -96.6708 },
+            { id: 'KDDC', name: 'Dodge City KS', lat: 37.7634, lon: -99.9656 },
+            { id: 'KGCK', name: 'Garden City KS', lat: 37.9275, lon: -100.7244 },
+            { id: 'KLBL', name: 'Liberal KS', lat: 37.0442, lon: -100.9599 },
+            // New Mexico & West Texas
+            { id: 'KSAF', name: 'Santa Fe NM', lat: 35.6171, lon: -106.0892 },
+            { id: 'KLAM', name: 'Los Alamos NM', lat: 35.8798, lon: -106.2694 },
+            { id: 'KSKX', name: 'Taos NM', lat: 36.4582, lon: -105.6724 },
+            { id: 'KROW', name: 'Roswell NM', lat: 33.3016, lon: -104.5307 },
+            { id: 'KCNM', name: 'Carlsbad NM', lat: 32.3375, lon: -104.2633 },
+            { id: 'KLRU', name: 'Las Cruces NM', lat: 32.2894, lon: -106.9219 },
+            { id: 'KFMN', name: 'Farmington NM', lat: 36.7412, lon: -108.2299 },
+            { id: 'KGUP', name: 'Gallup NM', lat: 35.5111, lon: -108.7893 },
+            { id: 'KSVC', name: 'Silver City NM', lat: 32.6365, lon: -108.1563 },
+            { id: 'KINK', name: 'Wink TX', lat: 31.7796, lon: -103.2016 },
+            { id: 'KPRX', name: 'Paris TX', lat: 33.6366, lon: -95.4507 },
+            { id: 'KABI', name: 'Abilene TX', lat: 32.4113, lon: -99.6819 },
+            { id: 'KSJT', name: 'San Angelo TX', lat: 31.3577, lon: -100.4963 },
+            { id: 'KMFE', name: 'McAllen TX', lat: 26.1758, lon: -98.2386 },
+            { id: 'KBRO', name: 'Brownsville TX', lat: 25.9068, lon: -97.4259 },
+            { id: 'KHRL', name: 'Harlingen TX', lat: 26.2285, lon: -97.6544 },
+            { id: 'KLRD', name: 'Laredo TX', lat: 27.5438, lon: -99.4617 },
+            { id: 'KDRT', name: 'Del Rio TX', lat: 29.3742, lon: -100.9273 },
+            // Arizona Rural
+            { id: 'KFLG', name: 'Flagstaff AZ', lat: 35.1385, lon: -111.6712 },
+            { id: 'KPRC', name: 'Prescott AZ', lat: 34.6545, lon: -112.4196 },
+            { id: 'KSEZ', name: 'Sedona AZ', lat: 34.8486, lon: -111.7884 },
+            { id: 'KPGA', name: 'Page AZ', lat: 36.9261, lon: -111.4483 },
+            { id: 'KGCN', name: 'Grand Canyon AZ', lat: 35.9524, lon: -112.1470 },
+            { id: 'KIGM', name: 'Kingman AZ', lat: 35.2595, lon: -113.9380 },
+            { id: 'KIWA', name: 'Phoenix-Mesa Gateway', lat: 33.3078, lon: -111.6556 },
+            { id: 'KCHD', name: 'Chandler AZ', lat: 33.2691, lon: -111.8111 },
+            { id: 'KDVT', name: 'Phoenix Deer Valley', lat: 33.6883, lon: -112.0825 },
+            { id: 'KFFZ', name: 'Mesa Falcon Field', lat: 33.4608, lon: -111.7285 },
+            { id: 'KSDL', name: 'Scottsdale', lat: 33.6229, lon: -111.9105 },
+            // Utah
+            { id: 'KCDC', name: 'Cedar City UT', lat: 37.7010, lon: -113.0986 },
+            { id: 'KSGU', name: 'St George UT', lat: 37.0364, lon: -113.5103 },
+            { id: 'KPVU', name: 'Provo UT', lat: 40.2192, lon: -111.7235 },
+            { id: 'KOGD', name: 'Ogden UT', lat: 41.1961, lon: -112.0122 },
+            { id: 'KLGU', name: 'Logan UT', lat: 41.7912, lon: -111.8522 },
+            { id: 'KVEL', name: 'Vernal UT', lat: 40.4409, lon: -109.5099 },
+            { id: 'KPUC', name: 'Price UT', lat: 39.6094, lon: -110.7514 },
+            { id: 'KCNY', name: 'Moab UT', lat: 38.7550, lon: -109.7549 },
+            // Nevada
+            { id: 'KVGT', name: 'Las Vegas North', lat: 36.2107, lon: -115.1944 },
+            { id: 'KHND', name: 'Henderson NV', lat: 35.9728, lon: -115.1344 },
+            { id: 'KELN', name: 'Elko NV', lat: 40.8249, lon: -115.7920 },
+            { id: 'KEKO', name: 'Elko Regional', lat: 40.8249, lon: -115.7917 },
+            { id: 'KWMC', name: 'Winnemucca NV', lat: 40.8966, lon: -117.8059 },
+            { id: 'KELY', name: 'Ely NV', lat: 39.2997, lon: -114.8419 },
+            { id: 'KTNX', name: 'Tonopah NV', lat: 38.0537, lon: -117.0873 },
+            // Idaho
+            { id: 'KTWF', name: 'Twin Falls ID', lat: 42.4818, lon: -114.4877 },
+            { id: 'KPIH', name: 'Pocatello ID', lat: 42.9098, lon: -112.5959 },
+            { id: 'KIDA', name: 'Idaho Falls ID', lat: 43.5146, lon: -112.0708 },
+            { id: 'KLWS', name: 'Lewiston ID', lat: 46.3745, lon: -117.0154 },
+            { id: 'KSUN', name: 'Sun Valley ID', lat: 43.5044, lon: -114.2962 },
+            { id: 'KMYL', name: 'McCall ID', lat: 44.8897, lon: -116.1015 },
+            // Oregon & Washington Rural
+            { id: 'KEUG', name: 'Eugene OR', lat: 44.1246, lon: -123.2190 },
+            { id: 'KMFR', name: 'Medford OR', lat: 42.3742, lon: -122.8735 },
+            { id: 'KRDM', name: 'Redmond OR', lat: 44.2541, lon: -121.1500 },
+            { id: 'KPDT', name: 'Pendleton OR', lat: 45.6951, lon: -118.8414 },
+            { id: 'KLMT', name: 'Klamath Falls OR', lat: 42.1561, lon: -121.7332 },
+            { id: 'KONP', name: 'Newport OR', lat: 44.5804, lon: -124.0579 },
+            { id: 'KAST', name: 'Astoria OR', lat: 46.1580, lon: -123.8787 },
+            { id: 'KYKM', name: 'Yakima WA', lat: 46.5682, lon: -120.5441 },
+            { id: 'KPSC', name: 'Pasco WA', lat: 46.2647, lon: -119.1191 },
+            { id: 'KEAT', name: 'Wenatchee WA', lat: 47.3986, lon: -120.2069 },
+            { id: 'KEPH', name: 'Ephrata WA', lat: 47.3076, lon: -119.5159 },
+            { id: 'KPUW', name: 'Pullman WA', lat: 46.7439, lon: -117.1096 },
+            { id: 'KBLI', name: 'Bellingham WA', lat: 48.7928, lon: -122.5375 },
+            { id: 'KCLM', name: 'Port Angeles WA', lat: 48.1202, lon: -123.4997 },
+            // California Rural & GA
+            { id: 'KRDD', name: 'Redding CA', lat: 40.5090, lon: -122.2934 },
+            { id: 'KUKI', name: 'Ukiah CA', lat: 39.1260, lon: -123.2009 },
+            { id: 'KEKA', name: 'Eureka CA', lat: 40.8034, lon: -124.1128 },
+            { id: 'KCEC', name: 'Crescent City CA', lat: 41.7802, lon: -124.2365 },
+            { id: 'KMCE', name: 'Merced CA', lat: 37.2847, lon: -120.5139 },
+            { id: 'KMOD', name: 'Modesto CA', lat: 37.6258, lon: -120.9542 },
+            { id: 'KVIS', name: 'Visalia CA', lat: 36.3187, lon: -119.3929 },
+            { id: 'KBFL', name: 'Bakersfield CA', lat: 35.4336, lon: -119.0568 },
+            { id: 'KTRM', name: 'Palm Springs Thermal', lat: 33.6267, lon: -116.1600 },
+            { id: 'KIPL', name: 'Imperial CA', lat: 32.8342, lon: -115.5787 },
+            { id: 'KEED', name: 'Needles CA', lat: 34.7663, lon: -114.6233 },
+            { id: 'KDAG', name: 'Barstow-Daggett CA', lat: 34.8537, lon: -116.7867 },
+            { id: 'KVNY', name: 'Van Nuys CA', lat: 34.2098, lon: -118.4900 },
+            { id: 'KSMO', name: 'Santa Monica CA', lat: 34.0158, lon: -118.4513 },
+            { id: 'KTOA', name: 'Torrance CA', lat: 33.8034, lon: -118.3396 },
+            { id: 'KFUL', name: 'Fullerton CA', lat: 33.8720, lon: -117.9795 },
+            { id: 'KCMA', name: 'Camarillo CA', lat: 34.2137, lon: -119.0943 },
+            { id: 'KOXR', name: 'Oxnard CA', lat: 34.2008, lon: -119.2072 },
+            { id: 'KWHP', name: 'Whiteman CA', lat: 34.2593, lon: -118.4134 },
+            { id: 'KCNO', name: 'Chino CA', lat: 33.9747, lon: -117.6368 },
+            { id: 'KPOC', name: 'Pomona CA', lat: 34.0916, lon: -117.7817 },
+            { id: 'KRAL', name: 'Riverside CA', lat: 33.9519, lon: -117.4451 },
+            { id: 'KRNM', name: 'Ramona CA', lat: 33.0392, lon: -116.9153 },
+            { id: 'KSEE', name: 'San Diego Gillespie', lat: 32.8262, lon: -116.9724 },
+            { id: 'KMYF', name: 'San Diego Montgomery', lat: 32.8158, lon: -117.1397 },
+            // Popular GA Destinations & Training Airports
+            { id: 'KFXE', name: 'Fort Lauderdale Exec', lat: 26.1973, lon: -80.1707 },
+            { id: 'KOPF', name: 'Miami Opa-Locka', lat: 25.9070, lon: -80.2784 },
+            { id: 'KTMB', name: 'Miami Kendall-Tamiami', lat: 25.6479, lon: -80.4328 },
+            { id: 'KAPF', name: 'Naples FL', lat: 26.1526, lon: -81.7753 },
+            { id: 'KPGD', name: 'Punta Gorda FL', lat: 26.9202, lon: -81.9905 },
+            { id: 'KLAL', name: 'Lakeland FL', lat: 27.9889, lon: -82.0186 },
+            { id: 'KOCF', name: 'Ocala FL', lat: 29.1726, lon: -82.2241 },
+            { id: 'KGNV', name: 'Gainesville FL', lat: 29.6901, lon: -82.2718 },
+            { id: 'KSGJ', name: 'St Augustine FL', lat: 29.9592, lon: -81.3397 },
+            { id: 'KDAB', name: 'Daytona Beach FL', lat: 29.1799, lon: -81.0581 },
+            { id: 'KMLB', name: 'Melbourne FL', lat: 28.1028, lon: -80.6453 },
+            { id: 'KVRB', name: 'Vero Beach FL', lat: 27.6556, lon: -80.4179 },
+            { id: 'KSPG', name: 'St Petersburg FL', lat: 27.7651, lon: -82.6270 },
+            { id: 'KPIE', name: 'St Pete-Clearwater FL', lat: 27.9102, lon: -82.6874 },
+            { id: 'KVDF', name: 'Tampa Vandenberg', lat: 28.0140, lon: -82.3453 },
+            { id: 'KISM', name: 'Orlando Kissimmee', lat: 28.2898, lon: -81.4371 },
+            { id: 'KORL', name: 'Orlando Executive', lat: 28.5455, lon: -81.3329 },
+            { id: 'KSFB', name: 'Orlando Sanford', lat: 28.7776, lon: -81.2375 },
+            // Georgia & South
+            { id: 'KPDK', name: 'Atlanta Peachtree-DeKalb', lat: 33.8756, lon: -84.3020 },
+            { id: 'KFTY', name: 'Atlanta Fulton County', lat: 33.7791, lon: -84.5214 },
+            { id: 'KRYY', name: 'Atlanta Cobb County', lat: 34.0132, lon: -84.5971 },
+            { id: 'KLZU', name: 'Atlanta Gwinnett County', lat: 33.9781, lon: -83.9624 },
+            { id: 'KAHN', name: 'Athens GA', lat: 33.9486, lon: -83.3263 },
+            { id: 'KMCN', name: 'Macon GA', lat: 32.6927, lon: -83.6492 },
+            { id: 'KABY', name: 'Albany GA', lat: 31.5355, lon: -84.1945 },
+            { id: 'KVLD', name: 'Valdosta GA', lat: 30.7825, lon: -83.2767 },
+            { id: 'KBQK', name: 'Brunswick GA', lat: 31.2588, lon: -81.4665 },
+            { id: 'KMOB', name: 'Mobile AL', lat: 30.6914, lon: -88.2428 },
+            { id: 'KMGM', name: 'Montgomery AL', lat: 32.3006, lon: -86.3940 },
+            { id: 'KHSV', name: 'Huntsville AL', lat: 34.6372, lon: -86.7751 },
+            { id: 'KGPT', name: 'Gulfport MS', lat: 30.4073, lon: -89.0701 },
+            { id: 'KJAN', name: 'Jackson MS', lat: 32.3112, lon: -90.0759 },
+            { id: 'KGTR', name: 'Columbus-Golden Triangle MS', lat: 33.4503, lon: -88.5914 },
+            // Arkansas & Louisiana
+            { id: 'KXNA', name: 'Fayetteville AR', lat: 36.2819, lon: -94.3068 },
+            { id: 'KFSM', name: 'Fort Smith AR', lat: 35.3366, lon: -94.3674 },
+            { id: 'KJBR', name: 'Jonesboro AR', lat: 35.8317, lon: -90.6462 },
+            { id: 'KTXK', name: 'Texarkana AR', lat: 33.4537, lon: -93.9910 },
+            { id: 'KHOT', name: 'Hot Springs AR', lat: 34.4780, lon: -93.0962 },
+            { id: 'KSHV', name: 'Shreveport LA', lat: 32.4466, lon: -93.8256 },
+            { id: 'KMLB', name: 'Monroe LA', lat: 32.5109, lon: -92.0377 },
+            { id: 'KAEX', name: 'Alexandria LA', lat: 31.3274, lon: -92.5498 },
+            { id: 'KLFT', name: 'Lafayette LA', lat: 30.2053, lon: -91.9876 },
+            { id: 'KBTR', name: 'Baton Rouge LA', lat: 30.5332, lon: -91.1496 },
+            { id: 'KLCH', name: 'Lake Charles LA', lat: 30.1261, lon: -93.2234 },
+            // North Carolina & Virginia
+            { id: 'KPOB', name: 'Fayetteville Pope NC', lat: 35.1709, lon: -79.0145 },
+            { id: 'KEWN', name: 'New Bern NC', lat: 35.0730, lon: -77.0429 },
+            { id: 'KOAJ', name: 'Jacksonville NC', lat: 34.8292, lon: -77.6121 },
+            { id: 'KPGV', name: 'Greenville NC', lat: 35.6352, lon: -77.3853 },
+            { id: 'KINT', name: 'Winston-Salem NC', lat: 36.1337, lon: -80.2220 },
+            { id: 'KHKY', name: 'Hickory NC', lat: 35.7411, lon: -81.3895 },
+            { id: 'KCPK', name: 'Chesapeake VA', lat: 36.6656, lon: -76.3206 },
+            { id: 'KPHF', name: 'Newport News VA', lat: 37.1319, lon: -76.4930 },
+            { id: 'KLYH', name: 'Lynchburg VA', lat: 37.3267, lon: -79.2004 },
+            { id: 'KCHO', name: 'Charlottesville VA', lat: 38.1386, lon: -78.4529 },
+            { id: 'KSHD', name: 'Staunton VA', lat: 38.2638, lon: -78.8964 },
+            // Additional Northeast
+            { id: 'KAVP', name: 'Wilkes-Barre PA', lat: 41.3385, lon: -75.7234 },
+            { id: 'KMDT', name: 'Harrisburg PA', lat: 40.1935, lon: -76.7634 },
+            { id: 'KIPT', name: 'Williamsport PA', lat: 41.2419, lon: -76.9211 },
+            { id: 'KERI', name: 'Erie PA', lat: 42.0831, lon: -80.1762 },
+            { id: 'KLBE', name: 'Latrobe PA', lat: 40.2759, lon: -79.4048 },
+            { id: 'KAOO', name: 'Altoona PA', lat: 40.2964, lon: -78.3200 },
+            { id: 'KUNV', name: 'State College PA', lat: 40.8493, lon: -77.8487 },
+            { id: 'KABE', name: 'Allentown PA', lat: 40.6521, lon: -75.4408 },
+            { id: 'KILG', name: 'Wilmington DE', lat: 39.6787, lon: -75.6065 },
+            { id: 'KACY', name: 'Atlantic City NJ', lat: 39.4576, lon: -74.5772 },
+            { id: 'KCDW', name: 'Caldwell NJ', lat: 40.8752, lon: -74.2814 },
+            { id: 'KTEB', name: 'Teterboro NJ', lat: 40.8501, lon: -74.0608 },
+            { id: 'KMMK', name: 'Morristown NJ', lat: 40.7994, lon: -74.4149 },
+            { id: 'KSWF', name: 'Newburgh NY', lat: 41.5041, lon: -74.1048 },
+            { id: 'KHPN', name: 'White Plains NY', lat: 41.0670, lon: -73.7076 },
+            { id: 'KFRG', name: 'Farmingdale NY', lat: 40.7288, lon: -73.4134 },
+            { id: 'KISP', name: 'Islip NY', lat: 40.7952, lon: -73.1002 },
+            { id: 'KFOK', name: 'Westhampton NY', lat: 40.8437, lon: -72.6318 },
+            { id: 'KBGM', name: 'Binghamton NY', lat: 42.2087, lon: -75.9798 },
+            { id: 'KELM', name: 'Elmira NY', lat: 42.1599, lon: -76.8916 },
+            { id: 'KITH', name: 'Ithaca NY', lat: 42.4910, lon: -76.4584 },
+            { id: 'KPOU', name: 'Poughkeepsie NY', lat: 41.6266, lon: -73.8842 },
+            // New England
+            { id: 'KBGR', name: 'Bangor ME', lat: 44.8074, lon: -68.8281 },
+            { id: 'KAUG', name: 'Augusta ME', lat: 44.3206, lon: -69.7973 },
+            { id: 'KLEB', name: 'Lebanon NH', lat: 43.6261, lon: -72.3042 },
+            { id: 'KPSM', name: 'Portsmouth NH', lat: 43.0779, lon: -70.8233 },
+            { id: 'KORH', name: 'Worcester MA', lat: 42.2673, lon: -71.8757 },
+            { id: 'KBAF', name: 'Westfield MA', lat: 42.1578, lon: -72.7156 },
+            { id: 'KACK', name: 'Nantucket MA', lat: 41.2531, lon: -70.0602 },
+            { id: 'KMVY', name: 'Martha\'s Vineyard MA', lat: 41.3931, lon: -70.6143 },
+            { id: 'KHYA', name: 'Hyannis MA', lat: 41.6693, lon: -70.2804 },
+            { id: 'KGON', name: 'Groton CT', lat: 41.3301, lon: -72.0451 },
+            { id: 'KHVN', name: 'New Haven CT', lat: 41.2637, lon: -72.8868 },
+            { id: 'KDXR', name: 'Danbury CT', lat: 41.3715, lon: -73.4822 },
+            { id: 'KOQU', name: 'North Kingstown RI', lat: 41.5971, lon: -71.4121 },
+            // Midwest Additional
+            { id: 'KBMI', name: 'Bloomington IL', lat: 40.4771, lon: -88.9159 },
+            { id: 'KSPI', name: 'Springfield IL', lat: 39.8441, lon: -89.6779 },
+            { id: 'KMLI', name: 'Moline IL', lat: 41.4485, lon: -90.5075 },
+            { id: 'KPIA', name: 'Peoria IL', lat: 40.6642, lon: -89.6933 },
+            { id: 'KDEC', name: 'Decatur IL', lat: 39.8346, lon: -88.8657 },
+            { id: 'KCMI', name: 'Champaign IL', lat: 40.0392, lon: -88.2781 },
+            { id: 'KPWK', name: 'Chicago Executive', lat: 42.1142, lon: -87.9015 },
+            { id: 'KDPA', name: 'DuPage IL', lat: 41.9078, lon: -88.2486 },
+            { id: 'KARR', name: 'Aurora IL', lat: 41.7719, lon: -88.4757 },
+            { id: 'KLOT', name: 'Joliet IL', lat: 41.6073, lon: -88.0962 },
+            { id: 'KIGQ', name: 'Lansing IL', lat: 41.5350, lon: -87.5297 },
+            { id: 'KGYY', name: 'Gary IN', lat: 41.6163, lon: -87.4128 },
+            { id: 'KSBN', name: 'South Bend IN', lat: 41.7087, lon: -86.3173 },
+            { id: 'KFWA', name: 'Fort Wayne IN', lat: 40.9785, lon: -85.1951 },
+            { id: 'KEVV', name: 'Evansville IN', lat: 38.0370, lon: -87.5324 },
+            { id: 'KTYQ', name: 'Indianapolis Executive', lat: 40.0303, lon: -86.2514 },
+            { id: 'KEYE', name: 'Indianapolis Eagle Creek', lat: 39.8306, lon: -86.2944 },
+            { id: 'KMIE', name: 'Muncie IN', lat: 40.2423, lon: -85.3959 },
+            { id: 'KLAF', name: 'Lafayette IN', lat: 40.4123, lon: -86.9369 },
+            { id: 'KTOL', name: 'Toledo OH', lat: 41.5868, lon: -83.8078 },
+            { id: 'KYNG', name: 'Youngstown OH', lat: 41.2607, lon: -80.6790 },
+            { id: 'KCAK', name: 'Akron-Canton OH', lat: 40.9161, lon: -81.4422 },
+            { id: 'KDAY', name: 'Dayton OH', lat: 39.9024, lon: -84.2194 },
+            { id: 'KLUK', name: 'Cincinnati Lunken', lat: 39.1033, lon: -84.4186 },
+            { id: 'KILN', name: 'Wilmington OH', lat: 39.4279, lon: -83.7921 },
+            { id: 'KOSU', name: 'Columbus Ohio State', lat: 40.0798, lon: -83.0730 },
+            { id: 'KTZR', name: 'Columbus Bolton', lat: 39.9010, lon: -83.1371 },
+            { id: 'KCGF', name: 'Cleveland Cuyahoga', lat: 41.5651, lon: -81.4864 },
+            { id: 'KBKL', name: 'Cleveland Burke Lakefront', lat: 41.5175, lon: -81.6833 },
+            { id: 'KAPN', name: 'Alpena MI', lat: 45.0781, lon: -83.5603 },
+            { id: 'KTVC', name: 'Traverse City MI', lat: 44.7414, lon: -85.5822 },
+            { id: 'KESC', name: 'Escanaba MI', lat: 45.7227, lon: -87.0937 },
+            { id: 'KMQT', name: 'Marquette MI', lat: 46.3536, lon: -87.3954 },
+            { id: 'KCMX', name: 'Hancock MI', lat: 47.1684, lon: -88.4891 },
+            { id: 'KIWD', name: 'Ironwood MI', lat: 46.5275, lon: -90.1314 },
+            { id: 'KSAW', name: 'Sault Ste Marie MI', lat: 46.4854, lon: -84.3514 },
+            { id: 'KPLN', name: 'Pellston MI', lat: 45.5709, lon: -84.7967 },
+            { id: 'KMKG', name: 'Muskegon MI', lat: 43.1695, lon: -86.2382 },
+            { id: 'KAZO', name: 'Kalamazoo MI', lat: 42.2350, lon: -85.5521 },
+            { id: 'KJXN', name: 'Jackson MI', lat: 42.2598, lon: -84.4594 },
+            { id: 'KARB', name: 'Ann Arbor MI', lat: 42.2230, lon: -83.7456 },
+            { id: 'KPTK', name: 'Pontiac MI', lat: 42.6655, lon: -83.4201 },
+            { id: 'KYIP', name: 'Detroit Willow Run', lat: 42.2379, lon: -83.5304 },
+            { id: 'KDUH', name: 'Duluth MN', lat: 46.8422, lon: -92.1936 },
+            { id: 'KHIB', name: 'Hibbing MN', lat: 47.3866, lon: -92.8390 },
+            { id: 'KINL', name: 'International Falls MN', lat: 48.5662, lon: -93.4031 },
+            { id: 'KBRD', name: 'Brainerd MN', lat: 46.3983, lon: -94.1372 },
+            { id: 'KSTC', name: 'St Cloud MN', lat: 45.5466, lon: -94.0599 },
+            { id: 'KRST', name: 'Rochester MN', lat: 43.9083, lon: -92.5000 },
+            { id: 'KFCM', name: 'Minneapolis Flying Cloud', lat: 44.8272, lon: -93.4571 },
+            { id: 'KANE', name: 'Minneapolis Anoka', lat: 45.1450, lon: -93.2114 },
+            { id: 'KEAU', name: 'Eau Claire WI', lat: 44.8658, lon: -91.4843 },
+            { id: 'KLSE', name: 'La Crosse WI', lat: 43.8793, lon: -91.2567 },
+            { id: 'KMSN', name: 'Madison WI', lat: 43.1399, lon: -89.3375 },
+            { id: 'KATW', name: 'Appleton WI', lat: 44.2581, lon: -88.5191 },
+            { id: 'KGRB', name: 'Green Bay WI', lat: 44.4851, lon: -88.1296 },
+            { id: 'KUES', name: 'Waukesha WI', lat: 43.0410, lon: -88.2370 },
+            { id: 'KENW', name: 'Kenosha WI', lat: 42.5957, lon: -87.9278 },
+            { id: 'KRAC', name: 'Racine WI', lat: 42.7610, lon: -87.8152 },
+            { id: 'KRHI', name: 'Rhinelander WI', lat: 45.6312, lon: -89.4675 },
+            { id: 'KCWA', name: 'Wausau WI', lat: 44.7776, lon: -89.6668 },
+            // Iowa & Missouri
+            { id: 'KDBQ', name: 'Dubuque IA', lat: 42.4020, lon: -90.7095 },
+            { id: 'KCID', name: 'Cedar Rapids IA', lat: 41.8847, lon: -91.7108 },
+            { id: 'KALO', name: 'Waterloo IA', lat: 42.5571, lon: -92.4003 },
+            { id: 'KMCW', name: 'Mason City IA', lat: 43.1578, lon: -93.3313 },
+            { id: 'KSUX', name: 'Sioux City IA', lat: 42.4026, lon: -96.3844 },
+            { id: 'KJEF', name: 'Jefferson City MO', lat: 38.5912, lon: -92.1561 },
+            { id: 'KCOU', name: 'Columbia MO', lat: 38.8181, lon: -92.2196 },
+            { id: 'KIRK', name: 'Kirksville MO', lat: 40.0935, lon: -92.5449 },
+            { id: 'KJLN', name: 'Joplin MO', lat: 37.1518, lon: -94.4983 },
+            { id: 'KCGI', name: 'Cape Girardeau MO', lat: 37.2253, lon: -89.5708 },
+            { id: 'KSPD', name: 'Springfield Downtown MO', lat: 37.2392, lon: -93.2839 }
         ];
 
         // Flight rules colors
@@ -3033,6 +4166,39 @@
             stations: false
         };
 
+        // Simplify stations mode - only show major airports
+        let simplifyStationsMode = false;
+
+        // Major airports list (Class B airports and major regional hubs)
+        const majorAirportIds = new Set([
+            // Major Hubs (Class B)
+            'KJFK', 'KLAX', 'KORD', 'KATL', 'KDFW', 'KDEN', 'KSFO', 'KSEA', 'KMIA', 'KBOS',
+            'KPHX', 'KMSP', 'KDTW', 'KIAH', 'KLGA', 'KEWR', 'KPHL', 'KDCA', 'KIAD', 'KLAS',
+            'KSAN', 'KTPA', 'KMCO', 'KFLL', 'KCLT', 'KBWI', 'KSLC', 'KSTL', 'KMCI', 'KPDX',
+            'KAUS', 'KSAT', 'KSMF', 'KSJC', 'KOAK', 'KCVG', 'KCMH', 'KCLE', 'KIND', 'KPIT',
+            'KRDU', 'KBNA', 'KMEM', 'KMSY', 'KHOU', 'KDAL', 'KMDW', 'KBUR', 'KSNA', 'KONT',
+            // Alaska & Hawaii
+            'PANC', 'PAFA', 'PAJN', 'PHNL', 'PHOG', 'PHKO',
+            // Regional hubs
+            'KABQ', 'KELP', 'KTUS', 'KCOS', 'KBOI', 'KGEG', 'KGRR', 'KDSM', 'KOMA', 'KICT',
+            'KTUL', 'KOKC', 'KLIT', 'KJAN', 'KBHM', 'KHSV', 'KMOB', 'KGPT', 'KJAX', 'KPBI',
+            'KRSW', 'KSRQ', 'KPNS', 'KSAV', 'KCHS', 'KMYR', 'KGSO', 'KAVL', 'KRIC', 'KORF',
+            'KROA', 'KCHO', 'KSYR', 'KBUF', 'KROC', 'KALB', 'KBGR', 'KPWM', 'KBTV', 'KMHT',
+            'KBDL', 'KPVD', 'KACK', 'KMVY'
+        ]);
+
+        // Toggle simplify stations mode
+        function toggleSimplifyStations() {
+            simplifyStationsMode = !simplifyStationsMode;
+            const btn = document.getElementById('simplifyBtn');
+            btn.classList.toggle('active', simplifyStationsMode);
+
+            // Reload stations with filter applied
+            if (overlayState.stations) {
+                loadMetarStations();
+            }
+        }
+
         // Alias for profile drawing compatibility
         const profileOverlays = overlayState;
 
@@ -3046,6 +4212,12 @@
         let waypointMarkers = [];
         let waypointPreviewLine = null;
         let waypointCounter = 0;
+
+        // Custom stop state (landing stops along route)
+        let stopMode = false;
+        let customStops = [];
+        let stopMarkers = [];
+        let stopCounter = 0;
 
         // Profile zoom and pan state
         const profileView = {
@@ -3410,61 +4582,89 @@
         async function loadMetarStations() {
             metarMarkers.clearLayers();
 
-            // Fetch all stations in parallel for much faster loading
-            const fetchPromises = metarStations.map(async (station) => {
+            // Add layer to map first so stations appear as they load
+            if (overlayState.stations) {
+                metarMarkers.addTo(map);
+            }
+
+            // Filter stations based on simplify mode
+            const stationsToLoad = simplifyStationsMode
+                ? metarStations.filter(s => majorAirportIds.has(s.id))
+                : metarStations;
+
+            // Show loading bar
+            const loadingBar = document.getElementById('overlayLoadingBar');
+            const barFill = loadingBar.querySelector('.bar-fill');
+            const loadingLabel = document.getElementById('loadingLabel');
+            let loadedCount = 0;
+            const totalStations = stationsToLoad.length;
+
+            loadingBar.classList.add('active');
+            loadingLabel.textContent = `Stations 0/${totalStations}${simplifyStationsMode ? ' (Major)' : ''}`;
+            barFill.style.width = '0%';
+
+            // Process stations progressively as they load (faster perceived performance)
+            const fetchAndAddStation = async (station) => {
                 try {
                     const response = await fetch(`/api/aviation/metar/${station.id}`);
                     if (response.ok) {
                         const data = await response.json();
+                        metarData[station.id] = data;
+
+                        const flightRules = data.flight_rules || 'VFR';
+                        const color = flightRulesColors[flightRules] || '#22c55e';
+
+                        const marker = L.circleMarker([station.lat, station.lon], {
+                            radius: 8,
+                            fillColor: color,
+                            color: '#ffffff',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        });
+
+                        marker.on('click', (e) => {
+                            if (waypointMode) {
+                                return;
+                            }
+                            L.DomEvent.stopPropagation(e);
+                            showStationInfo(station.id, data);
+                        });
+                        marker.bindTooltip(station.id, {
+                            permanent: false,
+                            direction: 'top',
+                            className: 'station-tooltip'
+                        });
+
+                        metarMarkers.addLayer(marker);
+
+                        // Update loading progress
+                        loadedCount++;
+                        const percent = (loadedCount / totalStations) * 100;
+                        barFill.style.width = `${percent}%`;
+                        loadingLabel.textContent = `Stations ${loadedCount}/${totalStations}${simplifyStationsMode ? ' (Major)' : ''}`;
+
                         return { station, data, success: true };
                     }
+                    loadedCount++;
+                    barFill.style.width = `${(loadedCount / totalStations) * 100}%`;
                     return { station, success: false };
                 } catch (error) {
                     console.error(`Failed to load METAR for ${station.id}:`, error);
+                    loadedCount++;
+                    barFill.style.width = `${(loadedCount / totalStations) * 100}%`;
                     return { station, success: false };
                 }
-            });
+            };
 
-            const results = await Promise.all(fetchPromises);
+            // Launch all fetches in parallel - stations appear as they complete
+            await Promise.all(stationsToLoad.map(fetchAndAddStation));
 
-            // Process results and create markers
-            results.forEach(({ station, data, success }) => {
-                if (success && data) {
-                    metarData[station.id] = data;
-
-                    const flightRules = data.flight_rules || 'VFR';
-                    const color = flightRulesColors[flightRules] || '#22c55e';
-
-                    const marker = L.circleMarker([station.lat, station.lon], {
-                        radius: 8,
-                        fillColor: color,
-                        color: '#ffffff',
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.8
-                    });
-
-                    marker.on('click', (e) => {
-                        // In waypoint mode, let the click pass through to add waypoint
-                        if (waypointMode) {
-                            return; // Don't show station info, let waypoint handler work
-                        }
-                        L.DomEvent.stopPropagation(e);
-                        showStationInfo(station.id, data);
-                    });
-                    marker.bindTooltip(station.id, {
-                        permanent: false,
-                        direction: 'top',
-                        className: 'station-tooltip'
-                    });
-
-                    metarMarkers.addLayer(marker);
-                }
-            });
-
-            if (overlayState.stations) {
-                metarMarkers.addTo(map);
-            }
+            // Hide loading bar after completion
+            setTimeout(() => {
+                loadingBar.classList.remove('active');
+                barFill.style.width = '0%';
+            }, 500);
 
             // Update ceiling, visibility, and winds overlays with new METAR data
             if (overlayState.ceiling) {
@@ -3707,13 +4907,14 @@
         }
 
         // Calculate comprehensive route with hazard avoidance
-        function calculateEnhancedRoute(depStation, destStation, distance, customWaypointsInput = []) {
+        function calculateEnhancedRoute(depStation, destStation, distance, customWaypointsInput = [], stopsInput = []) {
             const routeData = {
                 departure: depStation,
                 destination: destStation,
                 distance: distance,
                 waypoints: [],
                 customWaypoints: customWaypointsInput, // Store custom waypoints
+                stops: stopsInput, // Store stops (landings along route)
                 phases: [],
                 hazards: [],
                 avoidanceManeuvers: [],
@@ -3990,6 +5191,32 @@
                     });
 
                     lastPoint = { lat: wp.lat, lon: wp.lon };
+                });
+            }
+
+            // Add stops (landing waypoints) to the route
+            if (stopsInput && stopsInput.length > 0) {
+                const R = 3440.065;
+                stopsInput.forEach((stop) => {
+                    // Calculate distance from departure to this stop
+                    const lat1 = depStation.lat * Math.PI / 180;
+                    const lat2 = stop.lat * Math.PI / 180;
+                    const dLat = (stop.lat - depStation.lat) * Math.PI / 180;
+                    const dLon = (stop.lon - depStation.lon) * Math.PI / 180;
+                    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                              Math.cos(lat1) * Math.cos(lat2) *
+                              Math.sin(dLon/2) * Math.sin(dLon/2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                    const stopDist = R * c;
+
+                    routeData.waypoints.push({
+                        name: stop.id,
+                        type: 'stop',
+                        lat: stop.lat,
+                        lon: stop.lon,
+                        distance: Math.round(stopDist),
+                        isStop: true
+                    });
                 });
             }
 
@@ -4280,15 +5507,24 @@
         function findNearestGAAirport(lat, lon) {
             let nearest = null;
             let nearestDist = Infinity;
-            const maxDist = 0.75; // ~50nm threshold
+            const maxDistNM = 50; // 50nm threshold
+
+            // Use haversine formula for accurate distance in nautical miles
+            const R = 3440.065; // Earth radius in nautical miles
 
             metarStations.forEach(station => {
-                const dist = Math.sqrt(
-                    Math.pow(station.lat - lat, 2) +
-                    Math.pow(station.lon - lon, 2)
-                );
-                if (dist < nearestDist && dist < maxDist) {
-                    nearestDist = dist;
+                const lat1 = lat * Math.PI / 180;
+                const lat2 = station.lat * Math.PI / 180;
+                const dLat = (station.lat - lat) * Math.PI / 180;
+                const dLon = (station.lon - lon) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                          Math.cos(lat1) * Math.cos(lat2) *
+                          Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                const distNM = R * c;
+
+                if (distNM < nearestDist && distNM < maxDistNM) {
+                    nearestDist = distNM;
                     nearest = station;
                 }
             });
@@ -4357,17 +5593,20 @@
                 [currentRoute.dest.lat, currentRoute.dest.lon]
             ];
 
-            // Draw dashed preview line
+            // Draw dashed preview line (dark grey in light mode, white in dark mode)
             waypointPreviewLine = L.polyline(coords, {
-                color: '#ffffff',
+                color: isLightMode ? '#374151' : '#ffffff',
                 weight: 2,
-                opacity: 0.6,
+                opacity: isLightMode ? 0.8 : 0.6,
                 dashArray: '8, 8',
                 className: 'waypoint-preview-line'
             }).addTo(map);
 
             // Bring waypoint markers to front
             waypointMarkers.forEach(m => m.marker.bringToFront());
+
+            // Update profile canvas to reflect waypoint changes in real-time
+            drawProfile(currentRoute.dep, currentRoute.dest);
         }
 
         function rebuildRouteWithWaypoints() {
@@ -4428,14 +5667,253 @@
         // END WAYPOINT FUNCTIONS
         // ============================================
 
+        // ============================================
+        // CUSTOM STOP (LANDING) FUNCTIONS
+        // ============================================
+
+        function toggleStopMode() {
+            const btn = document.getElementById('stopModeBtn');
+            const mapContainer = document.getElementById('map');
+
+            // Check if route is loaded first
+            if (!stopMode && (!currentRoute.dep || !currentRoute.dest)) {
+                alert('Please load a route first (enter FROM/TO airports and click Load Route)');
+                return;
+            }
+
+            // Exit waypoint mode if active
+            if (waypointMode) {
+                toggleWaypointMode();
+            }
+
+            stopMode = !stopMode;
+
+            if (stopMode) {
+                btn.classList.add('active');
+                btn.textContent = 'Done';
+                mapContainer.classList.add('stop-mode');
+                map.on('click', onMapClickStop);
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = '+ Stop';
+                mapContainer.classList.remove('stop-mode');
+                map.off('click', onMapClickStop);
+
+                // Rebuild route with stops if any were added
+                if (customStops.length > 0) {
+                    rebuildRouteWithStops();
+                }
+            }
+        }
+
+        function onMapClickStop(e) {
+            // Stops must snap to an airport (can't land in a field)
+            const nearestAirport = findNearestGAAirport(e.latlng.lat, e.latlng.lng);
+
+            if (!nearestAirport) {
+                alert('No airport found within 50nm. Stops must be at airports.');
+                return;
+            }
+
+            // Check if this airport is already a stop
+            if (customStops.some(s => s.id === nearestAirport.id)) {
+                alert(`${nearestAirport.id} is already a stop on this route.`);
+                return;
+            }
+
+            // Create stop object
+            const stop = {
+                id: nearestAirport.id,
+                name: nearestAirport.name || nearestAirport.id,
+                lat: nearestAirport.lat,
+                lon: nearestAirport.lon,
+                index: customStops.length + 1,
+                isStop: true  // Flag to distinguish from regular waypoints
+            };
+
+            // Add to array
+            customStops.push(stop);
+
+            // Create marker with landing icon
+            const markerIcon = L.divIcon({
+                html: `<div class="custom-stop-marker">✈${stop.index}</div>`,
+                className: 'custom-stop-icon',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+
+            const marker = L.marker([stop.lat, stop.lon], {
+                icon: markerIcon,
+                draggable: false
+            }).addTo(map);
+
+            // Add tooltip
+            marker.bindTooltip(`<b>STOP ${stop.index}: ${stop.id}</b><br>${stop.name}<br>Landing & Takeoff`, {
+                direction: 'top',
+                className: 'stop-tooltip'
+            });
+
+            // Click to remove stop
+            marker.on('click', (e) => {
+                L.DomEvent.stopPropagation(e);
+                removeStop(stop, marker);
+            });
+
+            stopMarkers.push({ stop, marker });
+
+            // Update route immediately with new stop
+            rebuildRouteWithStops();
+        }
+
+        function removeStop(stop, marker) {
+            // Remove from array
+            const idx = customStops.findIndex(s => s.id === stop.id);
+            if (idx > -1) {
+                customStops.splice(idx, 1);
+            }
+
+            // Remove marker
+            map.removeLayer(marker);
+            stopMarkers = stopMarkers.filter(m => m.stop !== stop);
+
+            // Re-index remaining stops
+            customStops.forEach((s, i) => {
+                s.index = i + 1;
+            });
+
+            // Update markers with new indices
+            stopMarkers.forEach((m, i) => {
+                const newIcon = L.divIcon({
+                    html: `<div class="custom-stop-marker">✈${i + 1}</div>`,
+                    className: 'custom-stop-icon',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+                m.marker.setIcon(newIcon);
+                m.stop.index = i + 1;
+            });
+
+            // Rebuild route with remaining stops (or reload original if none left)
+            if (customStops.length > 0) {
+                rebuildRouteWithStops();
+            } else {
+                // No stops left - reload the direct route
+                loadRoute();
+            }
+        }
+
+        function clearCustomStops() {
+            // Remove all stop markers
+            stopMarkers.forEach(m => map.removeLayer(m.marker));
+            stopMarkers = [];
+            customStops = [];
+            stopCounter = 0;
+        }
+
+        function updateStopPreviewLine() {
+            // Remove existing preview
+            if (waypointPreviewLine) {
+                map.removeLayer(waypointPreviewLine);
+            }
+
+            if (!currentRoute.dep || !currentRoute.dest) return;
+
+            // Build coordinate array: dep -> stops (sorted) -> dest
+            const sortedStops = [...customStops].sort((a, b) => {
+                const distA = Math.sqrt(Math.pow(a.lat - currentRoute.dep.lat, 2) + Math.pow(a.lon - currentRoute.dep.lon, 2));
+                const distB = Math.sqrt(Math.pow(b.lat - currentRoute.dep.lat, 2) + Math.pow(b.lon - currentRoute.dep.lon, 2));
+                return distA - distB;
+            });
+
+            const coords = [
+                [currentRoute.dep.lat, currentRoute.dep.lon],
+                ...sortedStops.map(s => [s.lat, s.lon]),
+                [currentRoute.dest.lat, currentRoute.dest.lon]
+            ];
+
+            // Draw dashed preview line (blue for stops)
+            waypointPreviewLine = L.polyline(coords, {
+                color: '#3b82f6',
+                weight: 2,
+                opacity: 0.7,
+                dashArray: '8, 8',
+                className: 'stop-preview-line'
+            }).addTo(map);
+
+            // Bring stop markers to front
+            stopMarkers.forEach(m => m.marker.bringToFront());
+
+            // Update profile canvas to reflect stop changes in real-time
+            drawProfile(currentRoute.dep, currentRoute.dest);
+        }
+
+        function rebuildRouteWithStops() {
+            if (!currentRoute.dep || !currentRoute.dest) return;
+
+            // Sort stops by distance from departure
+            const depLat = currentRoute.dep.lat;
+            const depLon = currentRoute.dep.lon;
+
+            customStops.sort((a, b) => {
+                const distA = Math.sqrt(Math.pow(a.lat - depLat, 2) + Math.pow(a.lon - depLon, 2));
+                const distB = Math.sqrt(Math.pow(b.lat - depLat, 2) + Math.pow(b.lon - depLon, 2));
+                return distA - distB;
+            });
+
+            // Calculate total distance through all stops
+            let totalDistance = 0;
+            const R = 3440.065; // Earth radius in NM
+
+            const allPoints = [
+                currentRoute.dep,
+                ...customStops.map(s => ({ lat: s.lat, lon: s.lon, name: s.id })),
+                currentRoute.dest
+            ];
+
+            for (let i = 0; i < allPoints.length - 1; i++) {
+                const p1 = allPoints[i];
+                const p2 = allPoints[i + 1];
+                const lat1 = p1.lat * Math.PI / 180;
+                const lat2 = p2.lat * Math.PI / 180;
+                const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+                const dLon = (p2.lon - p1.lon) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                          Math.cos(lat1) * Math.cos(lat2) *
+                          Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                totalDistance += R * c;
+            }
+
+            // Redraw profile with stops
+            drawProfile(currentRoute.dep, currentRoute.dest);
+
+            // Calculate enhanced route with stops (treated as special waypoints with landing)
+            const routeData = calculateEnhancedRoute(currentRoute.dep, currentRoute.dest, totalDistance, [], customStops);
+
+            // Update displays
+            updateTripSummary(routeData);
+            drawEnhancedRoute(routeData, currentRoute.dep, currentRoute.dest, totalDistance, [], customStops);
+
+            // Remove preview line since actual route is now drawn
+            if (waypointPreviewLine) {
+                map.removeLayer(waypointPreviewLine);
+                waypointPreviewLine = null;
+            }
+        }
+
+        // ============================================
+        // END STOP FUNCTIONS
+        // ============================================
+
         async function loadRoute() {
             const departure = document.getElementById('departure').value.toUpperCase();
             const destination = document.getElementById('destination').value.toUpperCase();
 
             if (!departure || !destination) return;
 
-            // Clear any custom waypoints from previous route
+            // Clear any custom waypoints and stops from previous route
             clearCustomWaypoints();
+            clearCustomStops();
 
             // Reset waypoint mode UI if active
             if (waypointMode) {
@@ -4447,6 +5925,16 @@
                 snapBtn.style.display = 'none';
                 document.getElementById('map').classList.remove('waypoint-mode');
                 map.off('click', onMapClickWaypoint);
+            }
+
+            // Reset stop mode UI if active
+            if (stopMode) {
+                stopMode = false;
+                const btn = document.getElementById('stopModeBtn');
+                btn.classList.remove('active');
+                btn.textContent = '+ Stop';
+                document.getElementById('map').classList.remove('stop-mode');
+                map.off('click', onMapClickStop);
             }
 
             // Find station coordinates
@@ -4487,7 +5975,7 @@
         }
 
         // Draw enhanced route with high-resolution line and optional fuel stops
-        function drawEnhancedRoute(routeData, depStation, destStation, distance, customWaypointsInput = []) {
+        function drawEnhancedRoute(routeData, depStation, destStation, distance, customWaypointsInput = [], stopsInput = []) {
             // Clear existing route elements
             if (routeLine) {
                 map.removeLayer(routeLine);
@@ -4566,7 +6054,7 @@
                 // When phase changes or at end, draw segment
                 if (currentPhase !== lastPhase || idx === highResCoords.length - 1) {
                     const phaseColor = lastPhase === 'climb' ? '#22c55e' :
-                                      lastPhase === 'descent' ? '#f59e0b' : '#6366f1';
+                                      lastPhase === 'descent' ? '#f59e0b' : '#6b7280';
 
                     const segment = L.polyline(segmentCoords, {
                         color: phaseColor,
@@ -4762,9 +6250,9 @@
             const phase = info.progress < 0.15 ? 'Climb' :
                          info.progress > 0.85 ? 'Descent' : 'Cruise';
             const phaseColor = phase === 'Climb' ? '#22c55e' :
-                              phase === 'Descent' ? '#f59e0b' : '#6366f1';
+                              phase === 'Descent' ? '#f59e0b' : '#6b7280';
             const pulseColor = phase === 'Climb' ? 'rgba(34, 197, 94, 0.4)' :
-                              phase === 'Descent' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(99, 102, 241, 0.4)';
+                              phase === 'Descent' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(107, 114, 128, 0.4)';
 
             // Create or update marker with phase-appropriate color
             if (!mapJourneyMarker) {
@@ -4887,8 +6375,20 @@
             return inside;
         }
 
+        // Helper function to calculate haversine distance in nautical miles
+        function haversineDistanceNM(lat1, lon1, lat2, lon2) {
+            const R = 3440.065; // Earth radius in nautical miles
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
         // Calculate optimal flight path considering all hazards
-        function calculateOptimalFlightPath(depStation, destStation, distance, terrainProfile) {
+        function calculateOptimalFlightPath(depStation, destStation, distance, terrainProfile, routeWaypoints = [], routeStops = []) {
             const numSamples = 50; // Number of waypoints along route
             const altitudeOptions = []; // Available altitudes to evaluate
             for (let alt = 5000; alt <= 45000; alt += 1000) {
@@ -4899,13 +6399,92 @@
             const optimalCruiseMin = 30000;
             const optimalCruiseMax = 38000;
 
+            // Sort stops by distance from departure
+            const sortedStops = [...routeStops].sort((a, b) => {
+                const distA = haversineDistanceNM(depStation.lat, depStation.lon, a.lat, a.lon);
+                const distB = haversineDistanceNM(depStation.lat, depStation.lon, b.lat, b.lon);
+                return distA - distB;
+            });
+
+            // Calculate stop positions as normalized t values
+            const stopPositions = [];
+            if (sortedStops.length > 0) {
+                let cumulativeDist = 0;
+                let prevPoint = { lat: depStation.lat, lon: depStation.lon };
+
+                // Calculate total route distance through stops
+                let totalStopRouteDist = 0;
+                let tempPrev = { lat: depStation.lat, lon: depStation.lon };
+                for (const stop of sortedStops) {
+                    totalStopRouteDist += haversineDistanceNM(tempPrev.lat, tempPrev.lon, stop.lat, stop.lon);
+                    tempPrev = stop;
+                }
+                totalStopRouteDist += haversineDistanceNM(tempPrev.lat, tempPrev.lon, destStation.lat, destStation.lon);
+
+                for (const stop of sortedStops) {
+                    cumulativeDist += haversineDistanceNM(prevPoint.lat, prevPoint.lon, stop.lat, stop.lon);
+                    stopPositions.push({
+                        t: cumulativeDist / totalStopRouteDist,
+                        lat: stop.lat,
+                        lon: stop.lon,
+                        id: stop.id
+                    });
+                    prevPoint = stop;
+                }
+            }
+
+            // Build full route path: dep -> custom waypoints -> dest
+            const routePath = [
+                { lat: depStation.lat, lon: depStation.lon, name: depStation.id }
+            ];
+            if (routeWaypoints && routeWaypoints.length > 0) {
+                routeWaypoints.forEach(wp => {
+                    routePath.push({ lat: wp.lat, lon: wp.lon, name: wp.name });
+                });
+            }
+            routePath.push({ lat: destStation.lat, lon: destStation.lon, name: destStation.id });
+
+            // Calculate cumulative distances along route path
+            const segmentDistances = [];
+            let totalRouteDistance = 0;
+            for (let i = 1; i < routePath.length; i++) {
+                const p1 = routePath[i - 1];
+                const p2 = routePath[i];
+                const segDist = haversineDistanceNM(p1.lat, p1.lon, p2.lat, p2.lon);
+                segmentDistances.push({ start: totalRouteDistance, end: totalRouteDistance + segDist, p1, p2 });
+                totalRouteDistance += segDist;
+            }
+
+            // Use calculated distance if no waypoints, otherwise use route distance
+            const actualDistance = routeWaypoints.length > 0 ? totalRouteDistance : distance;
+
             // Sample points along the route
             const waypoints = [];
             for (let i = 0; i <= numSamples; i++) {
                 const t = i / numSamples;
-                const lat = depStation.lat + t * (destStation.lat - depStation.lat);
-                const lon = depStation.lon + t * (destStation.lon - depStation.lon);
-                const distNM = t * distance;
+                const distNM = t * actualDistance;
+
+                // Find which segment this distance falls into and interpolate position
+                let lat, lon;
+                if (routeWaypoints.length > 0) {
+                    // Find the segment for this distance
+                    let segment = segmentDistances[0];
+                    for (const seg of segmentDistances) {
+                        if (distNM >= seg.start && distNM <= seg.end) {
+                            segment = seg;
+                            break;
+                        }
+                    }
+                    // Interpolate within segment
+                    const segProgress = segment.end > segment.start ?
+                        (distNM - segment.start) / (segment.end - segment.start) : 0;
+                    lat = segment.p1.lat + segProgress * (segment.p2.lat - segment.p1.lat);
+                    lon = segment.p1.lon + segProgress * (segment.p2.lon - segment.p1.lon);
+                } else {
+                    // Direct route
+                    lat = depStation.lat + t * (destStation.lat - depStation.lat);
+                    lon = depStation.lon + t * (destStation.lon - depStation.lon);
+                }
 
                 // Get terrain elevation at this point (from profile)
                 const terrainIdx = Math.floor(t * (terrainProfile.length - 1));
@@ -4974,6 +6553,27 @@
                     }
                 }
 
+                // Check if this point is near a stop - force descent/landing pattern
+                let isAtStop = false;
+                let stopId = null;
+                for (const stopPos of stopPositions) {
+                    const tDiff = Math.abs(t - stopPos.t);
+                    if (tDiff < 0.02) { // At stop location
+                        isAtStop = true;
+                        stopId = stopPos.id;
+                        bestAlt = 0; // On the ground
+                        break;
+                    } else if (tDiff < 0.08 && t < stopPos.t) {
+                        // Descending to stop
+                        const descentProgress = 1 - (tDiff / 0.08);
+                        bestAlt = Math.round(bestAlt * (1 - descentProgress));
+                    } else if (tDiff < 0.08 && t > stopPos.t) {
+                        // Climbing from stop
+                        const climbProgress = 1 - (tDiff / 0.08);
+                        bestAlt = Math.round(bestAlt * (1 - climbProgress));
+                    }
+                }
+
                 waypoints.push({
                     t,
                     lat,
@@ -4981,7 +6581,9 @@
                     distNM,
                     altitude: bestAlt,
                     terrainAlt,
-                    cost: bestCost
+                    cost: bestCost,
+                    isStop: isAtStop,
+                    stopId: stopId
                 });
             }
 
@@ -4998,6 +6600,21 @@
             const windowSize = 5;
 
             for (let i = windowSize; i < waypoints.length - windowSize; i++) {
+                // Don't smooth stop points or points near stops
+                if (waypoints[i].isStop || waypoints[i].altitude === 0) {
+                    continue;
+                }
+
+                // Check if any nearby point is a stop
+                let nearStop = false;
+                for (let j = -windowSize; j <= windowSize; j++) {
+                    if (waypoints[i + j].isStop || waypoints[i + j].altitude === 0) {
+                        nearStop = true;
+                        break;
+                    }
+                }
+                if (nearStop) continue;
+
                 let sum = 0;
                 let weight = 0;
                 for (let j = -windowSize; j <= windowSize; j++) {
@@ -5030,8 +6647,14 @@
             const climbDist = cruiseAlt * climbRateNMPerFt;
             const descentDist = cruiseAlt * descentRateNMPerFt;
 
-            // Apply climb phase
+            // Apply climb phase (but preserve stop altitudes)
             for (const wp of waypoints) {
+                // Don't modify stop points - they're already set to correct altitude (0 for landing)
+                if (wp.isStop || wp.altitude === 0) {
+                    wp.phase = 'stop';
+                    continue;
+                }
+
                 if (wp.distNM < climbDist) {
                     // Climbing phase - linear climb from 0 to cruise
                     const climbProgress = wp.distNM / climbDist;
@@ -5050,7 +6673,11 @@
             return waypoints;
         }
 
-        function drawProfile(depStation, destStation) {
+        function drawProfile(depStation, destStation, routeWaypoints = null, routeStops = null) {
+            // Use global customWaypoints and customStops if not provided
+            const waypoints = routeWaypoints !== null ? routeWaypoints : customWaypoints;
+            const stops = routeStops !== null ? routeStops : customStops;
+
             document.getElementById('profilePlaceholder').style.display = 'none';
             document.getElementById('profileContainer').style.display = 'block';
 
@@ -5066,25 +6693,78 @@
             const padding = 40;
             const paddingBottom = 80; // Extra space for distance labels and 0ft baseline
 
+            // Theme-aware colors
+            const themeColors = isLightMode ? {
+                bg: '#e8e8e8',
+                text: '#1a1a1a',
+                textSecondary: 'rgba(0, 0, 0, 0.6)',
+                textTertiary: 'rgba(0, 0, 0, 0.4)',
+                gridLine: 'rgba(0, 0, 0, 0.1)',
+                axisTick: 'rgba(0, 0, 0, 0.3)'
+            } : {
+                bg: '#1a1a1a',
+                text: '#ffffff',
+                textSecondary: 'rgba(255, 255, 255, 0.7)',
+                textTertiary: 'rgba(255, 255, 255, 0.5)',
+                gridLine: 'rgba(255, 255, 255, 0.1)',
+                axisTick: 'rgba(255, 255, 255, 0.3)'
+            };
+
             // Clear canvas
-            ctx.fillStyle = '#12121a';
+            ctx.fillStyle = themeColors.bg;
             ctx.fillRect(0, 0, width, height);
 
             // Get METAR data for both stations
             const depMetar = metarData[depStation.id] || {};
             const destMetar = metarData[destStation.id] || {};
 
-            // Calculate distance (rough approximation)
-            const R = 3440.065; // Earth radius in nautical miles
-            const lat1 = depStation.lat * Math.PI / 180;
-            const lat2 = destStation.lat * Math.PI / 180;
-            const dLat = (destStation.lat - depStation.lat) * Math.PI / 180;
-            const dLon = (destStation.lon - depStation.lon) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1) * Math.cos(lat2) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            const distance = R * c;
+            // Build route path for distance calculation
+            const routePath = [{ lat: depStation.lat, lon: depStation.lon }];
+            if (waypoints && waypoints.length > 0) {
+                waypoints.forEach(wp => routePath.push({ lat: wp.lat, lon: wp.lon }));
+            }
+            routePath.push({ lat: destStation.lat, lon: destStation.lon });
+
+            // Calculate total distance through all waypoints
+            let distance = 0;
+            const segmentCumDist = [0];
+            for (let i = 1; i < routePath.length; i++) {
+                const segDist = haversineDistanceNM(
+                    routePath[i-1].lat, routePath[i-1].lon,
+                    routePath[i].lat, routePath[i].lon
+                );
+                distance += segDist;
+                segmentCumDist.push(distance);
+            }
+
+            // Store route segments for position interpolation
+            const routeSegments = [];
+            for (let i = 1; i < routePath.length; i++) {
+                routeSegments.push({
+                    start: segmentCumDist[i-1],
+                    end: segmentCumDist[i],
+                    p1: routePath[i-1],
+                    p2: routePath[i]
+                });
+            }
+
+            // Helper to get lat/lon at a distance along the route
+            const getPositionAtDistance = (distNM) => {
+                for (const seg of routeSegments) {
+                    if (distNM >= seg.start && distNM <= seg.end) {
+                        const segProgress = seg.end > seg.start ?
+                            (distNM - seg.start) / (seg.end - seg.start) : 0;
+                        return {
+                            lat: seg.p1.lat + segProgress * (seg.p2.lat - seg.p1.lat),
+                            lon: seg.p1.lon + segProgress * (seg.p2.lon - seg.p1.lon)
+                        };
+                    }
+                }
+                // Default to last point
+                return { lat: destStation.lat, lon: destStation.lon };
+            };
+
+            // Note: distance is already calculated above through waypoints
 
             // Dynamic unit calculation based on zoom level AND available space
             const zoom = profileView.zoom;
@@ -5136,7 +6816,7 @@
             ctx.translate(-width / 2, -height / 2);
 
             // Draw grid lines (these zoom with content)
-            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.strokeStyle = themeColors.gridLine;
             ctx.lineWidth = 1 / zoom; // Keep line width consistent when zoomed
 
             // Horizontal grid lines (altitude) - dynamic based on zoom
@@ -5185,8 +6865,8 @@
                 terrainProfile.push(terrainHeight);
             }
 
-            // Calculate optimal flight path based on hazards
-            const optimizedPath = calculateOptimalFlightPath(depStation, destStation, distance, terrainProfile);
+            // Calculate optimal flight path based on hazards (including stops for landing pattern)
+            const optimizedPath = calculateOptimalFlightPath(depStation, destStation, distance, terrainProfile, waypoints, stops);
 
             // Draw terrain profile (simulated) - granularity scales with zoom
             if (profileOverlays.terrain) {
@@ -5473,7 +7153,7 @@
                     ctx.fillStyle = '#06b6d4';
                     ctx.textAlign = 'left';
                     const freezeMidY = height - padding - ((depFreezingAlt + destFreezingAlt) / 2 / 40000) * (height - 2 * padding);
-                    ctx.fillText('0°C', padding + 3 / zoom, freezeMidY - 3 / zoom);
+                    ctx.fillText('32°F', padding + 3 / zoom, freezeMidY - 3 / zoom);
                 }
 
                 // Draw altitude band boundaries
@@ -5514,9 +7194,11 @@
                 ctx.lineWidth = 1;
                 ctx.strokeRect(startX, tempBoxY, tempBoxWidth, 18);
 
+                const depTempF = Math.round(depTemp * 9/5 + 32);
+                const destTempF = Math.round(destTemp * 9/5 + 32);
                 ctx.fillStyle = '#ef4444';
                 ctx.textAlign = 'center';
-                ctx.fillText(`OAT: ${depTemp}°C → ${destTemp}°C`, startX + tempBoxWidth / 2, tempBoxY + 13);
+                ctx.fillText(`OAT: ${depTempF}°F → ${destTempF}°F`, startX + tempBoxWidth / 2, tempBoxY + 13);
 
                 // Add freezing level indicator if applicable
                 if (hasFreezingLevel) {
@@ -5527,7 +7209,7 @@
                     ctx.strokeStyle = 'rgba(6, 182, 212, 0.6)';
                     ctx.strokeRect(freezingX, tempBoxY, freezingBoxWidth, 18);
                     ctx.fillStyle = '#06b6d4';
-                    ctx.fillText(`0°C: ${avgFreezingAlt.toLocaleString()}ft`, freezingX + freezingBoxWidth / 2, tempBoxY + 13);
+                    ctx.fillText(`32°F: ${avgFreezingAlt.toLocaleString()}ft`, freezingX + freezingBoxWidth / 2, tempBoxY + 13);
                 }
             }
 
@@ -5977,146 +7659,314 @@
                 });
             }
 
-            // Draw icing overlay
+            // Draw icing overlay - based on actual icing zones the route passes through
             if (profileOverlays.icing) {
-                // Icing typically occurs between freezing level and -20C (roughly 10k-25k ft)
-                const icingBase = 10000;
-                const icingTop = 25000;
-                const baseY = height - padding - (icingBase / 40000) * (height - 2 * padding);
-                const topY = height - padding - (icingTop / 40000) * (height - 2 * padding);
+                // Sample points along the route to check for icing zone intersections
+                const numSamples = 50;
+                const routeIcingZones = [];
 
-                // Light blue gradient for icing zone
-                const icingGradient = ctx.createLinearGradient(0, topY, 0, baseY);
-                icingGradient.addColorStop(0, 'rgba(6, 182, 212, 0.3)');
-                icingGradient.addColorStop(0.5, 'rgba(6, 182, 212, 0.15)');
-                icingGradient.addColorStop(1, 'rgba(6, 182, 212, 0.05)');
+                for (let i = 0; i <= numSamples; i++) {
+                    const t = i / numSamples;
+                    const lat = depStation.lat + t * (destStation.lat - depStation.lat);
+                    const lon = depStation.lon + t * (destStation.lon - depStation.lon);
+                    const distNM = t * distance;
 
-                ctx.fillStyle = icingGradient;
-                ctx.fillRect(padding, topY, width - 2 * padding, baseY - topY);
+                    // Check each icing zone
+                    flightHazards.icingZones.forEach(zone => {
+                        if (pointInPolygon(lat, lon, zone.polygon)) {
+                            // Check if we already have this zone or need to extend it
+                            const existing = routeIcingZones.find(z => z.name === zone.name);
+                            if (existing) {
+                                existing.endDist = distNM;
+                            } else {
+                                routeIcingZones.push({
+                                    name: zone.name,
+                                    startDist: distNM,
+                                    endDist: distNM,
+                                    base: zone.base,
+                                    top: zone.top,
+                                    intensity: zone.intensity
+                                });
+                            }
+                        }
+                    });
+                }
 
-                // Draw ice crystal symbols - more when zoomed in
-                ctx.strokeStyle = 'rgba(6, 182, 212, 0.6)';
-                ctx.lineWidth = 1 / zoom;
-                const numIceSymbols = Math.floor(8 * Math.max(1, zoom));
-                for (let i = 0; i < numIceSymbols; i++) {
-                    const x = padding + 40 + i * ((width - 2 * padding - 80) / (numIceSymbols - 1));
-                    const y = (topY + baseY) / 2 + (seededRandom() - 0.5) * 20;
+                // Draw each icing zone the route passes through
+                routeIcingZones.forEach(zone => {
+                    const startX = padding + (zone.startDist / distance) * (width - 2 * padding);
+                    const endX = padding + (zone.endDist / distance) * (width - 2 * padding);
+                    const zoneWidth = Math.max(endX - startX, 20); // Minimum width for visibility
 
-                    // Draw snowflake
-                    const flakeSize = 6 / zoom;
-                    ctx.beginPath();
-                    for (let j = 0; j < 6; j++) {
-                        const angle = (j * Math.PI) / 3;
-                        ctx.moveTo(x, y);
-                        ctx.lineTo(x + Math.cos(angle) * flakeSize, y + Math.sin(angle) * flakeSize);
+                    const baseY = height - padding - (zone.base / 40000) * (height - 2 * padding);
+                    const topY = height - padding - (zone.top / 40000) * (height - 2 * padding);
+
+                    // Intensity-based opacity
+                    const baseOpacity = zone.intensity.toLowerCase().includes('moderate') ? 0.35 : 0.25;
+
+                    // Light blue gradient for icing zone
+                    const icingGradient = ctx.createLinearGradient(0, topY, 0, baseY);
+                    icingGradient.addColorStop(0, `rgba(6, 182, 212, ${baseOpacity})`);
+                    icingGradient.addColorStop(0.5, `rgba(6, 182, 212, ${baseOpacity * 0.5})`);
+                    icingGradient.addColorStop(1, `rgba(6, 182, 212, ${baseOpacity * 0.2})`);
+
+                    ctx.fillStyle = icingGradient;
+                    ctx.fillRect(startX, topY, zoneWidth, baseY - topY);
+
+                    // Border for zone
+                    ctx.strokeStyle = 'rgba(6, 182, 212, 0.5)';
+                    ctx.lineWidth = 1 / zoom;
+                    ctx.setLineDash([4 / zoom, 2 / zoom]);
+                    ctx.strokeRect(startX, topY, zoneWidth, baseY - topY);
+                    ctx.setLineDash([]);
+
+                    // Draw ice crystal symbols within the zone
+                    ctx.strokeStyle = 'rgba(6, 182, 212, 0.7)';
+                    ctx.lineWidth = 1 / zoom;
+                    const numSymbols = Math.max(2, Math.floor(zoneWidth / 40));
+                    for (let i = 0; i < numSymbols; i++) {
+                        const x = startX + 15 + i * ((zoneWidth - 30) / Math.max(1, numSymbols - 1));
+                        const y = (topY + baseY) / 2 + (seededRandom() - 0.5) * 15;
+
+                        // Draw snowflake
+                        const flakeSize = 5 / zoom;
+                        ctx.beginPath();
+                        for (let j = 0; j < 6; j++) {
+                            const angle = (j * Math.PI) / 3;
+                            ctx.moveTo(x, y);
+                            ctx.lineTo(x + Math.cos(angle) * flakeSize, y + Math.sin(angle) * flakeSize);
+                        }
+                        ctx.stroke();
                     }
-                    ctx.stroke();
+
+                    // Zone label
+                    if (zoneWidth > 60) {
+                        ctx.font = `${Math.max(8, 10 / zoom)}px sans-serif`;
+                        ctx.fillStyle = 'rgba(6, 182, 212, 0.9)';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(zone.intensity + ' Icing', startX + zoneWidth / 2, topY - 5 / zoom);
+                        ctx.font = `${Math.max(7, 9 / zoom)}px sans-serif`;
+                        ctx.fillStyle = 'rgba(6, 182, 212, 0.7)';
+                        ctx.fillText(`${(zone.base/1000).toFixed(0)}K-${(zone.top/1000).toFixed(0)}K ft`, startX + zoneWidth / 2, topY + 12 / zoom);
+                    }
+                });
+
+                // If no icing zones detected along route, show "Clear" indicator
+                if (routeIcingZones.length === 0) {
+                    ctx.font = `${Math.max(9, 11 / zoom)}px sans-serif`;
+                    ctx.fillStyle = 'rgba(6, 182, 212, 0.5)';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('No icing along route', width / 2, height - padding - (15000 / 40000) * (height - 2 * padding));
                 }
             }
 
-            // Draw turbulence overlay
+            // Draw turbulence overlay - based on actual turbulence zones the route passes through
             if (profileOverlays.turbulence) {
-                // Turbulence zones at different altitudes
-                const turbZones = [
-                    { alt: 5000, intensity: 'light' },
-                    { alt: 18000, intensity: 'moderate' },
-                    { alt: 35000, intensity: 'light' }
-                ];
+                // Sample points along the route to check for turbulence zone intersections
+                const numSamples = 50;
+                const routeTurbZones = [];
 
-                turbZones.forEach(zone => {
-                    const zoneY = height - padding - (zone.alt / 40000) * (height - 2 * padding);
-                    const opacity = zone.intensity === 'moderate' ? 0.4 : 0.2;
+                for (let i = 0; i <= numSamples; i++) {
+                    const t = i / numSamples;
+                    const lat = depStation.lat + t * (destStation.lat - depStation.lat);
+                    const lon = depStation.lon + t * (destStation.lon - depStation.lon);
+                    const distNM = t * distance;
 
-                    // Draw wavy turbulence line - more detail when zoomed
+                    // Check each turbulence zone
+                    flightHazards.turbulenceZones.forEach(zone => {
+                        if (pointInPolygon(lat, lon, zone.polygon)) {
+                            const existing = routeTurbZones.find(z => z.name === zone.name);
+                            if (existing) {
+                                existing.endDist = distNM;
+                            } else {
+                                routeTurbZones.push({
+                                    name: zone.name,
+                                    startDist: distNM,
+                                    endDist: distNM,
+                                    base: zone.base,
+                                    top: zone.top,
+                                    intensity: zone.intensity
+                                });
+                            }
+                        }
+                    });
+                }
+
+                // Draw each turbulence zone the route passes through
+                routeTurbZones.forEach(zone => {
+                    const startX = padding + (zone.startDist / distance) * (width - 2 * padding);
+                    const endX = padding + (zone.endDist / distance) * (width - 2 * padding);
+                    const zoneWidth = Math.max(endX - startX, 20);
+
+                    const baseY = height - padding - (zone.base / 40000) * (height - 2 * padding);
+                    const topY = height - padding - (zone.top / 40000) * (height - 2 * padding);
+
+                    // Intensity-based opacity
+                    const isSevere = zone.intensity.toLowerCase().includes('severe');
+                    const isModerate = zone.intensity.toLowerCase().includes('moderate');
+                    const baseOpacity = isSevere ? 0.4 : (isModerate ? 0.3 : 0.2);
+
+                    // Orange gradient for turbulence zone
+                    const turbGradient = ctx.createLinearGradient(0, topY, 0, baseY);
+                    turbGradient.addColorStop(0, `rgba(249, 115, 22, ${baseOpacity})`);
+                    turbGradient.addColorStop(0.5, `rgba(249, 115, 22, ${baseOpacity * 0.6})`);
+                    turbGradient.addColorStop(1, `rgba(249, 115, 22, ${baseOpacity * 0.3})`);
+
+                    ctx.fillStyle = turbGradient;
+                    ctx.fillRect(startX, topY, zoneWidth, baseY - topY);
+
+                    // Border for zone
+                    ctx.strokeStyle = `rgba(249, 115, 22, ${isSevere ? 0.8 : 0.5})`;
+                    ctx.lineWidth = (isSevere ? 2 : 1) / zoom;
+                    ctx.setLineDash([4 / zoom, 2 / zoom]);
+                    ctx.strokeRect(startX, topY, zoneWidth, baseY - topY);
+                    ctx.setLineDash([]);
+
+                    // Draw wavy turbulence lines within the zone
+                    ctx.strokeStyle = `rgba(249, 115, 22, 0.6)`;
+                    ctx.lineWidth = (isModerate || isSevere ? 2 : 1.5) / zoom;
+
+                    const midAlt = (zone.base + zone.top) / 2;
+                    const midY = height - padding - (midAlt / 40000) * (height - 2 * padding);
+
                     ctx.beginPath();
-                    ctx.strokeStyle = `rgba(249, 115, 22, ${opacity})`;
-                    ctx.lineWidth = (zone.intensity === 'moderate' ? 3 : 2) / zoom;
-
-                    const step = Math.max(1, 2 / zoom);
-                    for (let x = padding; x <= width - padding; x += step) {
-                        const progress = (x - padding) / (width - 2 * padding);
-                        const wave = Math.sin(x / 8) * 4 + Math.sin(x / 15) * 3 + Math.sin(x / 4) * 1.5;
-                        const y = zoneY + wave;
-
-                        if (x === padding) {
+                    const step = Math.max(1, 3 / zoom);
+                    for (let x = startX; x <= startX + zoneWidth; x += step) {
+                        const wave = Math.sin(x / 6) * 5 + Math.sin(x / 12) * 3;
+                        const y = midY + wave;
+                        if (x === startX) {
                             ctx.moveTo(x, y);
                         } else {
                             ctx.lineTo(x, y);
                         }
                     }
                     ctx.stroke();
+
+                    // Zone label
+                    if (zoneWidth > 50) {
+                        ctx.font = `${Math.max(8, 10 / zoom)}px sans-serif`;
+                        ctx.fillStyle = 'rgba(249, 115, 22, 0.9)';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(zone.intensity + ' Turb', startX + zoneWidth / 2, topY - 5 / zoom);
+                        ctx.font = `${Math.max(7, 9 / zoom)}px sans-serif`;
+                        ctx.fillStyle = 'rgba(249, 115, 22, 0.7)';
+                        ctx.fillText(`${(zone.base/1000).toFixed(0)}K-${(zone.top/1000).toFixed(0)}K ft`, startX + zoneWidth / 2, topY + 12 / zoom);
+                    }
                 });
 
-                // Add turbulence zone indicator
-                ctx.fillStyle = 'rgba(249, 115, 22, 0.15)';
-                const turbBase = height - padding - (15000 / 40000) * (height - 2 * padding);
-                const turbTop = height - padding - (21000 / 40000) * (height - 2 * padding);
-                ctx.fillRect(padding + (width - 2 * padding) * 0.3, turbTop, (width - 2 * padding) * 0.4, turbBase - turbTop);
+                // If no turbulence zones detected along route, show "Clear" indicator
+                if (routeTurbZones.length === 0) {
+                    ctx.font = `${Math.max(9, 11 / zoom)}px sans-serif`;
+                    ctx.fillStyle = 'rgba(249, 115, 22, 0.5)';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('No turbulence along route', width / 2, height - padding - (25000 / 40000) * (height - 2 * padding));
+                }
             }
 
-            // Draw winds overlay
+            // Draw winds overlay - integrated altitude bands with directional arrows
             if (profileOverlays.winds) {
-                // Wind barbs at different altitudes - more levels when zoomed
-                const baseWindLevels = [
-                    { alt: 3000, speed: 15, dir: 270 },
-                    { alt: 9000, speed: 35, dir: 280 },
-                    { alt: 18000, speed: 65, dir: 290 },
-                    { alt: 30000, speed: 120, dir: 285 },
-                    { alt: 39000, speed: 95, dir: 275 }
+                // Wind data at different altitude bands (base to top of band)
+                const windBands = [
+                    { base: 0, top: 6000, speed: 15, dir: 270, label: 'Surface-6K' },
+                    { base: 6000, top: 12000, speed: 35, dir: 280, label: '6K-12K' },
+                    { base: 12000, top: 18000, speed: 55, dir: 285, label: '12K-18K' },
+                    { base: 18000, top: 24000, speed: 75, dir: 290, label: '18K-24K' },
+                    { base: 24000, top: 30000, speed: 100, dir: 288, label: '24K-30K' },
+                    { base: 30000, top: 40000, speed: 120, dir: 285, label: '30K-40K' }
                 ];
 
-                // Add intermediate levels when zoomed
-                const windLevels = [...baseWindLevels];
-                if (zoom >= 2) {
-                    windLevels.push(
-                        { alt: 6000, speed: 25, dir: 275 },
-                        { alt: 12000, speed: 45, dir: 285 },
-                        { alt: 24000, speed: 85, dir: 288 },
-                        { alt: 36000, speed: 110, dir: 280 }
-                    );
-                }
-                if (zoom >= 4) {
-                    windLevels.push(
-                        { alt: 1500, speed: 10, dir: 265 },
-                        { alt: 4500, speed: 20, dir: 272 },
-                        { alt: 15000, speed: 55, dir: 287 },
-                        { alt: 21000, speed: 75, dir: 289 },
-                        { alt: 27000, speed: 95, dir: 286 },
-                        { alt: 33000, speed: 115, dir: 283 }
-                    );
-                }
-                windLevels.sort((a, b) => a.alt - b.alt);
+                // Draw each wind band
+                windBands.forEach((band, bandIdx) => {
+                    const baseY = height - padding - (band.base / 40000) * (height - 2 * padding);
+                    const topY = height - padding - (band.top / 40000) * (height - 2 * padding);
+                    const bandHeight = baseY - topY;
 
-                ctx.strokeStyle = 'rgba(34, 197, 94, 0.7)';
-                ctx.fillStyle = 'rgba(34, 197, 94, 0.7)';
-                const windFontSize = Math.max(6, 9 / zoom);
-                ctx.font = `${windFontSize}px sans-serif`;
-                ctx.textAlign = 'left';
+                    // Color intensity based on wind speed
+                    const speedNorm = Math.min(band.speed / 150, 1); // Normalize to 0-1
+                    const baseOpacity = 0.08 + speedNorm * 0.15;
 
-                windLevels.forEach(wind => {
-                    const y = height - padding - (wind.alt / 40000) * (height - 2 * padding);
-                    const x = width - padding - 60;
+                    // Green gradient for wind band
+                    const windGradient = ctx.createLinearGradient(0, topY, 0, baseY);
+                    windGradient.addColorStop(0, `rgba(34, 197, 94, ${baseOpacity * 1.2})`);
+                    windGradient.addColorStop(0.5, `rgba(34, 197, 94, ${baseOpacity})`);
+                    windGradient.addColorStop(1, `rgba(34, 197, 94, ${baseOpacity * 0.8})`);
 
-                    // Draw wind arrow
-                    const arrowLen = 25 / zoom;
+                    ctx.fillStyle = windGradient;
+                    ctx.fillRect(padding, topY, width - 2 * padding, bandHeight);
+
+                    // Subtle border between bands
+                    ctx.strokeStyle = 'rgba(34, 197, 94, 0.2)';
+                    ctx.lineWidth = 0.5 / zoom;
                     ctx.beginPath();
-                    ctx.moveTo(x, y);
-                    ctx.lineTo(x + arrowLen, y);
-                    ctx.lineWidth = 2 / zoom;
+                    ctx.moveTo(padding, topY);
+                    ctx.lineTo(width - padding, topY);
                     ctx.stroke();
 
-                    // Arrow head
-                    const headSize = 4 / zoom;
-                    ctx.beginPath();
-                    ctx.moveTo(x + arrowLen, y);
-                    ctx.lineTo(x + arrowLen - 5 / zoom, y - headSize);
-                    ctx.lineTo(x + arrowLen - 5 / zoom, y + headSize);
-                    ctx.closePath();
-                    ctx.fill();
+                    // Draw wind direction arrows distributed across the band
+                    const midY = (topY + baseY) / 2;
+                    const numArrows = Math.max(3, Math.floor((width - 2 * padding) / 100));
+                    const arrowSpacing = (width - 2 * padding) / (numArrows + 1);
 
-                    // Wind speed text
-                    ctx.fillText(`${wind.speed}kt`, x + arrowLen + 5 / zoom, y + 3 / zoom);
+                    // Convert meteorological wind direction to arrow angle
+                    // Wind FROM direction, so arrow points in direction wind is going
+                    const windRad = (band.dir + 180) * Math.PI / 180;
+
+                    ctx.strokeStyle = `rgba(34, 197, 94, ${0.5 + speedNorm * 0.4})`;
+                    ctx.fillStyle = `rgba(34, 197, 94, ${0.5 + speedNorm * 0.4})`;
+                    ctx.lineWidth = (1.5 + speedNorm) / zoom;
+
+                    for (let i = 1; i <= numArrows; i++) {
+                        const x = padding + i * arrowSpacing;
+                        const y = midY + (seededRandom() - 0.5) * (bandHeight * 0.3);
+
+                        // Arrow length proportional to wind speed
+                        const arrowLen = (12 + band.speed * 0.08) / zoom;
+                        const headSize = (3 + speedNorm * 2) / zoom;
+
+                        // Calculate arrow end point (pointing in wind direction)
+                        const endX = x + Math.sin(windRad) * arrowLen;
+                        const endY = y - Math.cos(windRad) * arrowLen;
+
+                        // Draw arrow shaft
+                        ctx.beginPath();
+                        ctx.moveTo(x, y);
+                        ctx.lineTo(endX, endY);
+                        ctx.stroke();
+
+                        // Draw arrow head
+                        const headAngle = Math.atan2(endY - y, endX - x);
+                        ctx.beginPath();
+                        ctx.moveTo(endX, endY);
+                        ctx.lineTo(
+                            endX - headSize * Math.cos(headAngle - Math.PI / 6),
+                            endY - headSize * Math.sin(headAngle - Math.PI / 6)
+                        );
+                        ctx.lineTo(
+                            endX - headSize * Math.cos(headAngle + Math.PI / 6),
+                            endY - headSize * Math.sin(headAngle + Math.PI / 6)
+                        );
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+
+                    // Wind speed label on left side
+                    ctx.font = `bold ${Math.max(8, 10 / zoom)}px sans-serif`;
+                    ctx.fillStyle = `rgba(34, 197, 94, ${0.7 + speedNorm * 0.3})`;
+                    ctx.textAlign = 'left';
+                    ctx.fillText(`${band.speed}kt`, padding + 5 / zoom, midY + 3 / zoom);
+
+                    // Direction label on right side
+                    ctx.textAlign = 'right';
+                    ctx.font = `${Math.max(7, 9 / zoom)}px sans-serif`;
+                    ctx.fillStyle = `rgba(34, 197, 94, 0.6)`;
+                    ctx.fillText(`${band.dir}°`, width - padding - 5 / zoom, midY + 3 / zoom);
                 });
+
+                // Add "WINDS ALOFT" title at top
+                ctx.font = `bold ${Math.max(9, 11 / zoom)}px sans-serif`;
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.8)';
+                ctx.textAlign = 'center';
+                ctx.fillText('WINDS ALOFT', width / 2, padding + 15 / zoom);
             }
 
             // Draw optimized flight path with dynamic altitude changes
@@ -6170,14 +8020,14 @@
                     } else if (wp.phase === 'descent') {
                         ctx.strokeStyle = '#f59e0b'; // Amber for descent
                     } else {
-                        ctx.strokeStyle = '#6366f1'; // Indigo for cruise
+                        ctx.strokeStyle = '#6b7280'; // Indigo for cruise
                     }
                 }
                 ctx.lineWidth = 2.5 / zoom;
                 ctx.stroke();
 
                 // Draw waypoint markers at significant altitude changes
-                ctx.fillStyle = '#ffffff';
+                ctx.fillStyle = themeColors.text;
                 let prevAlt = 0;
                 for (const wp of optimizedPath) {
                     const altChange = Math.abs(wp.altitude - prevAlt);
@@ -6194,7 +8044,7 @@
                 // Draw altitude labels at key points (TOC, cruise changes, TOD)
                 ctx.font = `${9 / zoom}px sans-serif`;
                 ctx.textAlign = 'center';
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fillStyle = themeColors.textSecondary;
 
                 // Find Top of Climb (TOC)
                 const tocIdx = optimizedPath.findIndex(wp => wp.phase === 'cruise');
@@ -6219,9 +8069,122 @@
                 if (midCruise && midCruise.phase === 'cruise') {
                     const x = padding + midCruise.t * (width - 2 * padding);
                     const y = height - padding - (midCruise.altitude / 40000) * (height - 2 * padding);
-                    ctx.fillStyle = 'rgba(99, 102, 241, 0.9)';
+                    ctx.fillStyle = 'rgba(107, 114, 128, 0.9)';
                     ctx.font = `bold ${10 / zoom}px sans-serif`;
                     ctx.fillText(`FL${Math.round(midCruise.altitude / 100)}`, x, y - 10 / zoom);
+                }
+
+                // Draw custom waypoint markers on the profile
+                if (waypoints && waypoints.length > 0) {
+                    waypoints.forEach((wp, idx) => {
+                        // Calculate distance to this waypoint
+                        let wpDist = 0;
+                        const wpPath = [{ lat: depStation.lat, lon: depStation.lon }];
+                        for (let i = 0; i <= idx; i++) {
+                            const prevPt = i === 0 ? wpPath[0] : waypoints[i - 1];
+                            wpDist += haversineDistanceNM(prevPt.lat, prevPt.lon, waypoints[i].lat, waypoints[i].lon);
+                        }
+
+                        const t = wpDist / distance;
+                        const wpX = padding + t * (width - 2 * padding);
+
+                        // Find altitude at this point from optimized path
+                        const pathIdx = Math.min(Math.floor(t * optimizedPath.length), optimizedPath.length - 1);
+                        const wpAlt = optimizedPath[pathIdx] ? optimizedPath[pathIdx].altitude : 30000;
+                        const wpY = height - padding - (wpAlt / 40000) * (height - 2 * padding);
+
+                        // Draw waypoint marker (diamond shape)
+                        const size = 8 / zoom;
+                        ctx.fillStyle = wp.isSnapped ? '#f59e0b' : '#06b6d4';
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 1.5 / zoom;
+
+                        ctx.beginPath();
+                        ctx.moveTo(wpX, wpY - size);
+                        ctx.lineTo(wpX + size, wpY);
+                        ctx.lineTo(wpX, wpY + size);
+                        ctx.lineTo(wpX - size, wpY);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.stroke();
+
+                        // Draw waypoint label
+                        ctx.fillStyle = themeColors.text;
+                        ctx.font = `bold ${Math.max(8, 10 / zoom)}px sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.fillText(wp.name, wpX, wpY - size - 5 / zoom);
+                    });
+                }
+
+                // Draw stops with landing visualization (V-shaped profile dip)
+                if (stops && stops.length > 0) {
+                    // Sort stops by distance from departure
+                    const sortedStops = [...stops].sort((a, b) => {
+                        const distA = haversineDistanceNM(depStation.lat, depStation.lon, a.lat, a.lon);
+                        const distB = haversineDistanceNM(depStation.lat, depStation.lon, b.lat, b.lon);
+                        return distA - distB;
+                    });
+
+                    sortedStops.forEach((stop, idx) => {
+                        // Calculate distance to this stop
+                        let stopDist = 0;
+                        const stopPath = [{ lat: depStation.lat, lon: depStation.lon }];
+                        for (let i = 0; i <= idx; i++) {
+                            const prevPt = i === 0 ? stopPath[0] : sortedStops[i - 1];
+                            stopDist += haversineDistanceNM(prevPt.lat, prevPt.lon, sortedStops[i].lat, sortedStops[i].lon);
+                        }
+
+                        const t = Math.min(stopDist / distance, 0.99);
+                        const stopX = padding + t * (width - 2 * padding);
+                        const groundY = height - padding; // Ground level (0 ft)
+
+                        // Draw landing/takeoff profile lines (V-shape)
+                        const descentWidth = 30 / zoom; // Width of descent slope
+                        const climbWidth = 30 / zoom; // Width of climb slope
+
+                        // Find altitude at this point from optimized path
+                        const pathIdx = Math.min(Math.floor(t * optimizedPath.length), optimizedPath.length - 1);
+                        const cruiseAlt = optimizedPath[pathIdx] ? optimizedPath[pathIdx].altitude : 30000;
+                        const cruiseY = height - padding - (cruiseAlt / 40000) * (height - 2 * padding);
+
+                        // Draw descent line
+                        ctx.beginPath();
+                        ctx.moveTo(stopX - descentWidth, cruiseY);
+                        ctx.lineTo(stopX, groundY);
+                        ctx.strokeStyle = '#f59e0b'; // Amber for descent
+                        ctx.lineWidth = 2.5 / zoom;
+                        ctx.stroke();
+
+                        // Draw climb line
+                        ctx.beginPath();
+                        ctx.moveTo(stopX, groundY);
+                        ctx.lineTo(stopX + climbWidth, cruiseY);
+                        ctx.strokeStyle = '#22c55e'; // Green for climb
+                        ctx.lineWidth = 2.5 / zoom;
+                        ctx.stroke();
+
+                        // Draw stop marker (runway icon) at ground level
+                        const size = 10 / zoom;
+                        ctx.fillStyle = '#3b82f6';
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 2 / zoom;
+
+                        // Draw runway rectangle
+                        ctx.fillRect(stopX - size, groundY - 4 / zoom, size * 2, 4 / zoom);
+                        ctx.strokeRect(stopX - size, groundY - 4 / zoom, size * 2, 4 / zoom);
+
+                        // Draw landing aircraft icon
+                        ctx.font = `${12 / zoom}px sans-serif`;
+                        ctx.fillStyle = '#3b82f6';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('✈', stopX, groundY - 10 / zoom);
+
+                        // Draw stop label
+                        ctx.fillStyle = '#3b82f6';
+                        ctx.font = `bold ${Math.max(9, 11 / zoom)}px sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.fillText(`STOP: ${stop.id}`, stopX, groundY - 20 / zoom);
+                    });
                 }
             }
 
@@ -6229,7 +8192,7 @@
             ctx.restore();
 
             // Draw fixed axis frame (not affected by zoom)
-            ctx.fillStyle = '#12121a';
+            ctx.fillStyle = themeColors.bg;
             // Cover left axis area
             ctx.fillRect(0, 0, padding, height);
             // Cover bottom axis area
@@ -6240,7 +8203,7 @@
             ctx.fillRect(width - padding, 0, padding, height);
 
             // Draw axis border
-            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.strokeStyle = themeColors.axisTick;
             ctx.lineWidth = 1;
             ctx.strokeRect(padding, padding, width - 2 * padding, height - padding - paddingBottom);
 
@@ -6274,8 +8237,8 @@
             const visibleDistMax = Math.min(distance, canvasToDist(visibleCanvasRight));
 
             // Y-axis labels (altitude) - only visible range with collision detection
-            ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.fillStyle = themeColors.textTertiary;
+            ctx.strokeStyle = themeColors.axisTick;
             ctx.lineWidth = 1;
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'right';
@@ -6335,14 +8298,14 @@
             }
 
             // Station labels
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = themeColors.text;
             ctx.font = 'bold 12px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(depStation.id, padding + 20, height - 8);
             ctx.fillText(destStation.id, width - padding - 20, height - 8);
 
             // Distance label
-            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.fillStyle = themeColors.textSecondary;
             ctx.font = '11px sans-serif';
             ctx.fillText(`${Math.round(distance)} NM`, width / 2, height - 8);
 
@@ -6350,21 +8313,21 @@
             ctx.save();
             ctx.translate(12, (height - paddingBottom + padding) / 2);
             ctx.rotate(-Math.PI / 2);
-            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillStyle = themeColors.textTertiary;
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('Altitude (ft)', 0, 0);
             ctx.restore();
 
             // X-axis title
-            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillStyle = themeColors.textTertiary;
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('Distance (NM)', width / 2, height - paddingBottom + 35);
 
             // Zoom indicator in corner
             if (zoom > 1) {
-                ctx.fillStyle = 'rgba(99, 102, 241, 0.8)';
+                ctx.fillStyle = 'rgba(107, 114, 128, 0.8)';
                 ctx.font = 'bold 10px sans-serif';
                 ctx.textAlign = 'right';
                 ctx.fillText(`${zoom.toFixed(1)}x`, width - padding - 5, padding + 12);
@@ -6504,7 +8467,7 @@
                     const phaseLabel = journeyWaypoint.phase === 'climb' ? '↗ Climbing' :
                                       journeyWaypoint.phase === 'descent' ? '↘ Descending' : '→ Cruise';
                     const phaseColor = journeyWaypoint.phase === 'climb' ? '#22c55e' :
-                                      journeyWaypoint.phase === 'descent' ? '#f59e0b' : '#6366f1';
+                                      journeyWaypoint.phase === 'descent' ? '#f59e0b' : '#6b7280';
 
                     content += `<div class="profile-tooltip-row" style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px; margin-bottom: 6px;">
                         <span class="label" style="color:${phaseColor}; font-weight: 600;">${phaseLabel}</span>
@@ -6527,8 +8490,10 @@
                         const surfaceTemp = depTemp + progress * (destTemp - depTemp);
                         // Temperature lapse rate: ~2°C per 1000ft
                         const tempAtAlt = surfaceTemp - (journeyWaypoint.altitude / 1000) * 2;
-                        content += `<div class="profile-tooltip-row temperature"><span class="label">OAT</span><span class="value">${tempAtAlt.toFixed(1)}°C</span></div>`;
-                        content += `<div class="profile-tooltip-row" style="font-size:10px;opacity:0.7"><span class="label">Surface</span><span class="value">${surfaceTemp.toFixed(1)}°C</span></div>`;
+                        const tempAtAltF = Math.round(tempAtAlt * 9/5 + 32);
+                        const surfaceTempF = Math.round(surfaceTemp * 9/5 + 32);
+                        content += `<div class="profile-tooltip-row temperature"><span class="label">OAT</span><span class="value">${tempAtAltF}°F</span></div>`;
+                        content += `<div class="profile-tooltip-row" style="font-size:10px;opacity:0.7"><span class="label">Surface</span><span class="value">${surfaceTempF}°F</span></div>`;
                     }
 
                     // Show route position
@@ -6771,40 +8736,58 @@
                   }
                 }
 
-                // Icing info
+                // Icing info - check actual icing zones at this position
                 if (overlayState.icing) {
                     let icingLevel = 'None';
-                    if (altitude >= 10000 && altitude <= 25000) {
-                        icingLevel = altitude >= 15000 && altitude <= 22000 ? 'Moderate' : 'Light';
+                    let icingZoneName = '';
+                    for (const zone of flightHazards.icingZones) {
+                        if (pointInPolygon(routeLat, routeLon, zone.polygon)) {
+                            if (altitude >= zone.base && altitude <= zone.top) {
+                                icingLevel = zone.intensity;
+                                icingZoneName = zone.name;
+                                break;
+                            }
+                        }
                     }
                     content += `<div class="profile-tooltip-row icing"><span class="label">Icing</span><span class="value">${icingLevel}</span></div>`;
+                    if (icingZoneName) {
+                        content += `<div class="profile-tooltip-row" style="font-size:9px;opacity:0.7"><span class="label"></span><span class="value" style="color:#06b6d4">${icingZoneName}</span></div>`;
+                    }
                 }
 
-                // Turbulence info
+                // Turbulence info - check actual turbulence zones at this position
                 if (overlayState.turbulence) {
                     let turbLevel = 'Smooth';
-                    if (Math.abs(altitude - 18000) < 3000) turbLevel = 'Moderate';
-                    else if (Math.abs(altitude - 5000) < 2000 || Math.abs(altitude - 35000) < 3000) turbLevel = 'Light';
+                    let turbZoneName = '';
+                    for (const zone of flightHazards.turbulenceZones) {
+                        if (pointInPolygon(routeLat, routeLon, zone.polygon)) {
+                            if (altitude >= zone.base && altitude <= zone.top) {
+                                turbLevel = zone.intensity;
+                                turbZoneName = zone.name;
+                                break;
+                            }
+                        }
+                    }
                     content += `<div class="profile-tooltip-row turbulence"><span class="label">Turbulence</span><span class="value">${turbLevel}</span></div>`;
+                    if (turbZoneName) {
+                        content += `<div class="profile-tooltip-row" style="font-size:9px;opacity:0.7"><span class="label"></span><span class="value" style="color:#f97316">${turbZoneName}</span></div>`;
+                    }
                 }
 
-                // Winds info
+                // Winds info - find wind band for current altitude
                 if (overlayState.winds) {
-                    const windLevels = [
-                        { alt: 3000, speed: 15, dir: 270 },
-                        { alt: 9000, speed: 35, dir: 280 },
-                        { alt: 18000, speed: 65, dir: 290 },
-                        { alt: 30000, speed: 120, dir: 285 },
-                        { alt: 39000, speed: 95, dir: 275 }
+                    const windBands = [
+                        { base: 0, top: 6000, speed: 15, dir: 270 },
+                        { base: 6000, top: 12000, speed: 35, dir: 280 },
+                        { base: 12000, top: 18000, speed: 55, dir: 285 },
+                        { base: 18000, top: 24000, speed: 75, dir: 290 },
+                        { base: 24000, top: 30000, speed: 100, dir: 288 },
+                        { base: 30000, top: 40000, speed: 120, dir: 285 }
                     ];
-                    // Find closest wind level
-                    let closestWind = windLevels[0];
-                    windLevels.forEach(w => {
-                        if (Math.abs(w.alt - altitude) < Math.abs(closestWind.alt - altitude)) {
-                            closestWind = w;
-                        }
-                    });
-                    content += `<div class="profile-tooltip-row winds"><span class="label">Wind</span><span class="value">${closestWind.dir}° @ ${closestWind.speed}kt</span></div>`;
+                    // Find wind band for current altitude
+                    const currentBand = windBands.find(b => altitude >= b.base && altitude < b.top) || windBands[windBands.length - 1];
+                    content += `<div class="profile-tooltip-row winds"><span class="label">Wind</span><span class="value">${currentBand.dir}° @ ${currentBand.speed}kt</span></div>`;
+                    content += `<div class="profile-tooltip-row" style="font-size:9px;opacity:0.7"><span class="label"></span><span class="value" style="color:#22c55e">${(currentBand.base/1000).toFixed(0)}K-${(currentBand.top/1000).toFixed(0)}K band</span></div>`;
                 }
 
                 // Clouds info
@@ -6832,8 +8815,9 @@
                     else if (spread <= 3) { precipRisk = 'Fog Risk'; precipColor = '#94a3b8'; }
                     else if (spread <= 5 && currentTemp < 5) { precipRisk = 'Precip Possible'; precipColor = '#0ea5e9'; }
 
+                    const spreadF = Math.round(spread * 9/5);
                     content += `<div class="profile-tooltip-row precip"><span class="label">Precip Risk</span><span class="value" style="color:${precipColor}">${precipRisk}</span></div>`;
-                    content += `<div class="profile-tooltip-row" style="font-size:10px;opacity:0.7"><span class="label">T/Td Spread</span><span class="value">${spread.toFixed(1)}°C</span></div>`;
+                    content += `<div class="profile-tooltip-row" style="font-size:10px;opacity:0.7"><span class="label">T/Td Spread</span><span class="value">${spreadF}°F</span></div>`;
                 }
 
                 // Update tooltip
