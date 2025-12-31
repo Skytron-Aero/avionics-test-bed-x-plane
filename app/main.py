@@ -1403,11 +1403,25 @@ async def metar_freshness_task():
         await asyncio.sleep(900)
 
 
+# Shared HTTP client for connection pooling (improves METAR/TAF performance significantly)
+http_client: httpx.AsyncClient = None
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown events"""
+    global http_client
+
     print("Aviation Weather API starting up...")
     print("API Documentation available at: http://localhost:8000/docs")
+
+    # Create shared HTTP client with connection pooling
+    # This dramatically improves performance by reusing TCP connections
+    http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(10.0, connect=5.0),
+        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+        http2=True  # Enable HTTP/2 for better performance
+    )
+    print("Shared HTTP client initialized with connection pooling")
 
     # Start background task for METAR freshness
     freshness_task = asyncio.create_task(metar_freshness_task())
@@ -1421,6 +1435,10 @@ async def lifespan(app: FastAPI):
         await freshness_task
     except asyncio.CancelledError:
         pass
+
+    # Close shared HTTP client
+    await http_client.aclose()
+    print("Shared HTTP client closed")
 
 
 app = FastAPI(
@@ -2711,92 +2729,91 @@ async def get_metar(station: str):
     url = f"https://aviationweather.gov/api/data/metar?ids={station}&format=json"
     start_time = datetime.now()
 
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url, timeout=10.0)
-            elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
-            response.raise_for_status()
-            data = response.json()
-            
-            if not data:
-                raise HTTPException(status_code=404, detail=f"No METAR found for {station}")
-            
-            metar = data[0]
-            
-            # Parse sky conditions for ceiling
-            sky_conditions = []
-            ceiling = None
-            for condition in metar.get("clouds", []):
-                sky_dict = {
-                    "cover": condition.get("cover"),
-                    "base": condition.get("base")
-                }
-                sky_conditions.append(sky_dict)
-                
-                if condition.get("cover") in ["BKN", "OVC"] and condition.get("base"):
-                    if ceiling is None or condition.get("base") < ceiling:
-                        ceiling = condition.get("base")
-            
-            visibility = metar.get("visib")
-            flight_rules = calculate_flight_rules(visibility, ceiling)
-            
-            # Convert Unix timestamp or ISO string to datetime
-            obs_time_str = metar.get("reportTime")
-            obs_time_unix = metar.get("obsTime")
-            
-            if obs_time_str:
-                observation_time = datetime.fromisoformat(obs_time_str.replace('Z', '+00:00'))
-            elif obs_time_unix:
-                observation_time = datetime.fromtimestamp(obs_time_unix, tz=timezone.utc)
-            else:
-                observation_time = datetime.now(timezone.utc)
-            
-            result = METARData(
-                station=station,
-                observation_time=observation_time,
-                raw_text=metar.get("rawOb", ""),
-                temperature=metar.get("temp"),
-                dewpoint=metar.get("dewp"),
-                wind_direction=metar.get("wdir"),
-                wind_speed=metar.get("wspd"),
-                wind_gust=metar.get("wgst"),
-                visibility=parse_visibility(visibility),
-                altimeter=metar.get("altim"),
-                flight_rules=flight_rules,
-                sky_conditions=sky_conditions,
-                remarks=metar.get("rawOb", "").split("RMK")[-1].strip() if "RMK" in metar.get("rawOb", "") else None,
-                data_source="FAA"
-            )
-            health_tracker.record_call("METAR", True, elapsed_ms)
+    try:
+        response = await http_client.get(url)
+        elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
+        response.raise_for_status()
+        data = response.json()
 
-            # Log for ground-truth compliance tracking
-            compliance_verifier.log_api_call("metar", "FAA_AWC", True, elapsed_ms, len(str(data)))
+        if not data:
+            raise HTTPException(status_code=404, detail=f"No METAR found for {station}")
 
-            # Validate METAR data for ASTM F3269 compliance
-            validation = compliance_tracker.validate_metar_data(result.dict())
-            compliance_verifier.log_metar_validation(station, metar.get("rawOb", ""), validation)
+        metar = data[0]
 
-            # Compute checksum for data integrity
-            raw_data = json.dumps(data, sort_keys=True)
-            checksum = compliance_tracker.compute_checksum(raw_data)
-            compliance_verifier.log_checksum_verification("METAR", checksum, True)
+        # Parse sky conditions for ceiling
+        sky_conditions = []
+        ceiling = None
+        for condition in metar.get("clouds", []):
+            sky_dict = {
+                "cover": condition.get("cover"),
+                "base": condition.get("base")
+            }
+            sky_conditions.append(sky_dict)
 
-            return result
+            if condition.get("cover") in ["BKN", "OVC"] and condition.get("base"):
+                if ceiling is None or condition.get("base") < ceiling:
+                    ceiling = condition.get("base")
 
-        except (httpx.HTTPError, Exception) as primary_error:
-            health_tracker.record_call("METAR", False, (datetime.now() - start_time).total_seconds() * 1000)
+        visibility = metar.get("visib")
+        flight_rules = calculate_flight_rules(visibility, ceiling)
 
-            # Try AVWX as fallback
-            fallback_result = await fetch_metar_from_avwx(station, client)
-            if fallback_result:
-                health_tracker.record_call("METAR_AVWX", True, 0)
-                return fallback_result
+        # Convert Unix timestamp or ISO string to datetime
+        obs_time_str = metar.get("reportTime")
+        obs_time_unix = metar.get("obsTime")
 
-            # Both sources failed
-            if isinstance(primary_error, httpx.HTTPError):
-                raise HTTPException(status_code=503, detail=f"Failed to fetch METAR from all sources: {str(primary_error)}")
-            else:
-                raise HTTPException(status_code=500, detail=f"Error parsing METAR: {str(primary_error)}")
+        if obs_time_str:
+            observation_time = datetime.fromisoformat(obs_time_str.replace('Z', '+00:00'))
+        elif obs_time_unix:
+            observation_time = datetime.fromtimestamp(obs_time_unix, tz=timezone.utc)
+        else:
+            observation_time = datetime.now(timezone.utc)
+
+        result = METARData(
+            station=station,
+            observation_time=observation_time,
+            raw_text=metar.get("rawOb", ""),
+            temperature=metar.get("temp"),
+            dewpoint=metar.get("dewp"),
+            wind_direction=metar.get("wdir"),
+            wind_speed=metar.get("wspd"),
+            wind_gust=metar.get("wgst"),
+            visibility=parse_visibility(visibility),
+            altimeter=metar.get("altim"),
+            flight_rules=flight_rules,
+            sky_conditions=sky_conditions,
+            remarks=metar.get("rawOb", "").split("RMK")[-1].strip() if "RMK" in metar.get("rawOb", "") else None,
+            data_source="FAA"
+        )
+        health_tracker.record_call("METAR", True, elapsed_ms)
+
+        # Log for ground-truth compliance tracking
+        compliance_verifier.log_api_call("metar", "FAA_AWC", True, elapsed_ms, len(str(data)))
+
+        # Validate METAR data for ASTM F3269 compliance
+        validation = compliance_tracker.validate_metar_data(result.dict())
+        compliance_verifier.log_metar_validation(station, metar.get("rawOb", ""), validation)
+
+        # Compute checksum for data integrity
+        raw_data = json.dumps(data, sort_keys=True)
+        checksum = compliance_tracker.compute_checksum(raw_data)
+        compliance_verifier.log_checksum_verification("METAR", checksum, True)
+
+        return result
+
+    except (httpx.HTTPError, Exception) as primary_error:
+        health_tracker.record_call("METAR", False, (datetime.now() - start_time).total_seconds() * 1000)
+
+        # Try AVWX as fallback
+        fallback_result = await fetch_metar_from_avwx(station, http_client)
+        if fallback_result:
+            health_tracker.record_call("METAR_AVWX", True, 0)
+            return fallback_result
+
+        # Both sources failed
+        if isinstance(primary_error, httpx.HTTPError):
+            raise HTTPException(status_code=503, detail=f"Failed to fetch METAR from all sources: {str(primary_error)}")
+        else:
+            raise HTTPException(status_code=500, detail=f"Error parsing METAR: {str(primary_error)}")
 
 @app.get("/api/aviation/taf/{station}", response_model=TAFData)
 async def get_taf(station: str):
@@ -2810,76 +2827,75 @@ async def get_taf(station: str):
     url = f"https://aviationweather.gov/api/data/taf?ids={station}&format=json"
     start_time = datetime.now()
 
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url, timeout=10.0)
-            elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
-            response.raise_for_status()
-            data = response.json()
-            
-            if not data:
-                raise HTTPException(status_code=404, detail=f"No TAF found for {station}")
-            
-            taf = data[0]
-            
-            forecast_periods = []
-            for forecast in taf.get("forecast", []):
-                period = {
-                    "valid_from": forecast.get("fcstTime"),
-                    "wind_direction": forecast.get("wdir"),
-                    "wind_speed": forecast.get("wspd"),
-                    "wind_gust": forecast.get("wgst"),
-                    "visibility": forecast.get("visib"),
-                    "sky_conditions": forecast.get("clouds", []),
-                    "change_indicator": forecast.get("change")
-                }
-                forecast_periods.append(period)
+    try:
+        response = await http_client.get(url)
+        elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
+        response.raise_for_status()
+        data = response.json()
 
-            # Parse datetime fields with fallback - handles both Unix timestamps and ISO strings
-            def parse_taf_time(time_val) -> datetime:
-                if time_val is None:
-                    return datetime.now(timezone.utc)
-                if isinstance(time_val, int):
-                    return datetime.fromtimestamp(time_val, tz=timezone.utc)
-                if isinstance(time_val, str):
-                    return datetime.fromisoformat(time_val.replace('Z', '+00:00'))
+        if not data:
+            raise HTTPException(status_code=404, detail=f"No TAF found for {station}")
+
+        taf = data[0]
+
+        forecast_periods = []
+        for forecast in taf.get("forecast", []):
+            period = {
+                "valid_from": forecast.get("fcstTime"),
+                "wind_direction": forecast.get("wdir"),
+                "wind_speed": forecast.get("wspd"),
+                "wind_gust": forecast.get("wgst"),
+                "visibility": forecast.get("visib"),
+                "sky_conditions": forecast.get("clouds", []),
+                "change_indicator": forecast.get("change")
+            }
+            forecast_periods.append(period)
+
+        # Parse datetime fields with fallback - handles both Unix timestamps and ISO strings
+        def parse_taf_time(time_val) -> datetime:
+            if time_val is None:
                 return datetime.now(timezone.utc)
+            if isinstance(time_val, int):
+                return datetime.fromtimestamp(time_val, tz=timezone.utc)
+            if isinstance(time_val, str):
+                return datetime.fromisoformat(time_val.replace('Z', '+00:00'))
+            return datetime.now(timezone.utc)
 
-            result = TAFData(
-                station=station,
-                issue_time=parse_taf_time(taf.get("issueTime")),
-                valid_period_start=parse_taf_time(taf.get("validTimeFrom")),
-                valid_period_end=parse_taf_time(taf.get("validTimeTo")),
-                raw_text=taf.get("rawTAF", ""),
-                forecast_periods=forecast_periods,
-                data_source="FAA"
-            )
-            health_tracker.record_call("TAF", True, elapsed_ms)
+        result = TAFData(
+            station=station,
+            issue_time=parse_taf_time(taf.get("issueTime")),
+            valid_period_start=parse_taf_time(taf.get("validTimeFrom")),
+            valid_period_end=parse_taf_time(taf.get("validTimeTo")),
+            raw_text=taf.get("rawTAF", ""),
+            forecast_periods=forecast_periods,
+            data_source="FAA"
+        )
+        health_tracker.record_call("TAF", True, elapsed_ms)
 
-            # Log for ground-truth compliance tracking
-            compliance_verifier.log_api_call("taf", "FAA_AWC", True, elapsed_ms, len(str(data)))
+        # Log for ground-truth compliance tracking
+        compliance_verifier.log_api_call("taf", "FAA_AWC", True, elapsed_ms, len(str(data)))
 
-            # Compute checksum for data integrity (DO-178C DO-C-5 compliance)
-            raw_taf = taf.get("rawTAF", "")
-            checksum = compliance_tracker.compute_checksum(raw_taf)
-            compliance_verifier.log_checksum_verification("TAF", checksum, True)
+        # Compute checksum for data integrity (DO-178C DO-C-5 compliance)
+        raw_taf = taf.get("rawTAF", "")
+        checksum = compliance_tracker.compute_checksum(raw_taf)
+        compliance_verifier.log_checksum_verification("TAF", checksum, True)
 
-            return result
+        return result
 
-        except (httpx.HTTPError, Exception) as primary_error:
-            health_tracker.record_call("TAF", False, (datetime.now() - start_time).total_seconds() * 1000)
+    except (httpx.HTTPError, Exception) as primary_error:
+        health_tracker.record_call("TAF", False, (datetime.now() - start_time).total_seconds() * 1000)
 
-            # Try AVWX as fallback
-            fallback_result = await fetch_taf_from_avwx(station, client)
-            if fallback_result:
-                health_tracker.record_call("TAF_AVWX", True, 0)
-                return fallback_result
+        # Try AVWX as fallback
+        fallback_result = await fetch_taf_from_avwx(station, http_client)
+        if fallback_result:
+            health_tracker.record_call("TAF_AVWX", True, 0)
+            return fallback_result
 
-            # Both sources failed
-            if isinstance(primary_error, httpx.HTTPError):
-                raise HTTPException(status_code=503, detail=f"Failed to fetch TAF from all sources: {str(primary_error)}")
-            else:
-                raise HTTPException(status_code=500, detail=f"Error parsing TAF: {str(primary_error)}")
+        # Both sources failed
+        if isinstance(primary_error, httpx.HTTPError):
+            raise HTTPException(status_code=503, detail=f"Failed to fetch TAF from all sources: {str(primary_error)}")
+        else:
+            raise HTTPException(status_code=500, detail=f"Error parsing TAF: {str(primary_error)}")
 
 # ==================== FAA REGULATION CHECKING ====================
 
