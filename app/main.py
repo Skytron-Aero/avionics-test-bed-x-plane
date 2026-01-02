@@ -2306,6 +2306,12 @@ async def live_map():
     return FileResponse(os.path.join(STATIC_DIR, "live-map.html"))
 
 
+@app.get("/synthetic-vision")
+async def synthetic_vision():
+    """Serve the Synthetic Vision System (SVS) display"""
+    return FileResponse(os.path.join(STATIC_DIR, "synthetic-vision.html"))
+
+
 # ==================== PIREPs (PILOT REPORTS) ====================
 
 class PIREP(BaseModel):

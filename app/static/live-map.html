@@ -2165,6 +2165,426 @@
                 display: none;
             }
         }
+
+        /* ============================================
+           TOUCH-FRIENDLY MAGNIFIED UI
+           Larger buttons, inputs, and interactive elements
+           for easier finger/touch interaction
+           ============================================ */
+
+        /* Hide the original navbar */
+        .top-navbar {
+            display: none !important;
+        }
+
+        /* Floating brand/logo - top left */
+        .floating-brand {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 18px;
+            color: var(--text-primary);
+            text-decoration: none;
+            padding: 10px 16px;
+            background: rgba(10, 10, 10, 0.7);
+            backdrop-filter: blur(20px);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .floating-brand:hover {
+            background: rgba(10, 10, 10, 0.85);
+            transform: scale(1.02);
+        }
+
+        .floating-brand svg.orca-logo {
+            width: auto;
+            height: 22px;
+            color: #ffffff;
+        }
+
+        .light-mode .floating-brand {
+            background: rgba(245, 245, 245, 0.85);
+        }
+
+        .light-mode .floating-brand:hover {
+            background: rgba(245, 245, 245, 0.95);
+        }
+
+        .light-mode .floating-brand svg.orca-logo {
+            color: #1a1a1a;
+        }
+
+        /* Floating theme toggle - top right */
+        .floating-theme-toggle {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: rgba(10, 10, 10, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-primary);
+        }
+
+        .floating-theme-toggle:hover {
+            background: rgba(10, 10, 10, 0.85);
+            transform: scale(1.05);
+        }
+
+        .floating-theme-toggle svg {
+            width: 24px;
+            height: 24px;
+            stroke: currentColor;
+        }
+
+        .floating-theme-toggle .sun-icon {
+            display: none;
+        }
+
+        .floating-theme-toggle .moon-icon {
+            display: block;
+        }
+
+        .light-mode .floating-theme-toggle .sun-icon {
+            display: block;
+        }
+
+        .light-mode .floating-theme-toggle .moon-icon {
+            display: none;
+        }
+
+        .light-mode .floating-theme-toggle {
+            background: rgba(245, 245, 245, 0.85);
+        }
+
+        .light-mode .floating-theme-toggle:hover {
+            background: rgba(245, 245, 245, 0.95);
+        }
+
+        /* Overlay toolbar buttons - icon only, larger touch targets */
+        .overlay-btn {
+            padding: 12px;
+            font-size: 0; /* Hide text */
+            min-height: 48px;
+            min-width: 48px;
+            width: 48px;
+            height: 48px;
+            gap: 0;
+            justify-content: center;
+            border-radius: 12px;
+        }
+
+        .overlay-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* Overlay toolbar - floating over map, single row */
+        .overlay-toolbar {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            right: auto;
+            height: auto;
+            width: auto;
+            background: rgba(10, 10, 10, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            gap: 6px;
+            padding: 8px;
+            flex-wrap: nowrap;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .toolbar-section {
+            flex-wrap: nowrap;
+            gap: 6px;
+        }
+
+        /* Main container - no navbar, full height */
+        .main-container {
+            padding-top: 0;
+        }
+
+        /* Map container - full vertical space */
+        .map-container {
+            height: calc(100vh - 400px);
+        }
+
+        /* Leaflet zoom controls - moved down to avoid logo */
+        .leaflet-control-zoom {
+            margin-top: 80px !important;
+        }
+
+        /* Profile header inputs and buttons */
+        .profile-header {
+            padding: 12px 20px;
+        }
+
+        .profile-header input {
+            padding: 12px 14px;
+            font-size: 14px;
+            width: 90px;
+            min-height: 48px;
+            border-radius: 8px;
+        }
+
+        .profile-header button {
+            padding: 12px 18px;
+            font-size: 14px;
+            min-height: 48px;
+            border-radius: 8px;
+        }
+
+        .profile-header .route-input {
+            gap: 10px;
+        }
+
+        .profile-header .waypoint-btn,
+        .profile-header .stop-btn,
+        .profile-header .snap-btn {
+            min-height: 48px;
+            padding: 12px 16px;
+            font-size: 13px;
+        }
+
+        /* Profile zoom buttons */
+        .profile-zoom-btn {
+            width: 44px;
+            height: 44px;
+            font-size: 20px;
+            border-radius: 8px;
+        }
+
+        .profile-zoom-info {
+            padding: 8px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
+        .profile-zoom-controls {
+            gap: 6px;
+        }
+
+        /* Station info panel - close button */
+        .station-info .close-btn {
+            padding: 8px;
+            min-width: 40px;
+            min-height: 40px;
+        }
+
+        .station-info .close-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Trip summary close button */
+        .trip-close-btn {
+            width: 36px;
+            height: 36px;
+        }
+
+        .trip-close-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Layer toggles / checkboxes */
+        .layer-toggle {
+            padding: 12px 0;
+            min-height: 48px;
+        }
+
+        .layer-toggle input[type="checkbox"] {
+            width: 24px;
+            height: 24px;
+        }
+
+        .layer-toggle label {
+            font-size: 15px;
+        }
+
+        /* Leaflet zoom controls */
+        .leaflet-control-zoom a {
+            width: 44px !important;
+            height: 44px !important;
+            line-height: 44px !important;
+            font-size: 20px !important;
+        }
+
+        /* Control panel in map */
+        .control-panel {
+            padding: 16px;
+            border-radius: 14px;
+        }
+
+        .control-panel h3 {
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+
+        /* Flight rules badge */
+        .station-info .flight-rules {
+            padding: 6px 12px;
+            font-size: 13px;
+            border-radius: 6px;
+        }
+
+        /* Weather grid items */
+        .station-info .weather-item {
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .station-info .weather-item .label {
+            font-size: 12px;
+        }
+
+        .station-info .weather-item .value {
+            font-size: 16px;
+        }
+
+        /* METAR raw text */
+        .station-info .metar-raw {
+            padding: 14px;
+            font-size: 13px;
+            border-radius: 8px;
+        }
+
+        /* Station info panel sizing */
+        .station-info {
+            min-width: 320px;
+            max-width: 380px;
+            padding: 20px;
+            border-radius: 16px;
+        }
+
+        .station-info h2 {
+            font-size: 20px;
+        }
+
+        /* Legend */
+        .map-legend {
+            padding: 14px 20px;
+            border-radius: 14px;
+        }
+
+        .legend-title {
+            font-size: 13px;
+        }
+
+        .legend-item {
+            font-size: 14px;
+        }
+
+        .legend-dot {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Loading bar adjustment - at very top */
+        .overlay-loading-bar {
+            top: 0;
+        }
+
+        /* Toolbar divider - hide for icon-only layout */
+        .toolbar-divider {
+            display: none;
+        }
+
+        /* Light mode floating toolbar */
+        .light-mode .overlay-toolbar {
+            background: rgba(245, 245, 245, 0.85);
+        }
+
+        /* Responsive adjustments for touch-friendly sizes */
+        @media (max-width: 768px) {
+            .floating-brand {
+                top: 12px;
+                left: 12px;
+                padding: 8px 12px;
+                font-size: 16px;
+            }
+
+            .floating-brand svg.orca-logo {
+                height: 18px;
+            }
+
+            .floating-theme-toggle {
+                top: 12px;
+                right: 12px;
+                width: 44px;
+                height: 44px;
+            }
+
+            .overlay-toolbar {
+                top: 70px;
+                padding: 6px;
+                gap: 4px;
+            }
+
+            .overlay-btn {
+                width: 44px;
+                height: 44px;
+                min-width: 44px;
+                min-height: 44px;
+                padding: 10px;
+            }
+
+            .overlay-btn svg {
+                width: 22px;
+                height: 22px;
+            }
+
+            .toolbar-section {
+                gap: 4px;
+            }
+
+            .main-container {
+                padding-top: 0;
+            }
+
+            .map-container {
+                height: calc(100vh - 350px);
+            }
+
+            .leaflet-control-zoom {
+                margin-top: 140px !important;
+            }
+
+            .profile-header {
+                flex-wrap: wrap;
+                gap: 10px;
+                padding: 10px 16px;
+            }
+
+            .profile-header input {
+                width: 80px;
+                min-height: 44px;
+            }
+
+            .profile-header button {
+                min-height: 44px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -2174,71 +2594,31 @@
         <span class="bar-label" id="loadingLabel">Loading...</span>
     </div>
 
-    <!-- Navigation -->
-    <nav class="top-navbar">
-        <div class="nav-brand">
-            <svg class="orca-logo" viewBox="0 0 798 257" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                <path d="M67.8809 234.41C186.564 258.373 307.51 270.119 360.879 234.41C414.248 198.702 779.734 36.4014 796.092 14.7603C812.45 -6.88083 723.078 -6.93654 548.57 29.5108C375.251 65.7097 321.828 80.6187 159.348 125.963L155.986 126.901C-9.12734 172.979 -50.8019 210.448 67.8809 234.41Z"/>
-            </svg>
-            SkyEye
-        </div>
-        <div class="nav-links">
-            <a href="/" class="nav-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                </svg>
-                Weather
-            </a>
-            <a href="/live-map" class="nav-link active">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                </svg>
-                Live Map
-            </a>
-            <a href="/health-dashboard" class="nav-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                </svg>
-                Health
-            </a>
-            <a href="/compliance-dashboard" class="nav-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 11l3 3L22 4"/>
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                </svg>
-                Compliance
-            </a>
-            <a href="/benchmarks-dashboard" class="nav-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 20V10M12 20V4M6 20v-6"/>
-                </svg>
-                Benchmarks
-            </a>
-            <a href="/competitive-analysis-dashboard" class="nav-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-                </svg>
-                Analysis
-            </a>
-        </div>
-        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
-            <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-            </svg>
-            <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="5"/>
-                <line x1="12" y1="1" x2="12" y2="3"/>
-                <line x1="12" y1="21" x2="12" y2="23"/>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                <line x1="1" y1="12" x2="3" y2="12"/>
-                <line x1="21" y1="12" x2="23" y2="12"/>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-            </svg>
-        </button>
-    </nav>
+    <!-- Floating Logo/Brand - links to main page -->
+    <a href="/" class="floating-brand" title="Back to Weather Dashboard">
+        <svg class="orca-logo" viewBox="0 0 798 257" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M67.8809 234.41C186.564 258.373 307.51 270.119 360.879 234.41C414.248 198.702 779.734 36.4014 796.092 14.7603C812.45 -6.88083 723.078 -6.93654 548.57 29.5108C375.251 65.7097 321.828 80.6187 159.348 125.963L155.986 126.901C-9.12734 172.979 -50.8019 210.448 67.8809 234.41Z"/>
+        </svg>
+        SkyEye
+    </a>
+
+    <!-- Floating Theme Toggle -->
+    <button class="floating-theme-toggle" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
+        <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+    </button>
 
     <!-- Overlay Toolbar -->
     <div class="overlay-toolbar">
@@ -4767,36 +5147,11 @@
         }
 
         // Toggle overlay (affects both map and profile)
+        // All overlays can now be active simultaneously
         function toggleOverlay(btn) {
             const overlay = btn.dataset.overlay;
 
-            // Define overlay categories - only one active per category
-            const category1 = ['terrain', 'clouds', 'ceiling', 'visibility', 'airspace']; // Environment/Airspace
-            const category2 = ['icing', 'turbulence', 'winds', 'temperature', 'dewpoint']; // Weather/Conditions
-
-            // Determine which category this overlay belongs to
-            const isCategory1 = category1.includes(overlay);
-            const isCategory2 = category2.includes(overlay);
-
-            // If turning ON this overlay, turn OFF others in the same category
-            if (!overlayState[overlay]) {
-                const categoryOverlays = isCategory1 ? category1 : (isCategory2 ? category2 : []);
-
-                categoryOverlays.forEach(otherOverlay => {
-                    if (otherOverlay !== overlay && overlayState[otherOverlay]) {
-                        // Turn off the other overlay
-                        overlayState[otherOverlay] = false;
-
-                        // Remove active class from button
-                        const otherBtn = document.querySelector(`[data-overlay="${otherOverlay}"]`);
-                        if (otherBtn) otherBtn.classList.remove('active');
-
-                        // Remove the layer from map
-                        removeOverlayLayer(otherOverlay);
-                    }
-                });
-            }
-
+            // Simply toggle this overlay - no mutual exclusion
             overlayState[overlay] = !overlayState[overlay];
             btn.classList.toggle('active');
 
@@ -5089,7 +5444,8 @@
         function showTripSummary() {
             const panel = document.getElementById('tripSummary');
             panel.classList.add('visible');
-            // Start minimized - user can click to expand
+            // Auto-expand when a route is loaded
+            panel.classList.add('expanded');
         }
 
         function hideTripSummary() {
@@ -5692,35 +6048,29 @@
         }
 
         // Auto-enable relevant overlays based on detected hazards
+        // All relevant hazard/avoidance overlays are enabled simultaneously
         function autoEnableHazardOverlays(hazards) {
-            if (!hazards || hazards.length === 0) return;
+            // Always enable core hazard overlays when a route is loaded
+            // These are critical for flight safety awareness
+            const hazardOverlays = ['turbulence', 'icing', 'terrain', 'airspace', 'visibility'];
 
-            // Check for each hazard type and enable corresponding overlay
-            const hazardTypes = new Set(hazards.map(h => h.type));
+            hazardOverlays.forEach(overlay => {
+                enableOverlay(overlay);
+            });
 
-            // Turbulence detected - enable turbulence overlay
-            if (hazardTypes.has('turbulence')) {
-                enableOverlay('turbulence');
-            }
+            // Additionally check for specific hazard types to ensure coverage
+            if (hazards && hazards.length > 0) {
+                const hazardTypes = new Set(hazards.map(h => h.type));
 
-            // Icing detected - enable icing overlay (only if turbulence not already enabled)
-            if (hazardTypes.has('icing') && !overlayState.turbulence) {
-                enableOverlay('icing');
-            }
+                // Enable winds if significant weather detected
+                if (hazardTypes.has('weather') || hazardTypes.has('winds')) {
+                    enableOverlay('winds');
+                }
 
-            // Terrain issues or high altitude routing - enable terrain overlay
-            if (hazardTypes.has('terrain')) {
-                enableOverlay('terrain');
-            }
-
-            // Airspace violations (restricted/prohibited) - enable airspace overlay
-            if (hazardTypes.has('restricted') || hazardTypes.has('prohibited')) {
-                enableOverlay('airspace');
-            }
-
-            // Weather-related hazards - enable visibility or radar
-            if (hazardTypes.has('weather')) {
-                enableOverlay('visibility');
+                // Enable ceiling overlay if low ceiling hazards
+                if (hazardTypes.has('ceiling') || hazardTypes.has('weather')) {
+                    enableOverlay('ceiling');
+                }
             }
         }
 
