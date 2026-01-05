@@ -5150,18 +5150,15 @@
         let airwaysLoaded = false;
         let airwaysLayer = null;
 
-        // Fetch airways data from FAA ATS Route service
+        // Fetch airways data from backend proxy (avoids CORS issues)
         async function fetchAirways() {
             if (airwaysLoaded) return;
 
             try {
-                console.log('Loading airways data from FAA...');
+                console.log('Loading airways data...');
 
-                // FAA ATS Route FeatureServer - fetch in batches due to record limits
-                const baseUrl = 'https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/ATS_Route/FeatureServer/0/query';
-
-                // Get count first
-                const countResponse = await fetch(`${baseUrl}?where=1=1&returnCountOnly=true&f=json`);
+                // Use backend proxy to avoid CORS
+                const countResponse = await fetch('/api/aviation/airways/count');
                 const countData = await countResponse.json();
                 const totalCount = countData.count || 0;
                 console.log(`Total airways: ${totalCount}`);
@@ -5171,10 +5168,7 @@
                 let offset = 0;
 
                 while (offset < totalCount) {
-                    const response = await fetch(
-                        `${baseUrl}?where=1=1&outFields=IDENT,US_LOW,US_HIGH,AK_LOW,AK_HIGH` +
-                        `&resultOffset=${offset}&resultRecordCount=${batchSize}&f=geojson`
-                    );
+                    const response = await fetch(`/api/aviation/airways?offset=${offset}&limit=${batchSize}`);
 
                     if (!response.ok) throw new Error('Failed to fetch airways');
 
@@ -5199,7 +5193,7 @@
                     console.log(`Loaded ${Math.min(offset, totalCount)}/${totalCount} airways`);
                 }
 
-                console.log(`Loaded ${airwaysData.length} airways from FAA`);
+                console.log(`Loaded ${airwaysData.length} airways`);
                 airwaysLoaded = true;
 
             } catch (error) {

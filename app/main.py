@@ -4119,6 +4119,59 @@ async def compare_our_api(station: str = "KJFK"):
     }
 
 
+# ==================== FAA AIRWAYS DATA PROXY ====================
+# Proxy endpoint for FAA ATS Route data (to bypass CORS)
+
+FAA_ATS_ROUTE_BASE = "https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/ATS_Route/FeatureServer/0/query"
+
+@app.get("/api/aviation/airways")
+async def get_airways(
+    offset: int = Query(0, ge=0, description="Result offset for pagination"),
+    limit: int = Query(2000, ge=1, le=5000, description="Max records to return")
+):
+    """
+    Proxy endpoint for FAA ATS Route (airways) data.
+    Returns GeoJSON of airways with route identifiers and altitude information.
+    """
+    try:
+        params = {
+            "where": "1=1",
+            "outFields": "IDENT,US_LOW,US_HIGH,AK_LOW,AK_HIGH",
+            "resultOffset": offset,
+            "resultRecordCount": limit,
+            "f": "geojson"
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(FAA_ATS_ROUTE_BASE, params=params)
+            response.raise_for_status()
+            return response.json()
+
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=503, detail=f"Failed to fetch airways data: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing airways data: {str(e)}")
+
+
+@app.get("/api/aviation/airways/count")
+async def get_airways_count():
+    """Get total count of airways records"""
+    try:
+        params = {
+            "where": "1=1",
+            "returnCountOnly": "true",
+            "f": "json"
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(FAA_ATS_ROUTE_BASE, params=params)
+            response.raise_for_status()
+            return response.json()
+
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=503, detail=f"Failed to fetch airways count: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
