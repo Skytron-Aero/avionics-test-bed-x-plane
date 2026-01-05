@@ -2483,6 +2483,12 @@
             color: #eab308;
         }
 
+        .overlay-btn.airways.active {
+            background: rgba(6, 182, 212, 0.2);
+            border-color: rgba(6, 182, 212, 0.4);
+            color: #06b6d4;
+        }
+
         /* Legend */
         .map-legend {
             position: absolute;
@@ -3153,6 +3159,12 @@
                     <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
                 </svg>
                 Traffic
+            </button>
+            <button class="overlay-btn airways" data-overlay="airways" onclick="toggleOverlay(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12h4l3-9 4 18 3-9h4"/>
+                </svg>
+                Airways
             </button>
         </div>
     </div>
@@ -5133,6 +5145,68 @@
         let stationsMetarLoaded = false;   // METAR data has been loaded
         let stationsLoading = false;       // Currently loading stations
 
+        // Airways data storage (Victor airways, jet routes, etc.)
+        let airwaysData = [];
+        let airwaysLoaded = false;
+        let airwaysLayer = null;
+
+        // Fetch airways data from FAA ATS Route service
+        async function fetchAirways() {
+            if (airwaysLoaded) return;
+
+            try {
+                console.log('Loading airways data from FAA...');
+
+                // FAA ATS Route FeatureServer - fetch in batches due to record limits
+                const baseUrl = 'https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/ATS_Route/FeatureServer/0/query';
+
+                // Get count first
+                const countResponse = await fetch(`${baseUrl}?where=1=1&returnCountOnly=true&f=json`);
+                const countData = await countResponse.json();
+                const totalCount = countData.count || 0;
+                console.log(`Total airways: ${totalCount}`);
+
+                // Fetch in batches
+                const batchSize = 2000;
+                let offset = 0;
+
+                while (offset < totalCount) {
+                    const response = await fetch(
+                        `${baseUrl}?where=1=1&outFields=IDENT,US_LOW,US_HIGH,AK_LOW,AK_HIGH` +
+                        `&resultOffset=${offset}&resultRecordCount=${batchSize}&f=geojson`
+                    );
+
+                    if (!response.ok) throw new Error('Failed to fetch airways');
+
+                    const data = await response.json();
+
+                    if (data.features) {
+                        data.features.forEach(feature => {
+                            if (feature.geometry && feature.geometry.coordinates) {
+                                airwaysData.push({
+                                    ident: feature.properties.IDENT || '',
+                                    usLow: feature.properties.US_LOW,
+                                    usHigh: feature.properties.US_HIGH,
+                                    akLow: feature.properties.AK_LOW,
+                                    akHigh: feature.properties.AK_HIGH,
+                                    coordinates: feature.geometry.coordinates
+                                });
+                            }
+                        });
+                    }
+
+                    offset += batchSize;
+                    console.log(`Loaded ${Math.min(offset, totalCount)}/${totalCount} airways`);
+                }
+
+                console.log(`Loaded ${airwaysData.length} airways from FAA`);
+                airwaysLoaded = true;
+
+            } catch (error) {
+                console.warn('Could not fetch airways data:', error);
+            }
+        }
+
         // Resolve airport code to station object (handles various formats)
         function findAirportStation(code) {
             if (!code) return null;
@@ -5636,7 +5710,8 @@
             dewpoint: false,
             radar: false,
             stations: false,
-            traffic: false
+            traffic: false,
+            airways: false
         };
 
         // Alias for profile drawing compatibility
@@ -6070,6 +6145,20 @@
                         }
                     }
                     break;
+
+                case 'airways':
+                    if (overlayState.airways) {
+                        // Lazy load airways data
+                        if (!airwaysLoaded) {
+                            await fetchAirways();
+                        }
+                        createAirwaysOverlay();
+                    } else {
+                        if (airwaysLayer) {
+                            map.removeLayer(airwaysLayer);
+                        }
+                    }
+                    break;
             }
 
             // Redraw profile if route is loaded
@@ -6077,6 +6166,97 @@
                 drawProfile(currentRoute.dep, currentRoute.dest);
             }
         }
+
+        // Create airways overlay on map
+        function createAirwaysOverlay() {
+            if (airwaysLayer) {
+                map.removeLayer(airwaysLayer);
+            }
+            airwaysLayer = L.layerGroup();
+
+            const bounds = map.getBounds();
+            const zoom = map.getZoom();
+
+            // Only show at zoom >= 6 for performance (airways cover large areas)
+            if (zoom < 6) {
+                airwaysLayer.addTo(map);
+                return;
+            }
+
+            // Filter airways in view and render
+            let renderedCount = 0;
+            const maxRender = zoom < 8 ? 500 : 2000; // Limit based on zoom
+
+            for (const airway of airwaysData) {
+                if (renderedCount >= maxRender) break;
+
+                // Check if any part of the airway is in view
+                const coords = airway.coordinates;
+                if (!coords || coords.length === 0) continue;
+
+                // For LineString, check if line intersects bounds
+                let inView = false;
+                for (const coord of coords) {
+                    const lon = coord[0];
+                    const lat = coord[1];
+                    if (bounds.contains([lat, lon])) {
+                        inView = true;
+                        break;
+                    }
+                }
+
+                if (!inView) continue;
+
+                // Convert coordinates to Leaflet format [lat, lon]
+                const latLngs = coords.map(c => [c[1], c[0]]);
+
+                // Determine airway type and color by identifier prefix
+                let color = '#06b6d4'; // Cyan for Victor airways
+                let dashArray = null;
+                const ident = airway.ident || '';
+
+                if (ident.startsWith('J')) {
+                    color = '#f59e0b'; // Amber for Jet routes
+                } else if (ident.startsWith('T')) {
+                    color = '#10b981'; // Emerald for T-routes
+                } else if (ident.startsWith('Q')) {
+                    color = '#8b5cf6'; // Purple for Q-routes
+                }
+
+                const line = L.polyline(latLngs, {
+                    color: color,
+                    weight: zoom >= 10 ? 3 : 2,
+                    opacity: 0.7,
+                    dashArray: dashArray
+                });
+
+                // Add popup with airway info
+                const lowAlt = airway.usLow || airway.akLow || '--';
+                const highAlt = airway.usHigh || airway.akHigh || '--';
+
+                line.bindPopup(`
+                    <div style="font-family: system-ui; min-width: 120px;">
+                        <div style="font-weight: 600; color: ${color}; font-size: 14px;">${ident || 'Unknown'}</div>
+                        <div style="margin-top: 4px; font-size: 12px;">
+                            <div>MEA: ${lowAlt} - ${highAlt}</div>
+                        </div>
+                    </div>
+                `);
+
+                airwaysLayer.addLayer(line);
+                renderedCount++;
+            }
+
+            airwaysLayer.addTo(map);
+            console.log(`Rendered ${renderedCount} airways in view`);
+        }
+
+        // Update airways overlay on map move/zoom
+        map.on('moveend zoomend', () => {
+            if (overlayState.airways && airwaysLoaded) {
+                createAirwaysOverlay();
+            }
+        });
 
         async function loadMetarStations() {
             metarMarkers.clearLayers();
