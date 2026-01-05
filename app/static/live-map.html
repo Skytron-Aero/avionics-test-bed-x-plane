@@ -2483,12 +2483,6 @@
             color: #eab308;
         }
 
-        .overlay-btn.runways.active {
-            background: rgba(139, 92, 246, 0.2);
-            border-color: rgba(139, 92, 246, 0.4);
-            color: #8b5cf6;
-        }
-
         /* Legend */
         .map-legend {
             position: absolute;
@@ -3160,16 +3154,6 @@
                 </svg>
                 Traffic
             </button>
-            <button class="overlay-btn runways" data-overlay="runways" onclick="toggleOverlay(this)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="10" width="18" height="4" rx="1"/>
-                    <line x1="1" y1="12" x2="3" y2="12"/>
-                    <line x1="21" y1="12" x2="23" y2="12"/>
-                    <circle cx="7" cy="12" r="1" fill="currentColor"/>
-                    <circle cx="17" cy="12" r="1" fill="currentColor"/>
-                </svg>
-                Runways
-            </button>
         </div>
     </div>
 
@@ -3249,14 +3233,6 @@
                             <div class="trip-stat">
                                 <div class="trip-stat-label">Est. Time</div>
                                 <div class="trip-stat-value" id="tripTime">--:--</div>
-                            </div>
-                            <div class="trip-stat">
-                                <div class="trip-stat-label">Dep RWY</div>
-                                <div class="trip-stat-value" id="tripDepRunway" style="color: #8b5cf6;">--</div>
-                            </div>
-                            <div class="trip-stat">
-                                <div class="trip-stat-label">Arr RWY</div>
-                                <div class="trip-stat-value" id="tripArrRunway" style="color: #8b5cf6;">--</div>
                             </div>
                             <div class="trip-stat">
                                 <div class="trip-stat-label">Fuel Req.</div>
@@ -5157,134 +5133,6 @@
         let stationsMetarLoaded = false;   // METAR data has been loaded
         let stationsLoading = false;       // Currently loading stations
 
-        // Runway data storage (keyed by ICAO code)
-        let runwayData = {};
-        let runwaysLoaded = false;
-        let runwayLayer = null;
-
-        // Fetch runway data from OurAirports
-        async function fetchRunways() {
-            if (runwaysLoaded) return;
-
-            try {
-                console.log('Loading runway data from OurAirports...');
-                const response = await fetch('https://davidmegginson.github.io/ourairports-data/runways.csv');
-                if (!response.ok) throw new Error('Failed to fetch runway data');
-
-                const csvText = await response.text();
-                const lines = csvText.split('\n');
-                const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
-
-                // Find column indices
-                const airportIdentIdx = headers.indexOf('airport_ident');
-                const lengthIdx = headers.indexOf('length_ft');
-                const widthIdx = headers.indexOf('width_ft');
-                const surfaceIdx = headers.indexOf('surface');
-                const lightedIdx = headers.indexOf('lighted');
-                const closedIdx = headers.indexOf('closed');
-                const leIdentIdx = headers.indexOf('le_ident');
-                const leLatIdx = headers.indexOf('le_latitude_deg');
-                const leLonIdx = headers.indexOf('le_longitude_deg');
-                const leHeadingIdx = headers.indexOf('le_heading_degT');
-                const heIdentIdx = headers.indexOf('he_ident');
-                const heLatIdx = headers.indexOf('he_latitude_deg');
-                const heLonIdx = headers.indexOf('he_longitude_deg');
-                const heHeadingIdx = headers.indexOf('he_heading_degT');
-
-                let loadedCount = 0;
-
-                for (let i = 1; i < lines.length; i++) {
-                    const line = lines[i];
-                    if (!line.trim()) continue;
-
-                    const cols = parseCSVLine(line);
-                    if (cols.length < 15) continue;
-
-                    const airportIdent = cols[airportIdentIdx]?.replace(/"/g, '').trim();
-                    const closed = cols[closedIdx]?.replace(/"/g, '').trim() === '1';
-                    if (closed || !airportIdent) continue;
-
-                    // Only load US airports (K*, P* prefixes)
-                    if (!airportIdent.startsWith('K') && !airportIdent.startsWith('P')) continue;
-
-                    const runway = {
-                        leIdent: cols[leIdentIdx]?.replace(/"/g, '').trim() || '',
-                        heIdent: cols[heIdentIdx]?.replace(/"/g, '').trim() || '',
-                        leHeading: parseFloat(cols[leHeadingIdx]) || 0,
-                        heHeading: parseFloat(cols[heHeadingIdx]) || 0,
-                        length: parseFloat(cols[lengthIdx]) || 0,
-                        width: parseFloat(cols[widthIdx]) || 0,
-                        surface: cols[surfaceIdx]?.replace(/"/g, '').trim() || 'UNKN',
-                        lighted: cols[lightedIdx]?.replace(/"/g, '').trim() === '1',
-                        leLat: parseFloat(cols[leLatIdx]) || null,
-                        leLon: parseFloat(cols[leLonIdx]) || null,
-                        heLat: parseFloat(cols[heLatIdx]) || null,
-                        heLon: parseFloat(cols[heLonIdx]) || null
-                    };
-
-                    if (!runwayData[airportIdent]) {
-                        runwayData[airportIdent] = [];
-                    }
-                    runwayData[airportIdent].push(runway);
-                    loadedCount++;
-                }
-
-                console.log(`Loaded ${loadedCount} runways for ${Object.keys(runwayData).length} US airports`);
-                runwaysLoaded = true;
-
-            } catch (error) {
-                console.warn('Could not fetch runway data:', error);
-            }
-        }
-
-        // Select optimal runway based on wind direction and speed
-        function selectOptimalRunway(airportCode, windDir, windSpeed) {
-            const runways = runwayData[airportCode];
-            if (!runways || runways.length === 0) return null;
-
-            let bestRunway = null;
-            let bestScore = -Infinity;
-
-            for (const rwy of runways) {
-                // Check both runway directions
-                for (const dir of ['le', 'he']) {
-                    const heading = dir === 'le' ? rwy.leHeading : rwy.heHeading;
-                    const ident = dir === 'le' ? rwy.leIdent : rwy.heIdent;
-
-                    if (!ident || heading === 0) continue;
-
-                    // Calculate wind angle relative to runway
-                    let windAngle = Math.abs(windDir - heading);
-                    if (windAngle > 180) windAngle = 360 - windAngle;
-
-                    // Convert to radians
-                    const angleRad = windAngle * Math.PI / 180;
-
-                    // Calculate components
-                    const headwind = windSpeed * Math.cos(angleRad);
-                    const crosswind = Math.abs(windSpeed * Math.sin(angleRad));
-
-                    // Score: prefer headwind, penalize crosswind heavily
-                    // Tailwind (negative headwind) is heavily penalized
-                    const score = headwind - (crosswind * 2);
-
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestRunway = {
-                            ident: ident,
-                            heading: Math.round(heading),
-                            headwind: Math.round(headwind),
-                            crosswind: Math.round(crosswind),
-                            length: rwy.length,
-                            surface: rwy.surface
-                        };
-                    }
-                }
-            }
-
-            return bestRunway;
-        }
-
         // Resolve airport code to station object (handles various formats)
         function findAirportStation(code) {
             if (!code) return null;
@@ -5788,8 +5636,7 @@
             dewpoint: false,
             radar: false,
             stations: false,
-            traffic: false,
-            runways: false
+            traffic: false
         };
 
         // Alias for profile drawing compatibility
@@ -6223,20 +6070,6 @@
                         }
                     }
                     break;
-
-                case 'runways':
-                    if (overlayState.runways) {
-                        // Lazy load runway data
-                        if (!runwaysLoaded) {
-                            await fetchRunways();
-                        }
-                        createRunwayOverlay();
-                    } else {
-                        if (runwayLayer) {
-                            map.removeLayer(runwayLayer);
-                        }
-                    }
-                    break;
             }
 
             // Redraw profile if route is loaded
@@ -6244,100 +6077,6 @@
                 drawProfile(currentRoute.dep, currentRoute.dest);
             }
         }
-
-        // Create runway overlay on map
-        function createRunwayOverlay() {
-            if (runwayLayer) {
-                map.removeLayer(runwayLayer);
-            }
-            runwayLayer = L.layerGroup();
-
-            const bounds = map.getBounds();
-            const zoom = map.getZoom();
-
-            // Only show at zoom >= 10 for performance
-            if (zoom < 10) {
-                runwayLayer.addTo(map);
-                return;
-            }
-
-            // Find airports in view
-            for (const station of metarStations) {
-                if (!bounds.contains([station.lat, station.lon])) continue;
-
-                const runways = runwayData[station.id];
-                if (!runways) continue;
-
-                for (const rwy of runways) {
-                    // Draw runway line if we have coordinates
-                    if (rwy.leLat && rwy.leLon && rwy.heLat && rwy.heLon) {
-                        const line = L.polyline(
-                            [[rwy.leLat, rwy.leLon], [rwy.heLat, rwy.heLon]],
-                            {
-                                color: '#8b5cf6',
-                                weight: zoom >= 13 ? 6 : 4,
-                                opacity: 0.9,
-                                lineCap: 'round'
-                            }
-                        );
-
-                        // Format surface type
-                        const surfaceNames = {
-                            'ASP': 'Asphalt', 'CON': 'Concrete', 'TURF': 'Turf',
-                            'GRS': 'Grass', 'GRVL': 'Gravel', 'DIRT': 'Dirt',
-                            'WATER': 'Water', 'ASPH-G': 'Asphalt/Grass'
-                        };
-                        const surface = surfaceNames[rwy.surface] || rwy.surface;
-
-                        line.bindPopup(`
-                            <div style="font-family: system-ui; min-width: 140px;">
-                                <div style="font-weight: 600; margin-bottom: 4px;">${station.id}</div>
-                                <div style="color: #8b5cf6; font-weight: 600;">RWY ${rwy.leIdent}/${rwy.heIdent}</div>
-                                <div style="margin-top: 4px; font-size: 12px;">
-                                    <div>Length: ${rwy.length.toLocaleString()} ft</div>
-                                    <div>Surface: ${surface}</div>
-                                    ${rwy.lighted ? '<div>🔦 Lighted</div>' : ''}
-                                </div>
-                            </div>
-                        `);
-
-                        runwayLayer.addLayer(line);
-
-                        // Add runway threshold markers at higher zoom
-                        if (zoom >= 12) {
-                            const leMarker = L.circleMarker([rwy.leLat, rwy.leLon], {
-                                radius: 4,
-                                fillColor: '#8b5cf6',
-                                color: '#ffffff',
-                                weight: 1,
-                                fillOpacity: 1
-                            });
-                            leMarker.bindTooltip(rwy.leIdent, { permanent: zoom >= 14, direction: 'top', className: 'runway-label' });
-                            runwayLayer.addLayer(leMarker);
-
-                            const heMarker = L.circleMarker([rwy.heLat, rwy.heLon], {
-                                radius: 4,
-                                fillColor: '#8b5cf6',
-                                color: '#ffffff',
-                                weight: 1,
-                                fillOpacity: 1
-                            });
-                            heMarker.bindTooltip(rwy.heIdent, { permanent: zoom >= 14, direction: 'top', className: 'runway-label' });
-                            runwayLayer.addLayer(heMarker);
-                        }
-                    }
-                }
-            }
-
-            runwayLayer.addTo(map);
-        }
-
-        // Update runway overlay on map move/zoom
-        map.on('moveend zoomend', () => {
-            if (overlayState.runways && runwaysLoaded) {
-                createRunwayOverlay();
-            }
-        });
 
         async function loadMetarStations() {
             metarMarkers.clearLayers();
@@ -7387,30 +7126,6 @@
             document.getElementById('tripConditions').textContent = conditionsStatus.text;
             document.getElementById('tripConditions').style.color = conditionsStatus.color;
 
-            // Update runway selections
-            const depRwyEl = document.getElementById('tripDepRunway');
-            const arrRwyEl = document.getElementById('tripArrRunway');
-
-            if (routeData.departureRunway) {
-                const rwy = routeData.departureRunway;
-                const hwSign = rwy.headwind >= 0 ? '+' : '';
-                depRwyEl.textContent = `${rwy.ident}`;
-                depRwyEl.title = `${hwSign}${rwy.headwind}kt headwind, ${rwy.crosswind}kt crosswind\nLength: ${rwy.length.toLocaleString()} ft`;
-            } else {
-                depRwyEl.textContent = '--';
-                depRwyEl.title = 'No wind data available';
-            }
-
-            if (routeData.destinationRunway) {
-                const rwy = routeData.destinationRunway;
-                const hwSign = rwy.headwind >= 0 ? '+' : '';
-                arrRwyEl.textContent = `${rwy.ident}`;
-                arrRwyEl.title = `${hwSign}${rwy.headwind}kt headwind, ${rwy.crosswind}kt crosswind\nLength: ${rwy.length.toLocaleString()} ft`;
-            } else {
-                arrRwyEl.textContent = '--';
-                arrRwyEl.title = 'No wind data available';
-            }
-
             // Update phases
             const phasesDiv = document.getElementById('tripPhases');
             phasesDiv.innerHTML = routeData.phases.map(phase => `
@@ -8240,28 +7955,6 @@
             // Calculate enhanced route and update trip summary
             const routeData = calculateEnhancedRoute(depStation, destStation, distance);
             currentRouteData = routeData; // Store for altitude filtering
-
-            // Load runway data if not already loaded
-            if (!runwaysLoaded) {
-                await fetchRunways();
-            }
-
-            // Select optimal runways based on wind data from METAR
-            const depMetar = metarData[depStation.id];
-            const destMetar = metarData[destStation.id];
-
-            if (depMetar && depMetar.wind_direction !== undefined && depMetar.wind_speed !== undefined) {
-                routeData.departureRunway = selectOptimalRunway(depStation.id, depMetar.wind_direction, depMetar.wind_speed);
-            } else {
-                routeData.departureRunway = null;
-            }
-
-            if (destMetar && destMetar.wind_direction !== undefined && destMetar.wind_speed !== undefined) {
-                routeData.destinationRunway = selectOptimalRunway(destStation.id, destMetar.wind_direction, destMetar.wind_speed);
-            } else {
-                routeData.destinationRunway = null;
-            }
-
             updateTripSummary(routeData);
 
             // Draw the enhanced route on map
