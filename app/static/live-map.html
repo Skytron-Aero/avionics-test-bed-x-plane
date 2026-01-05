@@ -8760,6 +8760,9 @@
         function addClimbDescentPhases(waypoints, distance) {
             if (waypoints.length === 0) return waypoints;
 
+            // Minimum terrain clearance (2000 ft AGL for safety in mountainous areas)
+            const MIN_TERRAIN_CLEARANCE = 2000;
+
             // Climb rate: ~2000 ft/min at ~250 kts = ~8 NM per 1000ft
             // Descent rate: ~1500 ft/min at ~300 kts = ~12 NM per 1000ft
             const climbRateNMPerFt = 8 / 1000;
@@ -8804,18 +8807,27 @@
                     continue;
                 }
 
+                // Get minimum safe altitude (terrain + clearance)
+                const terrainAlt = wp.terrainAlt || 0;
+                const minSafeAlt = terrainAlt + MIN_TERRAIN_CLEARANCE;
+
                 if (wp.distNM < climbDist) {
                     // Climbing phase - linear climb from 0 to cruise
                     const climbProgress = wp.distNM / climbDist;
-                    wp.altitude = Math.max(500, Math.round(climbProgress * cruiseAlt / 1000) * 1000);
+                    let targetAlt = Math.round(climbProgress * cruiseAlt / 1000) * 1000;
+                    // Ensure terrain clearance during climb
+                    wp.altitude = Math.max(500, targetAlt, minSafeAlt);
                     wp.phase = 'climb';
                 } else if (wp.distNM > distance - descentDist) {
-                    // Descent phase - linear descent from cruise to 0
+                    // Descent phase - linear descent from cruise to destination
                     const descentProgress = (distance - wp.distNM) / descentDist;
-                    wp.altitude = Math.max(500, Math.round(descentProgress * cruiseAlt / 1000) * 1000);
+                    let targetAlt = Math.round(descentProgress * cruiseAlt / 1000) * 1000;
+                    // CRITICAL: Ensure terrain clearance during descent - don't fly into mountains!
+                    wp.altitude = Math.max(500, targetAlt, minSafeAlt);
                     wp.phase = 'descent';
                 } else {
-                    wp.altitude = Math.round(cruiseAlt / 1000) * 1000;
+                    // Cruise phase - also respect terrain clearance
+                    wp.altitude = Math.max(Math.round(cruiseAlt / 1000) * 1000, minSafeAlt);
                     wp.phase = 'cruise';
                 }
             }
