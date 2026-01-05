@@ -68,7 +68,7 @@
 
         /* Invert Leaflet map tiles for light mode */
         .light-mode .leaflet-tile-pane {
-            filter: invert(1) hue-rotate(180deg) saturate(0.3) brightness(1.1);
+            filter: invert(1) hue-rotate(180deg) saturate(0.4) brightness(0.95) contrast(1.3);
         }
 
         /* Keep overlay colors vibrant - don't apply greyscale to overlays */
@@ -1449,6 +1449,57 @@
             color: #f59e0b;
         }
 
+        .trip-section-header.airways {
+            color: #06b6d4;
+        }
+
+        .trip-airways {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .airway-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .airway-tag.jet {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .airway-tag.victor {
+            background: rgba(6, 182, 212, 0.15);
+            color: #06b6d4;
+            border: 1px solid rgba(6, 182, 212, 0.3);
+        }
+
+        .airway-tag.t-route {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .airway-tag.q-route {
+            background: rgba(139, 92, 246, 0.15);
+            color: #8b5cf6;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        .airway-tag .distance {
+            font-size: 9px;
+            opacity: 0.8;
+            font-weight: 400;
+        }
+
         .trip-phases {
             display: flex;
             flex-direction: column;
@@ -2489,6 +2540,46 @@
             color: #06b6d4;
         }
 
+        /* Simple Loading Bar */
+        .loading-bar-container {
+            position: fixed;
+            top: 99px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 3px;
+            z-index: 10000;
+            opacity: 0;
+            pointer-events: none;
+            background: rgba(59, 130, 246, 0.15);
+            border-radius: 2px;
+            overflow: hidden;
+            transition: opacity 0.3s;
+        }
+
+        .loading-bar-container.active {
+            opacity: 1;
+        }
+
+        .loading-bar {
+            height: 100%;
+            width: 0%;
+            background: #3b82f6;
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.6), 0 0 16px rgba(59, 130, 246, 0.4);
+            transition: width 0.3s ease-out;
+            animation: loading-glow 1.5s ease-in-out infinite;
+        }
+
+        @keyframes loading-glow {
+            0%, 100% {
+                box-shadow: 0 0 8px rgba(59, 130, 246, 0.5), 0 0 16px rgba(59, 130, 246, 0.3);
+            }
+            50% {
+                box-shadow: 0 0 12px rgba(59, 130, 246, 0.8), 0 0 24px rgba(59, 130, 246, 0.5);
+            }
+        }
+
         /* Legend */
         .map-legend {
             position: absolute;
@@ -3169,6 +3260,11 @@
         </div>
     </div>
 
+    <!-- Simple Loading Bar -->
+    <div class="loading-bar-container" id="loadingBarContainer">
+        <div class="loading-bar" id="loadingBar"></div>
+    </div>
+
     <div class="main-container">
         <!-- Map Section -->
         <div class="map-container">
@@ -3297,6 +3393,20 @@
                             Waypoints
                         </div>
                         <div class="trip-waypoints" id="tripWaypoints">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <div class="trip-section" id="tripAirwaysSection" style="display: none;">
+                        <div class="trip-section-header airways">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 2L2 22M2 2l20 20" stroke-opacity="0.3"/>
+                                <circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/>
+                                <path d="M6 6l12 12"/>
+                            </svg>
+                            Airways
+                        </div>
+                        <div class="trip-airways" id="tripAirways">
                             <!-- Populated dynamically -->
                         </div>
                     </div>
@@ -5145,9 +5255,33 @@
         let stationsMetarLoaded = false;   // METAR data has been loaded
         let stationsLoading = false;       // Currently loading stations
 
+        // Simple loading bar functions
+        function showLoading(progress = 0) {
+            const container = document.getElementById('loadingBarContainer');
+            const bar = document.getElementById('loadingBar');
+            if (container) container.classList.add('active');
+            if (bar) bar.style.width = `${progress}%`;
+        }
+
+        function updateLoading(progress) {
+            const bar = document.getElementById('loadingBar');
+            if (bar) bar.style.width = `${Math.min(100, progress)}%`;
+        }
+
+        function hideLoading() {
+            const container = document.getElementById('loadingBarContainer');
+            const bar = document.getElementById('loadingBar');
+            if (bar) bar.style.width = '100%';
+            setTimeout(() => {
+                if (container) container.classList.remove('active');
+                if (bar) bar.style.width = '0%';
+            }, 300);
+        }
+
         // Airways data storage (Victor airways, jet routes, etc.)
         let airwaysData = [];
         let airwaysLoaded = false;
+        let airwaysLoading = false;
         let airwaysLayer = null;
 
         // Fetch airways data from backend proxy (avoids CORS issues)
@@ -5155,6 +5289,7 @@
             if (airwaysLoaded) return;
 
             try {
+                showLoading(0);
                 console.log('Loading airways data...');
 
                 // Use backend proxy to avoid CORS
@@ -5190,15 +5325,160 @@
                     }
 
                     offset += batchSize;
+                    const progress = Math.round((Math.min(offset, totalCount) / totalCount) * 100);
+                    updateLoading(progress);
                     console.log(`Loaded ${Math.min(offset, totalCount)}/${totalCount} airways`);
                 }
 
                 console.log(`Loaded ${airwaysData.length} airways`);
                 airwaysLoaded = true;
+                hideLoading();
 
             } catch (error) {
                 console.warn('Could not fetch airways data:', error);
+                hideLoading();
             }
+        }
+
+        // Find airways that align with a route direction
+        // Returns airways with segments usable for the route
+        function findAirwaysAlongRoute(depLat, depLon, destLat, destLon, cruiseAltitude = 25000) {
+            if (!airwaysLoaded || airwaysData.length === 0) return [];
+
+            const matchedAirways = [];
+            const routeBearing = calculateBearing(depLat, depLon, destLat, destLon);
+            const routeDistance = haversineNM(depLat, depLon, destLat, destLon);
+
+            // Create a corridor around the direct route (30nm wide)
+            const corridorWidth = 30; // nm
+
+            for (const airway of airwaysData) {
+                if (!airway.coordinates || airway.coordinates.length < 2) continue;
+
+                // Determine airway type and altitude range
+                const ident = airway.ident || '';
+                let minAlt = 0, maxAlt = 60000;
+
+                // Victor airways (V): Low altitude (below 18,000)
+                // Jet routes (J): High altitude (18,000+)
+                // T-routes: Low RNAV
+                // Q-routes: High RNAV
+                if (ident.startsWith('V')) {
+                    minAlt = 1200;
+                    maxAlt = 18000;
+                } else if (ident.startsWith('J')) {
+                    minAlt = 18000;
+                    maxAlt = 45000;
+                } else if (ident.startsWith('T')) {
+                    minAlt = 1200;
+                    maxAlt = 18000;
+                } else if (ident.startsWith('Q')) {
+                    minAlt = 18000;
+                    maxAlt = 45000;
+                }
+
+                // Skip if cruise altitude is outside airway altitude range
+                if (cruiseAltitude < minAlt || cruiseAltitude > maxAlt) continue;
+
+                // Check each segment of the airway
+                let usableSegments = [];
+                for (let i = 0; i < airway.coordinates.length - 1; i++) {
+                    const [lon1, lat1] = airway.coordinates[i];
+                    const [lon2, lat2] = airway.coordinates[i + 1];
+
+                    // Calculate segment bearing
+                    const segBearing = calculateBearing(lat1, lon1, lat2, lon2);
+
+                    // Check if segment aligns with route (within 45 degrees)
+                    let bearingDiff = Math.abs(routeBearing - segBearing);
+                    if (bearingDiff > 180) bearingDiff = 360 - bearingDiff;
+
+                    // Accept segment if it's within 45 degrees of route direction
+                    // or within 45 degrees of reverse (for bidirectional airways)
+                    const isAligned = bearingDiff <= 45 || bearingDiff >= 135;
+                    if (!isAligned) continue;
+
+                    // Check if segment is within corridor
+                    const midLat = (lat1 + lat2) / 2;
+                    const midLon = (lon1 + lon2) / 2;
+                    const distToRoute = pointToLineDistance(midLat, midLon, depLat, depLon, destLat, destLon);
+
+                    if (distToRoute <= corridorWidth) {
+                        // Calculate how far along the route this segment is (0-1)
+                        const progress = routeProgress(midLat, midLon, depLat, depLon, destLat, destLon);
+
+                        if (progress >= 0 && progress <= 1) {
+                            usableSegments.push({
+                                startLat: lat1,
+                                startLon: lon1,
+                                endLat: lat2,
+                                endLon: lon2,
+                                progress: progress,
+                                distance: haversineNM(lat1, lon1, lat2, lon2)
+                            });
+                        }
+                    }
+                }
+
+                if (usableSegments.length > 0) {
+                    // Calculate total usable distance on this airway
+                    const totalAirwayDist = usableSegments.reduce((sum, seg) => sum + seg.distance, 0);
+                    const avgProgress = usableSegments.reduce((sum, seg) => sum + seg.progress, 0) / usableSegments.length;
+
+                    matchedAirways.push({
+                        ident: ident,
+                        type: ident.startsWith('J') ? 'Jet' : ident.startsWith('V') ? 'Victor' :
+                              ident.startsWith('T') ? 'T-Route' : ident.startsWith('Q') ? 'Q-Route' : 'Other',
+                        segments: usableSegments,
+                        totalDistance: totalAirwayDist,
+                        avgProgress: avgProgress,
+                        minAlt: minAlt,
+                        maxAlt: maxAlt
+                    });
+                }
+            }
+
+            // Sort by total usable distance (most useful airways first)
+            matchedAirways.sort((a, b) => b.totalDistance - a.totalDistance);
+
+            // Return top airways (limit to avoid cluttering)
+            return matchedAirways.slice(0, 10);
+        }
+
+        // Calculate bearing between two points (degrees)
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const lat1Rad = lat1 * Math.PI / 180;
+            const lat2Rad = lat2 * Math.PI / 180;
+            const y = Math.sin(dLon) * Math.cos(lat2Rad);
+            const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+            let bearing = Math.atan2(y, x) * 180 / Math.PI;
+            return (bearing + 360) % 360;
+        }
+
+        // Calculate perpendicular distance from point to line (nm)
+        function pointToLineDistance(pLat, pLon, lineLat1, lineLon1, lineLat2, lineLon2) {
+            // Use cross-track distance formula
+            const d13 = haversineNM(lineLat1, lineLon1, pLat, pLon);
+            const brng13 = calculateBearing(lineLat1, lineLon1, pLat, pLon) * Math.PI / 180;
+            const brng12 = calculateBearing(lineLat1, lineLon1, lineLat2, lineLon2) * Math.PI / 180;
+            const R = 3440.065; // Earth radius in nm
+            return Math.abs(Math.asin(Math.sin(d13/R) * Math.sin(brng13 - brng12)) * R);
+        }
+
+        // Calculate how far along a route a point is (0 = start, 1 = end)
+        function routeProgress(pLat, pLon, startLat, startLon, endLat, endLon) {
+            const totalDist = haversineNM(startLat, startLon, endLat, endLon);
+            if (totalDist === 0) return 0;
+
+            // Project point onto line
+            const d1 = haversineNM(startLat, startLon, pLat, pLon);
+            const bearing1 = calculateBearing(startLat, startLon, pLat, pLon);
+            const routeBearing = calculateBearing(startLat, startLon, endLat, endLon);
+            const angleDiff = (bearing1 - routeBearing) * Math.PI / 180;
+            const alongTrack = d1 * Math.cos(angleDiff);
+
+            return alongTrack / totalDist;
         }
 
         // Resolve airport code to station object (handles various formats)
@@ -6101,17 +6381,21 @@
                         // Load airport data on first enable (deferred for faster page load)
                         if (!stationsDataLoaded && !stationsLoading) {
                             stationsLoading = true;
+                            showLoading(0);
                             // Fetch airport databases in PARALLEL for faster loading
                             Promise.all([fetchOurAirports(), fetchFAAairports()]).then(() => {
                                 stationsDataLoaded = true;
+                                updateLoading(50);
                                 // Only load METAR if still enabled
                                 if (overlayState.stations) {
                                     loadMetarStations().then(() => {
                                         stationsMetarLoaded = true;
                                         stationsLoading = false;
+                                        hideLoading();
                                     });
                                 } else {
                                     stationsLoading = false;
+                                    hideLoading();
                                 }
                             });
                         } else if (stationsMetarLoaded) {
@@ -6171,15 +6455,15 @@
             const bounds = map.getBounds();
             const zoom = map.getZoom();
 
-            // Only show at zoom >= 6 for performance (airways cover large areas)
-            if (zoom < 6) {
+            // Only show at zoom >= 4 for performance (airways cover large areas)
+            if (zoom < 4) {
                 airwaysLayer.addTo(map);
                 return;
             }
 
             // Filter airways in view and render
             let renderedCount = 0;
-            const maxRender = zoom < 8 ? 500 : 2000; // Limit based on zoom
+            const maxRender = zoom < 6 ? 300 : zoom < 8 ? 800 : 2000; // Limit based on zoom
 
             for (const airway of airwaysData) {
                 if (renderedCount >= maxRender) break;
@@ -6675,6 +6959,7 @@
                 waypoints: [],
                 customWaypoints: customWaypointsInput, // Store custom waypoints
                 stops: stopsInput, // Store stops (landings along route)
+                airways: [], // Airways along the route
                 phases: [],
                 hazards: [],
                 avoidanceManeuvers: [],
@@ -7205,6 +7490,16 @@
                 });
             }
 
+            // Find airways along the route (if airways data is loaded)
+            if (airwaysLoaded && airwaysData.length > 0) {
+                routeData.airways = findAirwaysAlongRoute(
+                    depStation.lat, depStation.lon,
+                    destStation.lat, destStation.lon,
+                    routeData.cruiseAltitude
+                );
+                console.log(`Found ${routeData.airways.length} airways along route`);
+            }
+
             return routeData;
         }
 
@@ -7351,6 +7646,25 @@
                     <div class="trip-waypoint-distance">${wp.distance} NM</div>
                 </div>
             `).join('');
+
+            // Update airways section
+            const airwaysSection = document.getElementById('tripAirwaysSection');
+            const airwaysDiv = document.getElementById('tripAirways');
+            if (routeData.airways && routeData.airways.length > 0) {
+                airwaysSection.style.display = 'block';
+                airwaysDiv.innerHTML = routeData.airways.map(airway => {
+                    const typeClass = airway.type.toLowerCase().replace(' ', '-').replace('-route', '-route');
+                    return `
+                        <div class="airway-tag ${typeClass}" title="${airway.type}: FL${Math.round(airway.minAlt/100)}-FL${Math.round(airway.maxAlt/100)}">
+                            <span>${airway.ident}</span>
+                            <span class="distance">${Math.round(airway.totalDistance)} nm</span>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                airwaysSection.style.display = 'none';
+                airwaysDiv.innerHTML = '';
+            }
 
             // Update fuel plan
             const fuelDiv = document.getElementById('tripFuelPlan');
@@ -8125,6 +8439,24 @@
                       Math.sin(dLon/2) * Math.sin(dLon/2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             const distance = R * c;
+
+            // Auto-load airways data for route optimization (non-blocking)
+            if (!airwaysLoaded && !airwaysLoading) {
+                airwaysLoading = true;
+                fetchAirways().then(() => {
+                    airwaysLoading = false;
+                    // Re-calculate route with airways data now available
+                    if (currentRoute.dep && currentRoute.dest) {
+                        const newRouteData = calculateEnhancedRoute(
+                            currentRoute.dep, currentRoute.dest, distance,
+                            customWaypoints, customStops
+                        );
+                        currentRouteData = newRouteData;
+                        updateTripSummary(newRouteData);
+                        console.log('Route updated with airways data');
+                    }
+                });
+            }
 
             // Calculate enhanced route and update trip summary
             const routeData = calculateEnhancedRoute(depStation, destStation, distance);
