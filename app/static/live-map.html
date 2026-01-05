@@ -6682,6 +6682,123 @@
                 }
             });
 
+            // If no avoidance waypoints were added but we have restricted zone intersections,
+            // try to find a corridor route around the ENTIRE complex
+            if (avoidanceWaypoints.length === 0 && sortedIntersections.length > 0) {
+                const unavoidableZones = sortedIntersections.filter(i => {
+                    const zoneCeiling = i.zone.ceiling || 50000;
+                    return zoneCeiling >= AIRCRAFT_MAX_ALT;
+                });
+
+                if (unavoidableZones.length > 0) {
+                    // Find bounding box of all unavoidable restricted zones
+                    let minLat = Infinity, maxLat = -Infinity;
+                    let minLon = Infinity, maxLon = -Infinity;
+                    unavoidableZones.forEach(i => {
+                        i.zone.polygon.forEach(p => {
+                            minLat = Math.min(minLat, p[0]);
+                            maxLat = Math.max(maxLat, p[0]);
+                            minLon = Math.min(minLon, p[1]);
+                            maxLon = Math.max(maxLon, p[1]);
+                        });
+                    });
+
+                    // Try SOUTH corridor (go below all restricted zones)
+                    const southCorridorLat = minLat - 0.5; // 0.5 degrees south of lowest zone
+                    const midLon = (depStation.lon + destStation.lon) / 2;
+
+                    // Create waypoints for south corridor
+                    // Route: DEP → COR-S1 (south of dep) → COR-S2 (middle south) → COR-S3 (south of dest) → DEST
+                    const southWaypoints = [
+                        { lat: southCorridorLat, lon: depStation.lon, name: 'COR-S1' },
+                        { lat: southCorridorLat, lon: midLon, name: 'COR-S2' },
+                        { lat: southCorridorLat, lon: destStation.lon, name: 'COR-S3' }
+                    ];
+
+                    // Verify south corridor is clear
+                    const allRestrictedZones = [
+                        ...(airspaceData.restricted || []).filter(z => (z.ceiling || 99999) >= AIRCRAFT_MAX_ALT),
+                        ...(airspaceData.prohibited || [])
+                    ];
+
+                    let southClear = true;
+                    const southRoute = [
+                        { lat: depStation.lat, lon: depStation.lon },
+                        ...southWaypoints,
+                        { lat: destStation.lat, lon: destStation.lon }
+                    ];
+
+                    // Check each segment of south corridor
+                    outerLoop: for (let i = 0; i < southRoute.length - 1; i++) {
+                        const p1 = southRoute[i];
+                        const p2 = southRoute[i + 1];
+                        for (let j = 0; j <= 20; j++) {
+                            const t = j / 20;
+                            const sampleLat = p1.lat + t * (p2.lat - p1.lat);
+                            const sampleLon = p1.lon + t * (p2.lon - p1.lon);
+                            for (const zone of allRestrictedZones) {
+                                if (pointInPolygon(sampleLat, sampleLon, zone.polygon)) {
+                                    southClear = false;
+                                    break outerLoop;
+                                }
+                            }
+                        }
+                    }
+
+                    if (southClear) {
+                        // Calculate added distance
+                        let corridorDist = 0;
+                        let prev = depStation;
+                        southWaypoints.forEach(wp => {
+                            corridorDist += haversineNM(prev.lat, prev.lon, wp.lat, wp.lon);
+                            prev = wp;
+                        });
+                        corridorDist += haversineNM(prev.lat, prev.lon, destStation.lat, destStation.lon);
+                        const addedDist = corridorDist - distance;
+                        const addedPercent = (addedDist / distance) * 100;
+
+                        // Accept corridor if it doesn't add more than 60% to route
+                        if (addedPercent <= 60) {
+                            // Add corridor waypoints
+                            southWaypoints.forEach(wp => {
+                                avoidanceWaypoints.push({
+                                    name: wp.name,
+                                    type: 'divert',
+                                    lat: wp.lat,
+                                    lon: wp.lon,
+                                    isCustom: false,
+                                    isStop: false,
+                                    isAvoidance: true,
+                                    avoidingZone: 'Restricted Complex'
+                                });
+                            });
+
+                            // Mark zones as avoided
+                            unavoidableZones.forEach(i => {
+                                if (!hazardsAdded.has(i.zone.name)) {
+                                    routeData.hazards.push({
+                                        type: i.type,
+                                        severity: 'caution',
+                                        name: i.zone.name,
+                                        description: `Route diverts around ${i.zone.name}`,
+                                        location: Math.round(i.entryT * distance),
+                                        action: 'South corridor route active'
+                                    });
+                                    hazardsAdded.add(i.zone.name);
+                                    routeData.avoidanceManeuvers.push({
+                                        zone: i.zone.name,
+                                        type: i.type,
+                                        waypoints: southWaypoints.map(wp => wp.name)
+                                    });
+                                }
+                            });
+
+                            console.log(`Using south corridor route (+${addedPercent.toFixed(0)}% distance)`);
+                        }
+                    }
+                }
+            }
+
             // Check for other hazards along the route
             const numCheckPoints = 20;
             for (let i = 1; i < numCheckPoints; i++) {
