@@ -6704,15 +6704,17 @@
                     });
 
                     // Try SOUTH corridor (go below all restricted zones)
-                    const southCorridorLat = minLat - 0.5; // 0.5 degrees south of lowest zone
-                    const midLon = (depStation.lon + destStation.lon) / 2;
+                    // Use a single strategic waypoint south-east of the restricted complex
+                    // This creates a more efficient route than multiple corridor waypoints
+                    const southCorridorLat = minLat - 0.3; // 0.3 degrees south of lowest zone
 
-                    // Create waypoints for south corridor
-                    // Route: DEP → COR-S1 (south of dep) → COR-S2 (middle south) → COR-S3 (south of dest) → DEST
+                    // Position waypoint at the eastern edge of restricted complex for efficient routing
+                    // Waypoint longitude should be east of the restricted zones but not past destination
+                    const corridorLon = Math.min(maxLon + 0.5, destStation.lon);
+
+                    // Create single efficient corridor waypoint
                     const southWaypoints = [
-                        { lat: southCorridorLat, lon: depStation.lon, name: 'COR-S1' },
-                        { lat: southCorridorLat, lon: midLon, name: 'COR-S2' },
-                        { lat: southCorridorLat, lon: destStation.lon, name: 'COR-S3' }
+                        { lat: southCorridorLat, lon: corridorLon, name: 'COR-S' }
                     ];
 
                     // Verify south corridor is clear
@@ -6757,8 +6759,8 @@
                         const addedDist = corridorDist - distance;
                         const addedPercent = (addedDist / distance) * 100;
 
-                        // Accept corridor if it doesn't add more than 60% to route
-                        if (addedPercent <= 60) {
+                        // Accept corridor if it doesn't add more than 50% to route
+                        if (addedPercent <= 50) {
                             // Add corridor waypoints
                             southWaypoints.forEach(wp => {
                                 avoidanceWaypoints.push({
