@@ -6019,7 +6019,7 @@
 
         // Toggle overlay (affects both map and profile)
         // All overlays can now be active simultaneously
-        function toggleOverlay(btn) {
+        async function toggleOverlay(btn) {
             const overlay = btn.dataset.overlay;
 
             // Simply toggle this overlay - no mutual exclusion
