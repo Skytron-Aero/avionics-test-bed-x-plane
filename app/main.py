@@ -2723,6 +2723,42 @@ async def get_notams(station: str):
         raise HTTPException(status_code=503, detail=f"Failed to get NOTAM info: {str(e)}")
 
 
+@app.get("/api/aviation/adsb")
+async def get_adsb_traffic(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
+    dist: int = Query(30, description="Radius in nautical miles")
+):
+    """
+    Proxy endpoint for ADS-B Exchange data (via adsb.lol).
+    Returns live aircraft positions within specified radius.
+    """
+    start_time = datetime.now(timezone.utc)
+
+    try:
+        url = f"https://api.adsb.lol/v2/lat/{lat}/lon/{lon}/dist/{dist}"
+        response = await http_client.get(url, timeout=10.0)
+        elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+
+        if response.status_code != 200:
+            health_tracker.record_call("ADSB", False, elapsed_ms)
+            return {"ac": [], "error": f"ADS-B API returned {response.status_code}"}
+
+        data = response.json()
+        health_tracker.record_call("ADSB", True, elapsed_ms)
+
+        return {
+            "ac": data.get("ac", []),
+            "total": len(data.get("ac", [])),
+            "now": data.get("now"),
+            "fetched_at": datetime.now(timezone.utc).isoformat()
+        }
+
+    except Exception as e:
+        health_tracker.record_call("ADSB", False, 0)
+        return {"ac": [], "error": str(e)}
+
+
 @app.get("/api/aviation/metar/{station}", response_model=METARData)
 async def get_metar(station: str):
     """Get current METAR for aviation station (uses FAA Aviation Weather API with NWS/AVWX fallback)"""
@@ -2820,6 +2856,88 @@ async def get_metar(station: str):
             raise HTTPException(status_code=503, detail=f"Failed to fetch METAR from all sources: {str(primary_error)}")
         else:
             raise HTTPException(status_code=500, detail=f"Error parsing METAR: {str(primary_error)}")
+
+
+@app.post("/api/aviation/metar/bulk")
+async def get_metar_bulk(stations: List[str]):
+    """Get METAR data for multiple stations in a single request (much faster than individual calls)"""
+    if not stations:
+        return {}
+
+    # Filter to only ICAO-style stations (4 letters, starts with K or P for US)
+    normalized = []
+    for s in stations:
+        s = s.upper().strip()
+        if len(s) == 3 and s.isalpha():
+            s = "K" + s
+        # Only include valid ICAO codes
+        if len(s) == 4 and s.isalpha() and (s.startswith('K') or s.startswith('P')):
+            normalized.append(s)
+
+    if not normalized:
+        return {}
+
+    results = {}
+    batch_size = 100  # Aviation Weather API handles 100 well
+
+    async def fetch_batch(batch):
+        """Fetch a batch of METAR data"""
+        station_ids = ",".join(batch)
+        url = f"https://aviationweather.gov/api/data/metar?ids={station_ids}&format=json"
+        batch_results = {}
+        try:
+            response = await http_client.get(url, timeout=10.0)
+            response.raise_for_status()
+            text = response.text
+            if not text or text.strip() == "":
+                return batch_results
+            data = response.json()
+            if not isinstance(data, list):
+                return batch_results
+
+            for metar in data:
+                station_id = metar.get("icaoId", "").upper()
+                if not station_id:
+                    continue
+
+                ceiling = None
+                for condition in metar.get("clouds", []):
+                    if condition.get("cover") in ["BKN", "OVC"] and condition.get("base"):
+                        if ceiling is None or condition.get("base") < ceiling:
+                            ceiling = condition.get("base")
+
+                visibility = metar.get("visib")
+                flight_rules = calculate_flight_rules(visibility, ceiling)
+
+                batch_results[station_id] = {
+                    "station": station_id,
+                    "raw_text": metar.get("rawOb", ""),
+                    "temperature": metar.get("temp"),
+                    "dewpoint": metar.get("dewp"),
+                    "wind_direction": metar.get("wdir"),
+                    "wind_speed": metar.get("wspd"),
+                    "wind_gust": metar.get("wgst"),
+                    "visibility": visibility,
+                    "ceiling": ceiling,
+                    "flight_rules": flight_rules,
+                    "altimeter": metar.get("altim"),
+                    "weather_string": metar.get("wxString")
+                }
+        except Exception as e:
+            print(f"Bulk METAR batch error: {e}")
+        return batch_results
+
+    # Create batches and fetch in parallel
+    batches = [normalized[i:i + batch_size] for i in range(0, len(normalized), batch_size)]
+    batch_results = await asyncio.gather(*[fetch_batch(batch) for batch in batches])
+
+    # Merge results
+    for batch_result in batch_results:
+        results.update(batch_result)
+
+    print(f"Bulk METAR: Fetched {len(results)} stations from {len(batches)} batches")
+    return results
+
 
 @app.get("/api/aviation/taf/{station}", response_model=TAFData)
 async def get_taf(station: str):

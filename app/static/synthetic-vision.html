@@ -359,7 +359,11 @@
             height: 100%;
             border-radius: 50%;
             background: rgba(10, 10, 10, 0.85);
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            border: none;
+            box-shadow:
+                0 8px 16px rgba(0, 0, 0, 0.6),
+                0 -2px 6px rgba(255, 255, 255, 0.02),
+                inset 0 1px 2px rgba(255, 255, 255, 0.03);
         }
 
         .compass-dial {
@@ -372,17 +376,17 @@
         .compass-tick {
             position: absolute;
             left: 50%;
-            top: 8px;
-            width: 2px;
-            height: 15px;
-            background: rgba(255, 255, 255, 0.6);
-            transform-origin: center 132px;
+            top: 12px;
+            width: 1px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.5);
+            transform-origin: center 128px;
         }
 
         .compass-tick.major {
-            height: 22px;
-            width: 3px;
-            background: #ffffff;
+            height: 12px;
+            width: 1.5px;
+            background: rgba(255, 255, 255, 0.8);
         }
 
         .compass-label {
@@ -412,7 +416,7 @@
             height: 120px;
             border-radius: 50%;
             background: rgba(10, 10, 10, 0.95);
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            border: none;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -465,6 +469,213 @@
             width: 3px;
             height: 20px;
             background: #7dd3fc;
+        }
+
+        /* Wind Dial - Bottom Right of Compass */
+        .wind-dial-container {
+            position: fixed;
+            bottom: 140px;
+            left: calc(50% + 170px);
+            width: 140px;
+            height: 140px;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .wind-dial-ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: rgba(10, 10, 10, 0.85);
+            border: none;
+            box-shadow:
+                0 8px 16px rgba(0, 0, 0, 0.6),
+                0 -2px 6px rgba(255, 255, 255, 0.02),
+                inset 0 1px 2px rgba(255, 255, 255, 0.03);
+        }
+
+        .wind-dial-pointer {
+            display: none;
+        }
+
+        .wind-dial-rotator {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.3s ease-out;
+        }
+
+        .wind-sock {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .wind-sock-segment {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 2px;
+            margin-bottom: 2px;
+            transition: width 0.5s ease-out, height 0.5s ease-out, opacity 0.5s ease-out;
+        }
+
+        .wind-sock-segment:nth-child(1) {
+            width: 12px;
+            height: 8px;
+            border-radius: 4px 4px 2px 2px;
+        }
+
+        .wind-sock-segment:nth-child(2) {
+            width: 11px;
+            height: 7px;
+        }
+
+        .wind-sock-segment:nth-child(3) {
+            width: 9px;
+            height: 7px;
+        }
+
+        .wind-sock-segment:nth-child(4) {
+            width: 7px;
+            height: 6px;
+        }
+
+        .wind-sock-segment:nth-child(5) {
+            width: 5px;
+            height: 5px;
+            border-radius: 2px 2px 3px 3px;
+        }
+
+        .wind-dial-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .wind-speed-value {
+            font-size: 36px;
+            font-weight: 600;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #ffffff;
+            line-height: 1;
+        }
+
+        .wind-speed-unit {
+            font-size: 14px;
+            font-weight: 500;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 4px;
+        }
+
+        /* Traffic Mini Map - Bottom Left of Compass */
+        .traffic-map-container {
+            position: fixed;
+            bottom: 140px;
+            right: calc(50% + 170px);
+            width: 140px;
+            height: 140px;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .traffic-map-ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: rgba(10, 10, 10, 0.85);
+            border: none;
+            box-shadow:
+                0 8px 16px rgba(0, 0, 0, 0.6),
+                0 -2px 6px rgba(255, 255, 255, 0.02),
+                inset 0 1px 2px rgba(255, 255, 255, 0.03);
+        }
+
+        .traffic-map-rotator {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.15s ease-out;
+        }
+
+        .traffic-map-aircraft {
+            position: absolute;
+            width: 0;
+            height: 0;
+            transform-origin: center center;
+            transition: all 0.3s ease-out;
+        }
+
+        .traffic-map-aircraft::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(var(--ac-scale, 1));
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-bottom: 10px solid #3b82f6;
+        }
+
+        .traffic-map-aircraft.above::before {
+            border-bottom-color: #22c55e;
+        }
+
+        .traffic-map-aircraft.below::before {
+            border-bottom-color: #f59e0b;
+        }
+
+        .traffic-map-ownship {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 12px solid #ffffff;
+            z-index: 10;
+        }
+
+        .traffic-map-range {
+            position: absolute;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .traffic-map-range.inner {
+            width: 46px;
+            height: 46px;
+        }
+
+        .traffic-map-range.outer {
+            width: 92px;
+            height: 92px;
+        }
+
+        .traffic-map-center {
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            font-weight: 500;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: rgba(255, 255, 255, 0.6);
         }
 
         /* Vertical Speed Indicator - Hidden (integrated into altitude tape) */
@@ -783,85 +994,100 @@
         .overlay-btn {
             width: 48px;
             height: 48px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
+            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+            border: none;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             color: var(--text-secondary);
             transition: all 0.2s ease;
+            box-shadow:
+                4px 4px 8px rgba(0, 0, 0, 0.5),
+                -2px -2px 4px rgba(255, 255, 255, 0.02),
+                inset 0 1px 1px rgba(255, 255, 255, 0.04),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.4);
         }
 
         .overlay-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: linear-gradient(180deg, #323232 0%, #222222 100%);
             color: var(--text-primary);
         }
 
+        .overlay-btn:active {
+            transform: scale(0.97);
+            background: linear-gradient(180deg, #1a1a1a 0%, #121212 100%);
+            box-shadow:
+                inset 0 3px 8px rgba(0, 0, 0, 0.7),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.02);
+        }
+
         .overlay-btn.active {
-            background: rgba(107, 114, 128, 0.3);
-            border-color: var(--accent);
-            color: var(--text-primary);
+            background: linear-gradient(180deg, #1a1a1a 0%, #141414 100%);
+            border: none;
+            box-shadow:
+                inset 0 2px 6px rgba(0, 0, 0, 0.6),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.03);
         }
 
         .overlay-btn.active.terrain {
             background: rgba(139, 92, 42, 0.3);
-            border-color: #d4a574;
+            border: 1px solid rgba(139, 92, 42, 0.5);
             color: #d4a574;
         }
 
         .overlay-btn.active.traffic {
-            background: rgba(59, 130, 246, 0.2);
-            border-color: var(--traffic-color);
-            color: var(--traffic-color);
+            background: rgba(0, 212, 255, 0.2);
+            border: 1px solid rgba(0, 212, 255, 0.4);
+            color: #00d4ff;
         }
 
         .overlay-btn.active.weather {
             background: rgba(239, 68, 68, 0.2);
-            border-color: var(--danger);
-            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #ef4444;
         }
 
         .overlay-btn.active.airspace {
-            background: rgba(59, 130, 246, 0.2);
-            border-color: #3b82f6;
-            color: #3b82f6;
+            background: rgba(236, 72, 153, 0.2);
+            border: 1px solid rgba(236, 72, 153, 0.4);
+            color: #ec4899;
         }
 
         .overlay-btn.active.towers {
             background: rgba(168, 85, 247, 0.2);
-            border-color: var(--hazard-color);
-            color: var(--hazard-color);
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            color: #a855f7;
         }
 
         .overlay-btn.active.tfr {
             background: rgba(249, 115, 22, 0.2);
-            border-color: #f97316;
+            border: 1px solid rgba(249, 115, 22, 0.4);
             color: #f97316;
         }
 
         .overlay-btn.active.buildings {
             background: rgba(236, 72, 153, 0.2);
-            border-color: #ec4899;
+            border: 1px solid rgba(236, 72, 153, 0.4);
             color: #ec4899;
         }
 
         .overlay-btn.active.clouds {
             background: rgba(148, 163, 184, 0.2);
-            border-color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.4);
             color: #94a3b8;
         }
 
         .overlay-btn.active.icing {
-            background: rgba(56, 189, 248, 0.2);
-            border-color: #38bdf8;
-            color: #38bdf8;
+            background: rgba(6, 182, 212, 0.2);
+            border: 1px solid rgba(6, 182, 212, 0.4);
+            color: #06b6d4;
         }
 
         .overlay-btn.active.visibility {
             background: rgba(168, 162, 158, 0.2);
-            border-color: #a8a29e;
+            border: 1px solid rgba(168, 162, 158, 0.4);
             color: #d6d3d1;
         }
 
@@ -1173,6 +1399,66 @@
                 width: 300px;
             }
         }
+
+        /* Aircraft Label Popup */
+        .aircraft-label {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #00d4ff;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            z-index: 1000;
+            min-width: 140px;
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+        }
+        .aircraft-label.visible {
+            opacity: 1;
+        }
+        .ac-callsign {
+            font-weight: 600;
+            font-size: 16px;
+            color: #00d4ff;
+            margin-bottom: 4px;
+        }
+        .ac-type {
+            color: #999;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+        .ac-data-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 4px;
+        }
+        .ac-alt, .ac-speed {
+            color: #fff;
+            font-size: 13px;
+        }
+        .ac-alt span, .ac-speed span {
+            color: #7dd3fc;
+        }
+        .light-mode .aircraft-label {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: #0284c7;
+            box-shadow: 0 4px 20px rgba(2, 132, 199, 0.3);
+        }
+        .light-mode .ac-callsign {
+            color: #0284c7;
+        }
+        .light-mode .ac-type {
+            color: #666;
+        }
+        .light-mode .ac-alt, .light-mode .ac-speed {
+            color: #1a1a1a;
+        }
+        .light-mode .ac-alt span, .light-mode .ac-speed span {
+            color: #0369a1;
+        }
     </style>
 </head>
 <body>
@@ -1211,6 +1497,9 @@
     <div id="svs-container">
         <canvas id="svs-canvas"></canvas>
     </div>
+
+    <!-- Aircraft Label Popup (for ADS-B traffic) -->
+    <div id="aircraftLabel" class="aircraft-label"></div>
 
     <!-- HUD Overlay -->
     <!-- Flight Path Vector (2D HUD overlay) -->
@@ -1305,6 +1594,36 @@
         </div>
     </div>
 
+    <!-- Wind Dial -->
+    <div class="wind-dial-container">
+        <div class="wind-dial-ring"></div>
+        <div class="wind-dial-pointer"></div>
+        <div class="wind-dial-rotator" id="windDialRotator">
+            <div class="wind-sock">
+                <div class="wind-sock-segment"></div>
+                <div class="wind-sock-segment"></div>
+                <div class="wind-sock-segment"></div>
+                <div class="wind-sock-segment"></div>
+                <div class="wind-sock-segment"></div>
+            </div>
+        </div>
+        <div class="wind-dial-center">
+            <span class="wind-speed-value" id="windSpeedValue">0</span>
+            <span class="wind-speed-unit">kts</span>
+        </div>
+    </div>
+
+    <!-- Traffic Mini Map -->
+    <div class="traffic-map-container">
+        <div class="traffic-map-ring"></div>
+        <div class="traffic-map-range inner"></div>
+        <div class="traffic-map-range outer"></div>
+        <div class="traffic-map-rotator" id="trafficMapRotator">
+            <!-- Aircraft will be dynamically added here -->
+        </div>
+        <div class="traffic-map-ownship"></div>
+        <div class="traffic-map-center">30nm</div>
+    </div>
 
     <!-- Controls Panel -->
     <div class="svs-controls" id="svsControls">
@@ -1461,68 +1780,55 @@
     <!-- Overlay Toggles -->
     <div class="overlay-toolbar">
         <button class="overlay-btn terrain active" data-layer="terrain" title="Terrain">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M8 21l4-10 4 10M12 11l-8 10M12 11l8 10"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 20h18L15 8l-3 4-4-3-5 11z"/>
             </svg>
         </button>
         <button class="overlay-btn traffic" data-layer="traffic" title="Traffic">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
             </svg>
         </button>
         <button class="overlay-btn weather" data-layer="weather" title="Weather">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M19 16.9A5 5 0 0 0 18 7h-1.26a8 8 0 1 0-11.62 9"/>
                 <polyline points="13 11 9 17 15 17 11 23"/>
             </svg>
         </button>
         <button class="overlay-btn airspace" data-layer="airspace" title="Airspace">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <circle cx="12" cy="12" r="6"/>
-                <circle cx="12" cy="12" r="2"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
             </svg>
         </button>
         <button class="overlay-btn towers" data-layer="towers" title="Towers">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L8 22M12 2l4 20M6 10h12M7 14h10"/>
-                <circle cx="12" cy="4" r="2"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 22h16M10 22V10l-4 2v10M14 22V10l4 2v10M12 2l6 4-6 4-6-4 6-4z"/>
             </svg>
         </button>
         <button class="overlay-btn tfr" data-layer="tfr" title="TFR">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
             </svg>
         </button>
         <button class="overlay-btn buildings" data-layer="buildings" title="Buildings">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="8" width="7" height="14"/>
-                <rect x="14" y="4" width="7" height="18"/>
-                <line x1="5" y1="11" x2="8" y2="11"/>
-                <line x1="5" y1="14" x2="8" y2="14"/>
-                <line x1="5" y1="17" x2="8" y2="17"/>
-                <line x1="16" y1="7" x2="19" y2="7"/>
-                <line x1="16" y1="10" x2="19" y2="10"/>
-                <line x1="16" y1="13" x2="19" y2="13"/>
-                <line x1="16" y1="16" x2="19" y2="16"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
+                <path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>
             </svg>
         </button>
         <button class="overlay-btn clouds" data-layer="clouds" title="Clouds">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
             </svg>
         </button>
         <button class="overlay-btn icing" data-layer="icing" title="Icing">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2v8l4-4M12 10l-4-4"/>
-                <path d="M12 22v-8l4 4M12 14l-4 4"/>
-                <path d="M2 12h8l-4-4M10 12l-4 4"/>
-                <path d="M22 12h-8l4-4M14 12l4 4"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07"/>
             </svg>
         </button>
         <button class="overlay-btn visibility" data-layer="visibility" title="Visibility">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                 <circle cx="12" cy="12" r="3"/>
             </svg>
@@ -1568,7 +1874,7 @@
             fuelBurnRate: 0,            // Current gph
             overlays: {
                 terrain: true,
-                traffic: false,
+                traffic: true,  // Live ADS-B traffic
                 weather: false,
                 airspace: false,
                 towers: false,
@@ -1587,7 +1893,9 @@
                 duration: 60000,
                 cruiseAltitude: 17500,  // SR22 ceiling
                 lastUpdateTime: 0
-            }
+            },
+            windDirection: 270,  // Wind FROM direction (degrees)
+            windSpeed: 12       // Wind speed in knots
         };
 
         // Comprehensive US & International Airport Database with Runway Data
@@ -2141,33 +2449,131 @@
 
         // Flag to track if dynamic airports have been loaded
         let dynamicAirportsLoaded = false;
+        let ourAirportsLoaded = false;
 
-        // Fetch all available US airports from FAA AWC API
-        async function fetchAllAirports() {
+        // Fetch ALL airports from OurAirports (comprehensive database including small airports)
+        async function fetchOurAirports() {
+            if (ourAirportsLoaded) return;
+
+            try {
+                console.log('Loading comprehensive airport database from OurAirports...');
+
+                // Fetch airports CSV from OurAirports (includes ALL airports worldwide)
+                const response = await fetch('https://davidmegginson.github.io/ourairports-data/airports.csv');
+                if (!response.ok) throw new Error('Failed to fetch OurAirports data');
+
+                const csvText = await response.text();
+                const lines = csvText.split('\n');
+                const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+
+                // Find column indices
+                const idIdx = headers.indexOf('id');
+                const identIdx = headers.indexOf('ident');
+                const typeIdx = headers.indexOf('type');
+                const nameIdx = headers.indexOf('name');
+                const latIdx = headers.indexOf('latitude_deg');
+                const lonIdx = headers.indexOf('longitude_deg');
+                const elevIdx = headers.indexOf('elevation_ft');
+                const isoCountryIdx = headers.indexOf('iso_country');
+                const localCodeIdx = headers.indexOf('local_code');
+
+                let addedCount = 0;
+                let usCount = 0;
+
+                // Parse each airport
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i];
+                    if (!line.trim()) continue;
+
+                    // Parse CSV line (handle quoted fields)
+                    const cols = parseCSVLine(line);
+                    if (cols.length < Math.max(identIdx, latIdx, lonIdx) + 1) continue;
+
+                    const ident = cols[identIdx]?.replace(/"/g, '').trim();
+                    const type = cols[typeIdx]?.replace(/"/g, '').trim();
+                    const name = cols[nameIdx]?.replace(/"/g, '').trim();
+                    const lat = parseFloat(cols[latIdx]);
+                    const lon = parseFloat(cols[lonIdx]);
+                    const elev = parseInt(cols[elevIdx]) || 0;
+                    const country = cols[isoCountryIdx]?.replace(/"/g, '').trim();
+                    const localCode = cols[localCodeIdx]?.replace(/"/g, '').trim();
+
+                    // Skip if no valid identifier or coordinates
+                    if (!ident || isNaN(lat) || isNaN(lon)) continue;
+
+                    // Skip closed airports
+                    if (type === 'closed') continue;
+
+                    // Focus on US airports (can expand later)
+                    if (country !== 'US') continue;
+                    usCount++;
+
+                    // Add airport if not already in database
+                    if (!AIRPORTS[ident]) {
+                        AIRPORTS[ident] = {
+                            lat: lat,
+                            lon: lon,
+                            name: name || ident,
+                            elev: elev,
+                            type: type // small_airport, medium_airport, large_airport, heliport, seaplane_base
+                        };
+                        addedCount++;
+
+                        // Also add by local code (e.g., "SBA" for "KSBA")
+                        if (localCode && !AIRPORTS[localCode]) {
+                            AIRPORTS[localCode] = AIRPORTS[ident];
+                        }
+                    }
+                }
+
+                console.log(`OurAirports: Loaded ${addedCount} US airports (${usCount} total US entries, ${Object.keys(AIRPORTS).length} total in database)`);
+                ourAirportsLoaded = true;
+
+            } catch (error) {
+                console.warn('Could not fetch OurAirports data:', error);
+                // Fall back to FAA AWC
+                fetchFAAairports();
+            }
+        }
+
+        // Helper function to parse CSV line with quoted fields
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current);
+            return result;
+        }
+
+        // Fetch from FAA AWC (backup - only has airports with weather stations)
+        async function fetchFAAairports() {
             if (dynamicAirportsLoaded) return;
 
             try {
-                // Fetch station list from FAA Aviation Weather Center
                 const response = await fetch('https://aviationweather.gov/api/data/stationinfo?format=json');
                 if (response.ok) {
                     const stations = await response.json();
 
-                    // Filter for US airports with valid coordinates
-                    // K* = Continental US, PA* = Alaska, PH* = Hawaii, etc.
                     const usStations = stations.filter(s =>
-                        s.lat && s.lon &&
-                        s.icaoId &&
-                        (s.icaoId.startsWith('K') ||   // Continental US
-                         s.icaoId.startsWith('PA') ||  // Alaska
-                         s.icaoId.startsWith('PH') ||  // Hawaii
-                         s.icaoId.startsWith('PF') ||  // Alaska (some)
-                         s.icaoId.startsWith('PP') ||  // Pacific
-                         s.icaoId.startsWith('PG'))    // Guam/Marianas
+                        s.lat && s.lon && s.icaoId &&
+                        (s.icaoId.startsWith('K') || s.icaoId.startsWith('PA') ||
+                         s.icaoId.startsWith('PH') || s.icaoId.startsWith('PF') ||
+                         s.icaoId.startsWith('PP') || s.icaoId.startsWith('PG'))
                     );
 
-                    // Add stations not already in the hardcoded list
                     let addedCount = 0;
-
                     usStations.forEach(station => {
                         if (!AIRPORTS[station.icaoId]) {
                             AIRPORTS[station.icaoId] = {
@@ -2175,33 +2581,54 @@
                                 lon: parseFloat(station.lon),
                                 name: station.name || station.icaoId,
                                 elev: station.elev ? parseInt(station.elev) : 0
-                                // Note: runway data not available from this API
                             };
                             addedCount++;
                         }
                     });
 
-                    console.log(`Loaded ${addedCount} additional airports from FAA AWC (total: ${Object.keys(AIRPORTS).length})`);
+                    console.log(`FAA AWC: Loaded ${addedCount} additional airports (total: ${Object.keys(AIRPORTS).length})`);
                     dynamicAirportsLoaded = true;
                 }
             } catch (error) {
-                console.warn('Could not fetch dynamic airport list:', error);
+                console.warn('Could not fetch FAA airport list:', error);
             }
         }
 
-        // Load airports on page load
-        fetchAllAirports();
+        // Load airports on page load - try OurAirports first (comprehensive), then FAA AWC (backup)
+        fetchOurAirports().then(() => {
+            // Also load FAA data for any additional stations
+            fetchFAAairports();
+        });
 
-        // Shorthand to ICAO mapping (allows LAX instead of KLAX)
+        // Shorthand to ICAO mapping (allows LAX instead of KLAX, handles FAA IDs, etc.)
         function resolveAirportCode(code) {
             const upper = code.toUpperCase().trim();
+
             // If it's already in database, return as-is
             if (AIRPORTS[upper]) return upper;
-            // Try adding K prefix for US airports
+
+            // Try adding K prefix for US airports (most common)
             if (AIRPORTS['K' + upper]) return 'K' + upper;
-            // Try P prefix for Pacific/Alaska
+
+            // Try P prefix for Pacific/Alaska/Hawaii
             if (AIRPORTS['P' + upper]) return 'P' + upper;
-            // Return original (will fail validation)
+            if (AIRPORTS['PA' + upper]) return 'PA' + upper;
+            if (AIRPORTS['PH' + upper]) return 'PH' + upper;
+
+            // Try without leading K (some people type KLAX when airport is just LAX)
+            if (upper.startsWith('K') && AIRPORTS[upper.substring(1)]) {
+                return upper.substring(1);
+            }
+
+            // Search by FAA identifier (3-letter codes like "SBA" instead of "KSBA")
+            // OurAirports includes these as local_code entries
+            for (const [icao, data] of Object.entries(AIRPORTS)) {
+                if (data.localCode === upper || data.faaId === upper) {
+                    return icao;
+                }
+            }
+
+            // Return original (may still work if airport loads after this check)
             return upper;
         }
 
@@ -2219,6 +2646,14 @@
         let lastFrameTime = 0;
         let lastOverlayUpdate = 0; // Track overlay updates
 
+        // Live ADS-B Traffic
+        let liveTrafficData = [];
+        let lastTrafficFetch = 0;
+        const TRAFFIC_REFRESH_INTERVAL = 3000; // 3 seconds between API calls
+        const trafficMeshPool = new Map(); // hex -> mesh for pooling
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
         // ============================================
         // INITIALIZATION
         // ============================================
@@ -2233,6 +2668,13 @@
 
             // Load initial terrain
             await loadTerrainData(state.position.lat, state.position.lon);
+
+            // Fetch initial wind data for current position
+            const initialWind = await fetchWindData(state.position.lat, state.position.lon);
+            if (initialWind) {
+                state.windSpeed = initialWind.speed;
+                state.windDirection = initialWind.direction;
+            }
 
             // Create initial overlay visuals (will be empty if disabled)
             createSimulatedTraffic();
@@ -2294,6 +2736,9 @@
 
             // Handle resize
             window.addEventListener('resize', onWindowResize);
+
+            // Handle click on canvas for aircraft selection
+            document.getElementById('svs-canvas').addEventListener('click', onCanvasClick);
         }
 
         function createSkyGradient() {
@@ -2341,7 +2786,7 @@
                 // Reset world offset when loading new terrain
                 worldOffset = { x: 0, z: 0 };
 
-                const gridSize = 100; // Slightly reduced from 120 for performance
+                const gridSize = 150; // Higher resolution for better detail
                 const radiusNM = 35; // Original radius
                 const degreesPerNM = 1 / 60;
                 const span = radiusNM * 2 * degreesPerNM;
@@ -2481,7 +2926,7 @@
             const { elevations, gridSize, span } = state.terrainData;
 
             // Create denser point cloud by interpolating between grid points
-            const densityMultiplier = 12; // 12x denser for maximum detail
+            const densityMultiplier = 8; // 8x denser (higher base resolution means less interpolation needed)
             const denseSize = (gridSize - 1) * densityMultiplier + 1;
             const totalPoints = denseSize * denseSize;
 
@@ -2546,6 +2991,11 @@
                        e11 * fx * fy;
             }
 
+            // Rotate terrain to align with heading (terrain grid is lat/lon aligned, camera rotates by heading)
+            const headingRad = THREE.MathUtils.degToRad(state.heading);
+            const cosH = Math.cos(headingRad);
+            const sinH = Math.sin(headingRad);
+
             for (let dy = 0; dy < denseSize; dy++) {
                 for (let dx = 0; dx < denseSize; dx++) {
                     const gx = dx / densityMultiplier;
@@ -2553,12 +3003,17 @@
 
                     const elevation = getInterpolatedElevation(gx, gy);
 
-                    // Position in world space
+                    // Position in grid-aligned coordinates (lat/lon orientation)
                     const gridX = dx - denseSize / 2;
                     const gridZ = dy - denseSize / 2;
 
-                    const x = gridX * denseStepMeters;
-                    const z = gridZ * denseStepMeters - forwardOffsetMeters;
+                    // Grid coordinates before rotation (north-south/east-west aligned)
+                    const rawX = gridX * denseStepMeters;  // East-west
+                    const rawZ = -gridZ * denseStepMeters; // North-south (negated: north = positive)
+
+                    // Rotate by heading to align terrain with camera view direction
+                    const x = rawX * cosH + rawZ * sinH;
+                    const z = -rawX * sinH + rawZ * cosH - forwardOffsetMeters;
                     // Position Y relative to reference ground level, with additional lowering offset
                     const y = elevation - referenceGroundLevel - terrainLowerOffset;
 
@@ -2817,87 +3272,575 @@
             return shape;
         }
 
-        function createSimulatedTraffic() {
-            trafficGroup.clear();
+        // ============================================
+        // LIVE ADS-B TRAFFIC SYSTEM
+        // ============================================
 
+        async function fetchLiveTraffic(lat, lon, radiusNm = 30) {
+            try {
+                // Use backend proxy to avoid CORS issues
+                const url = `/api/aviation/adsb?lat=${lat}&lon=${lon}&dist=${radiusNm}`;
+                const response = await fetch(url);
+                if (!response.ok) {
+                    console.warn('ADS-B fetch failed:', response.status);
+                    return [];
+                }
+                const data = await response.json();
+                if (data.error) {
+                    console.warn('ADS-B API error:', data.error);
+                }
+                console.log(`ADS-B: ${data.total || 0} aircraft in range`);
+                return data.ac || [];
+            } catch (error) {
+                console.warn('ADS-B fetch error:', error);
+                return [];
+            }
+        }
+
+        function getAircraftSize(category) {
+            // Aircraft category to mesh size mapping (realistic scale for scene)
+            const sizes = {
+                'A1': 8,    // Light (Cessna, etc)
+                'A2': 12,   // Small (regional jets)
+                'A3': 18,   // Large (737, A320)
+                'A4': 18,   // High vortex large
+                'A5': 25,   // Heavy (747, A380)
+                'A6': 25,   // High performance
+                'A7': 10,   // Rotorcraft
+                'B1': 6,    // Glider
+                'B2': 6,    // Lighter than air
+                'B4': 4,    // Ultralight
+                'B6': 4,    // UAV
+                'C1': 6,    // Surface emergency
+                'C2': 6,    // Surface service
+            };
+            return sizes[category] || 12; // Default to small aircraft
+        }
+
+        function createAircraftMesh(category) {
+            const group = new THREE.Group();
+            const size = getAircraftSize(category);
+            const isHeli = category === 'A7' || category === 'B1';
+            const isLight = category === 'A1' || category === 'B4' || category === 'B6';
+            const isHeavy = category === 'A5' || category === 'A6';
+            const isJet = category === 'A2' || category === 'A3' || category === 'A4' || isHeavy;
+
+            // Material - white with slight glow
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.95
+            });
+
+            const accentMat = new THREE.MeshBasicMaterial({
+                color: 0x88ccff,
+                transparent: true,
+                opacity: 0.6
+            });
+
+            if (isHeli) {
+                // Helicopter - teardrop fuselage + tail boom + rotor
+                const fuselageShape = new THREE.Shape();
+                fuselageShape.moveTo(0, 0);
+                fuselageShape.quadraticCurveTo(size * 0.4, size * 0.3, size * 0.3, 0);
+                fuselageShape.quadraticCurveTo(size * 0.4, -size * 0.2, 0, -size * 0.15);
+                fuselageShape.quadraticCurveTo(-size * 0.2, -size * 0.1, 0, 0);
+
+                const fuselageGeo = new THREE.ExtrudeGeometry(fuselageShape, {
+                    depth: size * 0.25,
+                    bevelEnabled: false
+                });
+                const fuselage = new THREE.Mesh(fuselageGeo, material);
+                fuselage.rotation.y = Math.PI / 2;
+                fuselage.position.set(0, 0, -size * 0.1);
+
+                // Tail boom
+                const tailBoom = new THREE.Mesh(
+                    new THREE.CylinderGeometry(size * 0.03, size * 0.05, size * 0.8, 6),
+                    material
+                );
+                tailBoom.rotation.x = Math.PI / 2;
+                tailBoom.position.z = size * 0.5;
+
+                // Main rotor disc
+                const rotor = new THREE.Mesh(
+                    new THREE.RingGeometry(size * 0.1, size * 0.55, 24),
+                    new THREE.MeshBasicMaterial({ color: 0xaaddff, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
+                );
+                rotor.rotation.x = -Math.PI / 2;
+                rotor.position.y = size * 0.15;
+
+                // Tail rotor
+                const tailRotor = new THREE.Mesh(
+                    new THREE.CircleGeometry(size * 0.12, 12),
+                    new THREE.MeshBasicMaterial({ color: 0xaaddff, transparent: true, opacity: 0.3, side: THREE.DoubleSide })
+                );
+                tailRotor.rotation.y = Math.PI / 2;
+                tailRotor.position.set(size * 0.08, size * 0.05, size * 0.85);
+
+                group.add(fuselage, tailBoom, rotor, tailRotor);
+
+            } else if (isLight) {
+                // Light aircraft (Cessna-style) - high wing, straight
+                // Fuselage - tapered cylinder
+                const fuselageGeo = new THREE.CylinderGeometry(size * 0.08, size * 0.1, size * 1.4, 8);
+                const fuselage = new THREE.Mesh(fuselageGeo, material);
+                fuselage.rotation.x = Math.PI / 2;
+
+                // Nose cone
+                const nose = new THREE.Mesh(
+                    new THREE.ConeGeometry(size * 0.08, size * 0.25, 8),
+                    material
+                );
+                nose.rotation.x = -Math.PI / 2;
+                nose.position.z = -size * 0.8;
+
+                // High straight wings
+                const wingGeo = createWingGeometry(size * 1.4, size * 0.25, 0, size * 0.02);
+                const wingL = new THREE.Mesh(wingGeo, material);
+                wingL.position.set(-size * 0.08, size * 0.1, -size * 0.1);
+                const wingR = new THREE.Mesh(wingGeo, material);
+                wingR.scale.x = -1;
+                wingR.position.set(size * 0.08, size * 0.1, -size * 0.1);
+
+                // Tail
+                const tailV = new THREE.Mesh(
+                    new THREE.BoxGeometry(size * 0.02, size * 0.25, size * 0.2),
+                    material
+                );
+                tailV.position.set(0, size * 0.15, size * 0.6);
+
+                const tailH = new THREE.Mesh(
+                    new THREE.BoxGeometry(size * 0.5, size * 0.02, size * 0.12),
+                    material
+                );
+                tailH.position.set(0, size * 0.05, size * 0.6);
+
+                group.add(fuselage, nose, wingL, wingR, tailV, tailH);
+
+            } else if (isJet) {
+                // Jet aircraft - swept wings, proper fuselage
+                const fuselageLength = isHeavy ? size * 2.2 : size * 1.8;
+                const fuselageRadius = isHeavy ? size * 0.12 : size * 0.09;
+
+                // Fuselage - smooth tapered cylinder
+                const fuselageGeo = new THREE.CylinderGeometry(fuselageRadius * 0.7, fuselageRadius, fuselageLength, 12);
+                const fuselage = new THREE.Mesh(fuselageGeo, material);
+                fuselage.rotation.x = Math.PI / 2;
+
+                // Nose cone - smooth
+                const nose = new THREE.Mesh(
+                    new THREE.ConeGeometry(fuselageRadius * 0.7, size * 0.35, 12),
+                    material
+                );
+                nose.rotation.x = -Math.PI / 2;
+                nose.position.z = -fuselageLength / 2 - size * 0.15;
+
+                // Swept wings
+                const wingSpan = isHeavy ? size * 1.8 : size * 1.4;
+                const sweepAngle = isHeavy ? 35 : 28; // degrees
+                const wingGeo = createWingGeometry(wingSpan, size * 0.35, sweepAngle, size * 0.025);
+
+                const wingL = new THREE.Mesh(wingGeo, material);
+                wingL.position.set(-fuselageRadius * 0.5, 0, size * 0.1);
+                const wingR = new THREE.Mesh(wingGeo, material);
+                wingR.scale.x = -1;
+                wingR.position.set(fuselageRadius * 0.5, 0, size * 0.1);
+
+                // Tail fin (swept)
+                const tailFinShape = new THREE.Shape();
+                tailFinShape.moveTo(0, 0);
+                tailFinShape.lineTo(size * 0.15, size * 0.35);
+                tailFinShape.lineTo(size * 0.25, size * 0.35);
+                tailFinShape.lineTo(size * 0.12, 0);
+                tailFinShape.lineTo(0, 0);
+
+                const tailFinGeo = new THREE.ExtrudeGeometry(tailFinShape, { depth: size * 0.015, bevelEnabled: false });
+                const tailFin = new THREE.Mesh(tailFinGeo, material);
+                tailFin.rotation.y = Math.PI / 2;
+                tailFin.position.set(-size * 0.007, 0, fuselageLength / 2 - size * 0.15);
+
+                // Horizontal stabilizer (swept)
+                const hstabGeo = createWingGeometry(size * 0.45, size * 0.15, 30, size * 0.015);
+                const hstabL = new THREE.Mesh(hstabGeo, material);
+                hstabL.position.set(-fuselageRadius * 0.3, size * 0.02, fuselageLength / 2 - size * 0.1);
+                const hstabR = new THREE.Mesh(hstabGeo, material);
+                hstabR.scale.x = -1;
+                hstabR.position.set(fuselageRadius * 0.3, size * 0.02, fuselageLength / 2 - size * 0.1);
+
+                group.add(fuselage, nose, wingL, wingR, tailFin, hstabL, hstabR);
+
+                // Engines
+                if (isHeavy) {
+                    // 4-engine heavy (747-style) - engines under wings
+                    const positions = [
+                        [-size * 0.35, -size * 0.08, size * 0.05],
+                        [-size * 0.65, -size * 0.1, size * 0.15],
+                        [size * 0.35, -size * 0.08, size * 0.05],
+                        [size * 0.65, -size * 0.1, size * 0.15]
+                    ];
+                    positions.forEach(pos => {
+                        const engine = createEngineNacelle(size * 0.06, size * 0.25);
+                        engine.position.set(...pos);
+                        group.add(engine);
+                    });
+                } else {
+                    // Twin engine (737/A320-style)
+                    const engineL = createEngineNacelle(size * 0.07, size * 0.28);
+                    engineL.position.set(-size * 0.4, -size * 0.08, size * 0.1);
+                    const engineR = createEngineNacelle(size * 0.07, size * 0.28);
+                    engineR.position.set(size * 0.4, -size * 0.08, size * 0.1);
+                    group.add(engineL, engineR);
+                }
+            } else {
+                // Default turboprop style
+                const fuselageGeo = new THREE.CylinderGeometry(size * 0.08, size * 0.1, size * 1.5, 8);
+                const fuselage = new THREE.Mesh(fuselageGeo, material);
+                fuselage.rotation.x = Math.PI / 2;
+
+                const nose = new THREE.Mesh(
+                    new THREE.SphereGeometry(size * 0.08, 8, 6),
+                    material
+                );
+                nose.position.z = -size * 0.75;
+
+                // Straight wings
+                const wingGeo = createWingGeometry(size * 1.2, size * 0.28, 5, size * 0.02);
+                const wingL = new THREE.Mesh(wingGeo, material);
+                wingL.position.set(-size * 0.08, 0, 0);
+                const wingR = new THREE.Mesh(wingGeo, material);
+                wingR.scale.x = -1;
+                wingR.position.set(size * 0.08, 0, 0);
+
+                // T-tail
+                const tailV = new THREE.Mesh(
+                    new THREE.BoxGeometry(size * 0.02, size * 0.3, size * 0.18),
+                    material
+                );
+                tailV.position.set(0, size * 0.15, size * 0.65);
+
+                const tailH = new THREE.Mesh(
+                    new THREE.BoxGeometry(size * 0.45, size * 0.02, size * 0.1),
+                    material
+                );
+                tailH.position.set(0, size * 0.3, size * 0.65);
+
+                group.add(fuselage, nose, wingL, wingR, tailV, tailH);
+            }
+
+            // Helper function for swept wing geometry
+            function createWingGeometry(span, chord, sweepDeg, thickness) {
+                const shape = new THREE.Shape();
+                const sweep = Math.tan(sweepDeg * Math.PI / 180) * span;
+
+                // Wing shape in XY plane (will be rotated to XZ)
+                // X = spanwise (outward from fuselage)
+                // Y = chordwise (front to back, positive = back)
+                shape.moveTo(0, -chord * 0.6);           // Root leading edge
+                shape.lineTo(span, sweep - chord * 0.3); // Tip leading edge (swept back)
+                shape.lineTo(span, sweep + chord * 0.3); // Tip trailing edge
+                shape.lineTo(0, chord * 0.4);            // Root trailing edge
+                shape.lineTo(0, -chord * 0.6);           // Close
+
+                const geo = new THREE.ExtrudeGeometry(shape, {
+                    depth: thickness,
+                    bevelEnabled: false
+                });
+
+                // Rotate: first around X to lay flat, then around Z to flip chord direction
+                geo.rotateX(-Math.PI / 2);  // Lay flat in XZ plane
+                geo.rotateY(Math.PI);       // Flip so leading edge faces forward (-Z)
+
+                return geo;
+            }
+
+            // Helper function for engine nacelle
+            function createEngineNacelle(radius, length) {
+                const engineGroup = new THREE.Group();
+                const nacelle = new THREE.Mesh(
+                    new THREE.CylinderGeometry(radius, radius * 0.85, length, 10),
+                    material
+                );
+                nacelle.rotation.x = Math.PI / 2;
+
+                // Intake ring
+                const intake = new THREE.Mesh(
+                    new THREE.TorusGeometry(radius, radius * 0.15, 6, 12),
+                    accentMat
+                );
+                intake.rotation.y = Math.PI / 2;
+                intake.position.z = -length / 2;
+
+                engineGroup.add(nacelle, intake);
+                return engineGroup;
+            }
+
+            // Add direction ribbon trail ahead of aircraft
+            const ribbonLength = size * 4;
+            const ribbonWidth = size * 0.15;
+            const ribbonSegments = 8;
+
+            // Create ribbon geometry (tapered ribbon pointing forward)
+            const ribbonGeometry = new THREE.BufferGeometry();
+            const ribbonVertices = [];
+            const ribbonColors = [];
+
+            for (let i = 0; i <= ribbonSegments; i++) {
+                const t = i / ribbonSegments;
+                const z = -t * ribbonLength;  // Extends forward (negative z)
+                const width = ribbonWidth * (1 - t * 0.8);  // Tapers toward front
+
+                // Left and right edge vertices
+                ribbonVertices.push(-width, 0, z);
+                ribbonVertices.push(width, 0, z);
+
+                // Color fades from cyan to transparent
+                const alpha = 1 - t;
+                ribbonColors.push(0, 0.83, 1, alpha);  // Cyan
+                ribbonColors.push(0, 0.83, 1, alpha);
+            }
+
+            // Create triangle indices for ribbon
+            const ribbonIndices = [];
+            for (let i = 0; i < ribbonSegments; i++) {
+                const base = i * 2;
+                ribbonIndices.push(base, base + 1, base + 2);
+                ribbonIndices.push(base + 1, base + 3, base + 2);
+            }
+
+            ribbonGeometry.setAttribute('position', new THREE.Float32BufferAttribute(ribbonVertices, 3));
+            ribbonGeometry.setAttribute('color', new THREE.Float32BufferAttribute(ribbonColors, 4));
+            ribbonGeometry.setIndex(ribbonIndices);
+
+            const ribbonMaterial = new THREE.MeshBasicMaterial({
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.7,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+
+            const ribbon = new THREE.Mesh(ribbonGeometry, ribbonMaterial);
+            group.add(ribbon);
+
+            return group;
+        }
+
+        function aircraftToScenePosition(aircraft) {
+            // Convert aircraft lat/lon to scene-relative coordinates
+            const distNm = calculateDistance(
+                state.position.lat, state.position.lon,
+                aircraft.lat, aircraft.lon
+            );
+            const bearing = calculateBearing(
+                state.position.lat, state.position.lon,
+                aircraft.lat, aircraft.lon
+            );
+
+            // Relative bearing from own aircraft heading
+            const relBearing = (bearing - state.heading + 360) % 360;
+            const relBearingRad = relBearing * Math.PI / 180;
+
+            // Convert to scene units - scale down for visibility
+            // 1nm = 200 scene units (same as terrain forward motion)
+            const sceneScale = 200;
+            const distSceneUnits = distNm * sceneScale;
+
+            // Scene coordinates (x = right, z = forward negative, y = up)
+            const x = Math.sin(relBearingRad) * distSceneUnits;
+            const z = -Math.cos(relBearingRad) * distSceneUnits;
+
+            // Altitude difference - scale to match scene
+            // Scene uses roughly 1 unit = 10 feet for terrain
+            const ownAltFt = state.altitude;
+            const acAltFt = aircraft.alt_baro || aircraft.alt_geom || 0;
+            const altDiffFt = acAltFt - ownAltFt;
+            const y = altDiffFt * 0.1;  // Scale altitude difference
+
+            return { x, y, z };
+        }
+
+        async function updateLiveTraffic() {
             if (!state.overlays.traffic) return;
 
-            // Traffic spread along the route at various distances (extended range)
-            const traffic = [
-                { id: 1, relX: 4000, relY: 500, relZ: -10000, heading: 45, type: 'jet', callsign: 'UAL123' },
-                { id: 2, relX: -3000, relY: -200, relZ: -25000, heading: 180, type: 'prop', callsign: 'N456AB' },
-                { id: 3, relX: 6000, relY: 1000, relZ: -40000, heading: 270, type: 'jet', callsign: 'DAL789' },
-                { id: 4, relX: -5000, relY: 2000, relZ: -60000, heading: 90, type: 'jet', callsign: 'AAL456' },
-                { id: 5, relX: 8000, relY: -500, relZ: -80000, heading: 315, type: 'prop', callsign: 'N789CD' },
-                { id: 6, relX: -4000, relY: 1500, relZ: -100000, heading: 120, type: 'jet', callsign: 'SWA321' },
-                { id: 7, relX: 5000, relY: 800, relZ: -120000, heading: 200, type: 'prop', callsign: 'N234EF' },
-                { id: 8, relX: -2000, relY: -300, relZ: -140000, heading: 350, type: 'jet', callsign: 'JBU567' },
-                { id: 9, relX: 3000, relY: 1200, relZ: -160000, heading: 220, type: 'jet', callsign: 'FFT890' },
-                { id: 10, relX: -6000, relY: 400, relZ: -180000, heading: 60, type: 'prop', callsign: 'N567GH' }
-            ];
+            const now = performance.now();
+            if (now - lastTrafficFetch < TRAFFIC_REFRESH_INTERVAL) {
+                // Just update positions smoothly between fetches
+                renderLiveTraffic();
+                return;
+            }
+            lastTrafficFetch = now;
 
-            traffic.forEach(t => {
-                const group = new THREE.Group();
+            // Fetch new traffic data
+            const newTraffic = await fetchLiveTraffic(
+                state.position.lat,
+                state.position.lon,
+                30 // 30nm radius
+            );
 
-                // Aircraft body - diamond shape pointing in direction of flight
-                const bodyGeo = new THREE.BufferGeometry();
-                const size = t.type === 'jet' ? 150 : 100;
+            // Filter out ground vehicles and invalid data
+            liveTrafficData = newTraffic.filter(ac =>
+                ac.lat && ac.lon &&
+                (ac.alt_baro > 0 || ac.alt_geom > 0) &&
+                ac.hex
+            );
 
-                // Create arrow/chevron shape
-                const vertices = new Float32Array([
-                    0, 0, -size * 2,      // nose
-                    -size, 0, size,       // left wing
-                    0, 0, size * 0.5,     // center back
-                    size, 0, size,        // right wing
-                    0, 0, -size * 2,      // back to nose
-                ]);
+            console.log(`Live traffic: ${liveTrafficData.length} aircraft`);
+            renderLiveTraffic();
+        }
 
-                bodyGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        function renderLiveTraffic() {
+            if (!trafficGroup) {
+                console.warn('renderLiveTraffic: trafficGroup not initialized');
+                return;
+            }
 
-                const bodyMat = new THREE.LineBasicMaterial({
-                    color: 0x00d4ff,
-                    linewidth: 2
+            const activeHexes = new Set();
+
+            for (const ac of liveTrafficData) {
+                activeHexes.add(ac.hex);
+
+                let mesh = trafficMeshPool.get(ac.hex);
+                if (!mesh) {
+                    // Create new mesh for this aircraft
+                    mesh = createAircraftMesh(ac.category);
+                    mesh.userData = { aircraft: ac };
+                    trafficMeshPool.set(ac.hex, mesh);
+                    trafficGroup.add(mesh);
+                    console.log(`Created mesh for ${ac.flight || ac.hex} (${ac.category})`);
+                }
+
+                // Update position
+                const pos = aircraftToScenePosition(ac);
+
+                // Debug first aircraft position
+                if (trafficMeshPool.size === 1) {
+                    console.log(`First aircraft pos: x=${pos.x.toFixed(0)}, y=${pos.y.toFixed(0)}, z=${pos.z.toFixed(0)}`);
+                }
+
+                // Smooth position update
+                mesh.position.lerp(new THREE.Vector3(pos.x, pos.y, pos.z), 0.1);
+
+                // Update rotation based on track
+                const targetRotY = THREE.MathUtils.degToRad(-(ac.track || 0));
+                mesh.rotation.y = THREE.MathUtils.lerp(mesh.rotation.y, targetRotY, 0.1);
+
+                // Store updated aircraft data
+                mesh.userData.aircraft = ac;
+            }
+
+            // Remove stale aircraft
+            for (const [hex, mesh] of trafficMeshPool) {
+                if (!activeHexes.has(hex)) {
+                    trafficGroup.remove(mesh);
+                    // Dispose geometry and materials
+                    mesh.traverse(child => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) child.material.dispose();
+                    });
+                    trafficMeshPool.delete(hex);
+                }
+            }
+        }
+
+        function clearLiveTraffic() {
+            // Clear all traffic meshes
+            for (const [hex, mesh] of trafficMeshPool) {
+                trafficGroup.remove(mesh);
+                mesh.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
                 });
-                const body = new THREE.Line(bodyGeo, bodyMat);
+            }
+            trafficMeshPool.clear();
+            liveTrafficData = [];
+        }
 
-                // Add altitude indicator line
-                const altLineGeo = new THREE.BufferGeometry();
-                const altVertices = new Float32Array([
-                    0, 0, 0,
-                    0, -t.relY, 0
-                ]);
-                altLineGeo.setAttribute('position', new THREE.BufferAttribute(altVertices, 3));
-                const altLineMat = new THREE.LineDashedMaterial({
-                    color: 0x00d4ff,
-                    dashSize: 50,
-                    gapSize: 30,
-                    transparent: true,
-                    opacity: 0.5
-                });
-                const altLine = new THREE.Line(altLineGeo, altLineMat);
-                altLine.computeLineDistances();
+        // Aircraft click detection
+        function onCanvasClick(event) {
+            if (!trafficGroup || trafficMeshPool.size === 0) return;
 
-                // Add velocity vector
-                const velLength = 500;
-                const velGeo = new THREE.BufferGeometry();
-                const velVertices = new Float32Array([
-                    0, 0, 0,
-                    0, 0, -velLength
-                ]);
-                velGeo.setAttribute('position', new THREE.BufferAttribute(velVertices, 3));
-                const velMat = new THREE.LineBasicMaterial({ color: 0x00ff88 });
-                const velLine = new THREE.Line(velGeo, velMat);
+            // Calculate mouse position in normalized device coordinates
+            const canvas = document.getElementById('svs-canvas');
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-                group.add(body);
-                group.add(altLine);
-                group.add(velLine);
+            // Update the picking ray with the camera and mouse position
+            raycaster.setFromCamera(mouse, camera);
 
-                // Position and rotate
-                group.position.set(t.relX, state.altitude * 0.3048 + t.relY, t.relZ);
-                group.rotation.y = THREE.MathUtils.degToRad(-t.heading);
+            // Check for intersections with traffic meshes
+            const intersects = raycaster.intersectObjects(trafficGroup.children, true);
 
-                trafficGroup.add(group);
-            });
+            if (intersects.length > 0) {
+                // Find the parent group (aircraft mesh) that contains userData
+                let targetMesh = intersects[0].object;
+                while (targetMesh.parent && !targetMesh.userData.aircraft) {
+                    targetMesh = targetMesh.parent;
+                }
+
+                if (targetMesh.userData && targetMesh.userData.aircraft) {
+                    showAircraftLabel(targetMesh.userData.aircraft, event.clientX, event.clientY);
+                }
+            } else {
+                hideAircraftLabel();
+            }
+        }
+
+        function showAircraftLabel(aircraft, x, y) {
+            const label = document.getElementById('aircraftLabel');
+            const callsign = aircraft.flight?.trim() || aircraft.r || aircraft.hex;
+            const type = aircraft.t || 'Unknown type';
+            const alt = aircraft.alt_baro || aircraft.alt_geom || 0;
+            const speed = aircraft.gs || 0;
+            const vrate = aircraft.baro_rate || aircraft.geom_rate || 0;
+
+            label.innerHTML = `
+                <div class="ac-callsign">${callsign}</div>
+                <div class="ac-type">${type}</div>
+                <div class="ac-data-row">
+                    <div class="ac-alt"><span>ALT</span> ${alt.toLocaleString()} ft</div>
+                    <div class="ac-speed"><span>GS</span> ${Math.round(speed)} kts</div>
+                </div>
+                ${vrate !== 0 ? `<div class="ac-data-row"><div class="ac-alt"><span>VS</span> ${vrate > 0 ? '+' : ''}${vrate} fpm</div></div>` : ''}
+            `;
+
+            // Position label near click, but keep on screen
+            const labelWidth = 150;
+            const labelHeight = 100;
+            let labelX = x + 15;
+            let labelY = y - 20;
+
+            // Keep on screen
+            if (labelX + labelWidth > window.innerWidth) {
+                labelX = x - labelWidth - 15;
+            }
+            if (labelY + labelHeight > window.innerHeight) {
+                labelY = window.innerHeight - labelHeight - 10;
+            }
+            if (labelY < 10) {
+                labelY = 10;
+            }
+
+            label.style.left = labelX + 'px';
+            label.style.top = labelY + 'px';
+            label.classList.add('visible');
+        }
+
+        function hideAircraftLabel() {
+            const label = document.getElementById('aircraftLabel');
+            label.classList.remove('visible');
+        }
+
+        // Legacy function name for compatibility
+        function createSimulatedTraffic() {
+            // Now triggers live traffic update
+            if (state.overlays.traffic) {
+                lastTrafficFetch = 0; // Force immediate fetch
+                updateLiveTraffic();
+            } else {
+                clearLiveTraffic();
+            }
         }
 
         function createSimulatedHazards() {
@@ -3356,8 +4299,8 @@
             buildingsFetchController = new AbortController();
 
             try {
-                // Fetch buildings within ~8km radius using Overpass API
-                const radiusMeters = 8000;
+                // Fetch buildings within larger radius for visibility
+                const radiusMeters = 15000; // 15km radius
                 const query = `
                     [out:json][timeout:15];
                     (
@@ -3403,16 +4346,10 @@
             const metersPerDegLat = 111320;
             const metersPerDegLon = metersPerDegLat * Math.cos(state.position.lat * Math.PI / 180);
 
-            // Get ground elevation from terrain data (approximate)
-            let groundElevMeters = 0;
-            if (state.terrainData && state.terrainData.elevations && state.terrainData.elevations.length > 0) {
-                const centerIdx = Math.floor(state.terrainData.elevations.length / 2);
-                groundElevMeters = state.terrainData.elevations[centerIdx] || 0;
-            }
-
-            // Apply same forward offset as terrain so buildings appear with the terrain
-            // Terrain is rendered 35nm ahead, buildings need same offset to be visible
-            const forwardOffsetMeters = 20 * 1852; // Match terrain forward offset (20nm)
+            // Get reference ground level to match terrain rendering
+            // Buildings Y position should be relative to reference ground level (same as terrain)
+            const referenceGroundLevel = state.referenceGroundLevel || 0;
+            const terrainLowerOffset = state.terrainLowerOffset || 120;
 
             // Sort buildings by distance from aircraft (closer first)
             const sortedBuildings = state.buildingData
@@ -3434,8 +4371,8 @@
                 })
                 .sort((a, b) => a.dist - b.dist);
 
-            // Limit to first 300 closest buildings for performance
-            const buildingsToRender = sortedBuildings.slice(0, 300);
+            // Limit to closest buildings for performance (increased for better coverage)
+            const buildingsToRender = sortedBuildings.slice(0, 500);
 
             buildingsToRender.forEach(building => {
                 // Get building height - exaggerate for visibility
@@ -3452,8 +4389,8 @@
                     }
                 }
 
-                // Exaggerate height for better visibility (1.5x)
-                height *= 1.5;
+                // Exaggerate height for better visibility from altitude (3x)
+                height *= 3;
 
                 // Create building shape from polygon
                 const shape = new THREE.Shape();
@@ -3495,19 +4432,20 @@
 
                     const mesh = new THREE.Mesh(geometry, material);
 
-                    // Position building relative to aircraft, with forward offset to match terrain
-                    const rawX = (building.centerLon - state.position.lon) * metersPerDegLon;
-                    const rawZ = -(building.centerLat - state.position.lat) * metersPerDegLat;
+                    // Position building relative to aircraft (no forward offset - buildings appear at actual position)
+                    const buildingX = (building.centerLon - state.position.lon) * metersPerDegLon;
+                    const buildingZ = -(building.centerLat - state.position.lat) * metersPerDegLat;
 
-                    // Apply forward offset (terrain is rendered ahead of camera)
-                    const buildingX = rawX;
-                    const buildingZ = rawZ - forwardOffsetMeters;
+                    // Y position: ground level relative to reference, matching terrain coordinate system
+                    // Terrain uses: y = elevation - referenceGroundLevel - terrainLowerOffset
+                    // Buildings should sit on top of that, so use same reference
+                    const buildingGroundY = -terrainLowerOffset; // Base ground level in scene coords
 
-                    mesh.position.set(buildingX, groundElevMeters, buildingZ);
+                    mesh.position.set(buildingX, buildingGroundY, buildingZ);
 
                     // Debug: log first few building positions
                     if (buildingsGroup.children.length < 6) {
-                        console.log(`Building ${buildingsGroup.children.length/2}: pos(${buildingX.toFixed(0)}, ${groundElevMeters.toFixed(0)}, ${buildingZ.toFixed(0)}), height=${height.toFixed(0)}m, dist=${building.dist.toFixed(0)}m`);
+                        console.log(`Building ${buildingsGroup.children.length/2}: pos(${buildingX.toFixed(0)}, ${buildingGroundY.toFixed(0)}, ${buildingZ.toFixed(0)}), height=${height.toFixed(0)}m, dist=${building.dist.toFixed(0)}m`);
                     }
                     buildingsGroup.add(mesh);
 
@@ -4361,6 +5299,12 @@
             // Update compass
             updateCompass();
 
+            // Update wind dial
+            updateWindDial();
+
+            // Update traffic mini map
+            updateTrafficMap();
+
             // Update flight rules (VFR/MVFR/IFR)
             updateFlightRules();
         }
@@ -4451,6 +5395,160 @@
                 trackDisplay.textContent = Math.round(state.targetHeading).toString().padStart(3, '0');
             } else {
                 trackDisplay.textContent = '---';
+            }
+        }
+
+        // Wind data fetching from Open-Meteo API
+        let lastWindFetch = 0;
+        const WIND_FETCH_INTERVAL = 30000; // Fetch every 30 seconds
+
+        async function fetchWindData(lat, lon) {
+            try {
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn`;
+                const response = await fetch(url);
+                if (!response.ok) return null;
+                const data = await response.json();
+                const current = data.current || {};
+                return {
+                    speed: current.wind_speed_10m || 0,
+                    direction: current.wind_direction_10m || 0
+                };
+            } catch (e) {
+                console.warn('Wind fetch failed:', e);
+                return null;
+            }
+        }
+
+        async function updateWindFromAPI() {
+            const now = Date.now();
+            if (now - lastWindFetch < WIND_FETCH_INTERVAL) return;
+            lastWindFetch = now;
+
+            const windData = await fetchWindData(state.position.lat, state.position.lon);
+            if (windData) {
+                state.windSpeed = windData.speed;
+                state.windDirection = windData.direction;
+            }
+        }
+
+        function updateWindDial() {
+            const windRotator = document.getElementById('windDialRotator');
+            const windSpeedDisplay = document.getElementById('windSpeedValue');
+            const windSock = document.querySelector('.wind-sock');
+
+            if (!windRotator || !windSpeedDisplay || !windSock) return;
+
+            // Calculate relative wind direction
+            // Wind FROM direction relative to aircraft heading
+            // Windsock points in the direction wind is BLOWING TO (opposite of FROM)
+            // So we add 180° to show the sock streaming downwind
+            const windBlowingTo = (state.windDirection + 180) % 360;
+            const relativeWind = (windBlowingTo - state.heading + 360) % 360;
+
+            // Rotate the windsock - it streams in the direction wind is blowing
+            windRotator.style.transform = `rotate(${relativeWind}deg)`;
+
+            // Scale windsock length based on wind speed
+            // At 0 kts: very short (collapsed), at 30+ kts: fully extended
+            const maxWindSpeed = 30;
+            const windFactor = Math.min(1, state.windSpeed / maxWindSpeed);
+
+            // Get all windsock segments and scale their LENGTH (height) only
+            // Width stays constant - like a real windsock extending in wind
+            const segments = windSock.querySelectorAll('.wind-sock-segment');
+            segments.forEach((seg, i) => {
+                // Base heights for each segment - these scale with wind
+                const baseHeights = [8, 7, 7, 6, 5];
+                // Widths stay constant
+                const baseWidths = [12, 11, 9, 7, 5];
+
+                // Height scale: minimum 0.3 at calm (droopy), 1.0 at max wind (fully extended)
+                const heightScale = 0.3 + (windFactor * 0.7);
+
+                // Tail segments droop more in light wind (collapse toward the end)
+                const tailDroop = (1 - windFactor) * (i * 0.15);
+                const segmentHeightFactor = Math.max(0.2, heightScale - tailDroop);
+
+                seg.style.height = `${baseHeights[i] * segmentHeightFactor}px`;
+                seg.style.width = `${baseWidths[i]}px`; // Width stays constant
+
+                // Tail fades slightly in light wind
+                seg.style.opacity = 0.9 - (i * 0.05 * (1 - windFactor));
+            });
+
+            // Update wind speed display
+            windSpeedDisplay.textContent = Math.round(state.windSpeed);
+
+            // Fetch real wind data periodically (non-blocking)
+            updateWindFromAPI();
+        }
+
+        function updateTrafficMap() {
+            const rotator = document.getElementById('trafficMapRotator');
+            if (!rotator) return;
+
+            // Rotate the map opposite to heading (north-up relative to aircraft)
+            rotator.style.transform = `rotate(${-state.heading}deg)`;
+
+            // Clear existing aircraft markers
+            rotator.innerHTML = '';
+
+            // Add aircraft from live traffic data
+            const mapRadius = 60; // pixels (half of 140px container minus padding)
+            const rangeNM = 30; // nautical miles radius
+
+            for (const ac of liveTrafficData) {
+                if (!ac.lat || !ac.lon) continue;
+
+                // Filter by altitude - only show aircraft within 1000ft of ownship
+                const acAlt = ac.alt_baro || ac.alt_geom || 0;
+                const altDiff = Math.abs(acAlt - state.altitude);
+                if (altDiff > 1000) continue;
+
+                // Calculate relative position
+                const dLat = ac.lat - state.position.lat;
+                const dLon = ac.lon - state.position.lon;
+
+                // Convert to nautical miles (approximate)
+                const nmPerDegLat = 60;
+                const nmPerDegLon = 60 * Math.cos(state.position.lat * Math.PI / 180);
+                const distNorth = dLat * nmPerDegLat;
+                const distEast = dLon * nmPerDegLon;
+
+                // Convert to pixels on map
+                const scale = mapRadius / rangeNM;
+                const x = distEast * scale;
+                const y = -distNorth * scale; // Negative because screen Y is inverted
+
+                // Skip if outside map bounds
+                const dist = Math.sqrt(x * x + y * y);
+                if (dist > mapRadius) continue;
+
+                // Create aircraft marker
+                const marker = document.createElement('div');
+                marker.className = 'traffic-map-aircraft';
+
+                // Position relative to center
+                marker.style.left = `calc(50% + ${x}px)`;
+                marker.style.top = `calc(50% + ${y}px)`;
+
+                // Rotate arrow to show aircraft heading
+                const track = ac.track || 0;
+                marker.style.transform = `rotate(${track}deg)`;
+
+                // Color based on relative altitude (using signed difference)
+                const signedAltDiff = acAlt - state.altitude;
+                if (signedAltDiff > 500) {
+                    marker.classList.add('above');
+                } else if (signedAltDiff < -500) {
+                    marker.classList.add('below');
+                }
+
+                // Scale size based on altitude (higher = larger icon)
+                const altScale = 0.6 + Math.min(1, acAlt / 40000) * 0.8;
+                marker.style.setProperty('--ac-scale', altScale);
+
+                rotator.appendChild(marker);
             }
         }
 
@@ -5139,6 +6237,9 @@
             state.acceleration = Math.round(state.acceleration);
             state.acceleration = Math.max(-50, Math.min(50, state.acceleration));
 
+            // Wind data is fetched from Open-Meteo API in updateWindDial()
+            // based on current aircraft position - no simulated wind needed
+
             // Update progress UI
             const progressPercentVal = Math.round(progress * 100);
             document.getElementById('progressFill').style.width = `${progressPercentVal}%`;
@@ -5387,6 +6488,11 @@
             updateCamera();
             updateHUD();
             updateInfoDisplay();
+
+            // Update live ADS-B traffic
+            if (state.overlays.traffic) {
+                updateLiveTraffic();
+            }
 
             renderer.render(scene, camera);
         }
