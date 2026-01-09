@@ -1514,6 +1514,9 @@ app.add_middleware(
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
+# Mount static files directory
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 # Root endpoint to serve the frontend
 @app.get("/")
 async def root():
