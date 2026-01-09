@@ -4,12 +4,12 @@ FastAPI-based backend for Qt/QML avionics application
 Integrates Open-Meteo, AVWX, and FAA Aviation Weather sources
 """
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Set
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
@@ -17,6 +17,10 @@ import httpx
 import asyncio
 import json
 from enum import Enum
+
+# X-Plane 12 UDP Bridge
+from .xplane_bridge import XPlaneUDPListener, XPlaneFlightData
+from .xplane_config import xplane_settings
 
 
 # ==================== DATA SOURCE CONFIGURATION ====================
@@ -41,6 +45,11 @@ ENABLED_DATA_SOURCES = {
     "GOES_SATELLITE": True,  # GOES Satellite imagery
     "NOTAMS": True,  # NOTAMs from FAA
 }
+
+# ==================== X-PLANE 12 INTEGRATION ====================
+# Global instances for X-Plane UDP bridge and WebSocket clients
+xplane_listener: Optional[XPlaneUDPListener] = None
+xplane_clients: Set[WebSocket] = set()
 
 
 # ==================== COMPLIANCE & QUALITY FEATURES ====================
@@ -1406,10 +1415,38 @@ async def metar_freshness_task():
 # Shared HTTP client for connection pooling (improves METAR/TAF performance significantly)
 http_client: httpx.AsyncClient = None
 
+async def broadcast_xplane_data(data: XPlaneFlightData):
+    """Broadcast X-Plane flight data to all connected WebSocket clients"""
+    if not xplane_clients:
+        return
+
+    message = data.to_dict()
+    disconnected = set()
+
+    for client in xplane_clients:
+        try:
+            await client.send_json(message)
+        except Exception:
+            disconnected.add(client)
+
+    # Remove disconnected clients
+    xplane_clients.difference_update(disconnected)
+
+
+def xplane_data_callback(data: XPlaneFlightData):
+    """Callback for X-Plane UDP listener - schedules async broadcast"""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.create_task(broadcast_xplane_data(data))
+    except RuntimeError:
+        pass  # No event loop available
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown events"""
-    global http_client
+    global http_client, xplane_listener
 
     print("Aviation Weather API starting up...")
     print("API Documentation available at: http://localhost:8000/docs")
@@ -1427,7 +1464,23 @@ async def lifespan(app: FastAPI):
     freshness_task = asyncio.create_task(metar_freshness_task())
     print("METAR freshness monitoring started (15-minute intervals)")
 
+    # Start X-Plane UDP listener if enabled
+    if xplane_settings.XPLANE_BRIDGE_ENABLED:
+        xplane_listener = XPlaneUDPListener(
+            host=xplane_settings.XPLANE_UDP_HOST,
+            port=xplane_settings.XPLANE_UDP_PORT,
+            on_data_callback=xplane_data_callback,
+            timeout_seconds=xplane_settings.XPLANE_TIMEOUT_SECONDS
+        )
+        await xplane_listener.start()
+        print(f"X-Plane UDP bridge started on port {xplane_settings.XPLANE_UDP_PORT}")
+
     yield
+
+    # Stop X-Plane listener
+    if xplane_listener:
+        await xplane_listener.stop()
+        print("X-Plane UDP bridge stopped")
 
     # Cancel background task on shutdown
     freshness_task.cancel()
@@ -2310,6 +2363,11 @@ async def live_map():
 async def synthetic_vision():
     """Serve the Synthetic Vision System (SVS) display"""
     return FileResponse(os.path.join(STATIC_DIR, "synthetic-vision.html"))
+
+@app.get("/webgl-test")
+async def webgl_test():
+    """WebGL diagnostic page"""
+    return FileResponse(os.path.join(STATIC_DIR, "webgl-test.html"))
 
 
 # ==================== PIREPs (PILOT REPORTS) ====================
@@ -4170,6 +4228,113 @@ async def get_airways_count():
 
     except httpx.HTTPError as e:
         raise HTTPException(status_code=503, detail=f"Failed to fetch airways count: {str(e)}")
+
+
+# ==================== X-PLANE 12 WEBSOCKET & REST ENDPOINTS ====================
+
+@app.websocket("/ws/xplane")
+async def xplane_websocket(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time X-Plane flight data streaming.
+
+    Connect to receive live flight data from X-Plane 12:
+    - Position (lat, lon, altitude MSL/AGL)
+    - Attitude (pitch, roll, heading)
+    - Speeds (IAS, TAS, ground speed, vertical speed)
+    - Additional data (AoA, sideslip, G-forces)
+    """
+    await websocket.accept()
+    xplane_clients.add(websocket)
+
+    try:
+        # Send initial connection status
+        if xplane_listener:
+            await websocket.send_json({
+                "type": "connection_status",
+                "xplane_connected": xplane_listener.is_connected(),
+                "udp_port": xplane_settings.XPLANE_UDP_PORT,
+                "packets_received": xplane_listener.flight_data.packets_received
+            })
+        else:
+            await websocket.send_json({
+                "type": "connection_status",
+                "xplane_connected": False,
+                "bridge_enabled": False
+            })
+
+        # Keep connection alive and handle incoming messages
+        while True:
+            try:
+                message = await asyncio.wait_for(
+                    websocket.receive_json(),
+                    timeout=30.0
+                )
+
+                # Handle client requests
+                if message.get("type") == "status_request":
+                    if xplane_listener:
+                        await websocket.send_json({
+                            "type": "status",
+                            "data": xplane_listener.flight_data.to_dict()
+                        })
+
+                elif message.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+
+            except asyncio.TimeoutError:
+                # Send keepalive ping
+                await websocket.send_json({"type": "ping"})
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+    finally:
+        xplane_clients.discard(websocket)
+
+
+@app.get("/api/xplane/status")
+async def get_xplane_status():
+    """
+    Get current X-Plane connection status and flight data.
+
+    Returns:
+        - enabled: Whether X-Plane bridge is enabled
+        - connected: Whether receiving data from X-Plane
+        - flight_data: Current flight parameters
+    """
+    if not xplane_listener:
+        return {
+            "enabled": xplane_settings.XPLANE_BRIDGE_ENABLED,
+            "connected": False,
+            "message": "X-Plane bridge not initialized"
+        }
+
+    return {
+        "enabled": True,
+        "connected": xplane_listener.is_connected(),
+        "udp_port": xplane_settings.XPLANE_UDP_PORT,
+        "packets_received": xplane_listener.flight_data.packets_received,
+        "source_ip": xplane_listener.flight_data.source_ip,
+        "flight_data": xplane_listener.flight_data.to_dict()
+    }
+
+
+@app.get("/api/xplane/config")
+async def get_xplane_config():
+    """
+    Get X-Plane bridge configuration.
+
+    Returns current settings for the X-Plane UDP bridge.
+    """
+    return {
+        "udp_host": xplane_settings.XPLANE_UDP_HOST,
+        "udp_port": xplane_settings.XPLANE_UDP_PORT,
+        "enabled": xplane_settings.XPLANE_BRIDGE_ENABLED,
+        "update_rate_hz": xplane_settings.XPLANE_UPDATE_RATE_HZ,
+        "timeout_seconds": xplane_settings.XPLANE_TIMEOUT_SECONDS,
+        "xplane_pc_ip": xplane_settings.XPLANE_PC_IP
+    }
 
 
 if __name__ == "__main__":

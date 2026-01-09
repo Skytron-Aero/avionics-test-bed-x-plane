@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Avionics PFD
+Comment=Synthetic Vision Display
+Exec=firefox --new-window --class=AvionicsPFD http://localhost:8000/synthetic-vision
+Icon=applications-science
+Terminal=false
+Type=Application
+Categories=Utility;
+StartupWMClass=AvionicsPFD

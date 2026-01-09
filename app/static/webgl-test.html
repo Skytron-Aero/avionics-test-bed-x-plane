@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebGL Test</title>
+    <style>
+        body { background: #1a1a1a; color: white; font-family: sans-serif; padding: 20px; }
+        #status { font-size: 24px; margin: 20px 0; }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        canvas { border: 1px solid #333; }
+    </style>
+</head>
+<body>
+    <h1>WebGL Diagnostic</h1>
+    <div id="status">Testing...</div>
+    <canvas id="glcanvas" width="400" height="300"></canvas>
+    <div id="info"></div>
+
+    <script>
+        const status = document.getElementById('status');
+        const info = document.getElementById('info');
+        const canvas = document.getElementById('glcanvas');
+
+        try {
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+
+            if (gl) {
+                status.innerHTML = '<span class="success">WebGL is working!</span>';
+
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                let vendor = 'Unknown';
+                let renderer = 'Unknown';
+
+                if (debugInfo) {
+                    vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+                    renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                }
+
+                info.innerHTML = `
+                    <p><strong>Vendor:</strong> ${vendor}</p>
+                    <p><strong>Renderer:</strong> ${renderer}</p>
+                    <p><strong>WebGL Version:</strong> ${gl.getParameter(gl.VERSION)}</p>
+                    <p><strong>Shading Language:</strong> ${gl.getParameter(gl.SHADING_LANGUAGE_VERSION)}</p>
+                    <p><strong>Max Texture Size:</strong> ${gl.getParameter(gl.MAX_TEXTURE_SIZE)}</p>
+                `;
+
+                // Draw a test triangle
+                gl.clearColor(0.1, 0.2, 0.3, 1.0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+            } else {
+                status.innerHTML = '<span class="error">WebGL not available!</span>';
+                info.innerHTML = '<p>Your browser does not support WebGL.</p>';
+            }
+        } catch (e) {
+            status.innerHTML = '<span class="error">WebGL Error!</span>';
+            info.innerHTML = '<p>Error: ' + e.message + '</p>';
+        }
+    </script>
+</body>
+</html>

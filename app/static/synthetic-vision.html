@@ -170,6 +170,320 @@
             filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
         }
 
+        /* X-Plane Connection Status Indicator */
+        .xplane-status {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            pointer-events: auto;
+            backdrop-filter: blur(8px);
+        }
+
+        .xplane-status:hover {
+            background: rgba(0, 0, 0, 0.85);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateX(-50%) scale(1.02);
+        }
+
+        .xplane-status.connected {
+            border-color: #22c55e;
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+        }
+
+        .xplane-status.receiving {
+            border-color: #3b82f6;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+        }
+
+        .xplane-status.receiving .xplane-icon {
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+            15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+        }
+
+        .xplane-icon {
+            width: 20px;
+            height: 20px;
+            color: rgba(255, 255, 255, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .xplane-status.connected .xplane-icon,
+        .xplane-status.receiving .xplane-icon {
+            color: #22c55e;
+        }
+
+        .xplane-text {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+
+        #xplane-status-label {
+            font-weight: 600;
+            font-size: 12px;
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+
+        #xplane-status-detail {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 10px;
+        }
+
+        .xplane-status.receiving #xplane-status-label {
+            color: #3b82f6;
+        }
+
+        /* Autopilot Assist Panel */
+        .autopilot-assist-panel {
+            position: fixed;
+            bottom: 70px;
+            left: 16px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            min-width: 200px;
+            backdrop-filter: blur(8px);
+        }
+
+        .ap-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .ap-header span {
+            font-weight: 600;
+            font-size: 11px;
+            color: #22c55e;
+            letter-spacing: 1px;
+        }
+
+        .ap-close {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+
+        .ap-close:hover {
+            color: #fff;
+        }
+
+        .ap-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .ap-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ap-row label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.7);
+            width: 70px;
+            font-weight: 500;
+        }
+
+        .ap-row button {
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .ap-row button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .ap-row button.active {
+            background: #22c55e;
+            border-color: #22c55e;
+            color: #000;
+        }
+
+        .ap-row input {
+            width: 70px;
+            padding: 4px 8px;
+            font-size: 11px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+        }
+
+        .ap-row input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .ap-note {
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.4);
+            line-height: 1.4;
+        }
+
+        /* Light mode adjustments for X-Plane UI */
+        .light-mode .xplane-status {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .light-mode #xplane-status-label {
+            color: #333;
+        }
+
+        .light-mode #xplane-status-detail {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .light-mode .xplane-icon {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .light-mode .autopilot-assist-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .light-mode .ap-header span {
+            color: #16a34a;
+        }
+
+        .light-mode .ap-row label {
+            color: rgba(0, 0, 0, 0.7);
+        }
+
+        .light-mode .ap-row button {
+            background: rgba(0, 0, 0, 0.05);
+            border-color: rgba(0, 0, 0, 0.2);
+            color: #333;
+        }
+
+        .light-mode .ap-row input {
+            background: rgba(0, 0, 0, 0.05);
+            border-color: rgba(0, 0, 0, 0.2);
+            color: #333;
+        }
+
+        .light-mode .ap-note {
+            color: rgba(0, 0, 0, 0.4);
+        }
+
+        /* X-Plane Debug Panel */
+        .xplane-debug-panel {
+            position: fixed;
+            top: 350px;
+            right: 16px;
+            z-index: 1002;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #22c55e;
+            border-radius: 8px;
+            padding: 10px;
+            min-width: 220px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+        }
+
+        .debug-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #22c55e;
+        }
+
+        .debug-header span {
+            font-weight: bold;
+            color: #22c55e;
+            letter-spacing: 1px;
+        }
+
+        .debug-close {
+            background: none;
+            border: none;
+            color: #22c55e;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+
+        .debug-close:hover {
+            color: #fff;
+        }
+
+        .debug-content {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .debug-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .debug-row span:first-child {
+            color: #888;
+        }
+
+        .debug-row span:last-child {
+            color: #0f0;
+            text-align: right;
+        }
+
+        .debug-separator {
+            height: 1px;
+            background: rgba(34, 197, 94, 0.3);
+            margin: 4px 0;
+        }
+
         /* HUD Overlay */
         .hud-overlay {
             position: fixed;
@@ -721,8 +1035,36 @@
             display: none;
         }
 
+        .svs-controls.fully-minimized {
+            width: auto;
+            min-width: 180px;
+            padding: 10px;
+        }
+
+        .svs-controls.fully-minimized .control-group {
+            display: none;
+        }
+
+        .svs-controls.fully-minimized .sim-progress-panel {
+            display: none;
+        }
+
         .svs-controls.expanded {
             width: 320px;
+        }
+
+        .debug-minimize {
+            background: none;
+            border: none;
+            color: #22c55e;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0 8px;
+            line-height: 1;
+        }
+
+        .debug-minimize:hover {
+            color: #4ade80;
         }
 
         .svs-controls.expanded .sim-progress-panel {
@@ -1096,6 +1438,32 @@
             height: 24px;
         }
 
+        /* Light mode overlay buttons - white */
+        .light-mode .overlay-btn {
+            background: linear-gradient(180deg, #ffffff 0%, #f0f0f0 100%);
+            color: #333333;
+            box-shadow:
+                2px 2px 6px rgba(0, 0, 0, 0.15),
+                -1px -1px 3px rgba(255, 255, 255, 0.8),
+                inset 0 1px 1px rgba(255, 255, 255, 0.9),
+                inset 0 -1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .light-mode .overlay-btn:hover {
+            background: linear-gradient(180deg, #ffffff 0%, #e8e8e8 100%);
+            color: #111111;
+        }
+
+        .light-mode .overlay-btn:active {
+            background: linear-gradient(180deg, #f0f0f0 0%, #e0e0e0 100%);
+        }
+
+        .light-mode .overlay-btn.active {
+            background: linear-gradient(180deg, #e8e8e8 0%, #e0e0e0 100%);
+            box-shadow:
+                inset 0 2px 4px rgba(0, 0, 0, 0.1),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.5);
+        }
 
         .light-mode .tape-current {
             color: #1a1a1a;
@@ -1493,6 +1861,77 @@
         </svg>
     </button>
 
+    <!-- X-Plane Connection Status Indicator -->
+    <div id="xplane-status" class="xplane-status" onclick="toggleXPlaneMode()" title="Toggle X-Plane Mode">
+        <div class="xplane-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+            </svg>
+        </div>
+        <div class="xplane-text">
+            <span id="xplane-status-label">X-Plane</span>
+            <span id="xplane-status-detail">Click to enable</span>
+        </div>
+    </div>
+
+    <!-- Autopilot Assist Panel -->
+    <div id="autopilot-assist" class="autopilot-assist-panel" style="display: none;">
+        <div class="ap-header">
+            <span>AUTOPILOT ASSIST</span>
+            <button onclick="toggleAutopilotAssistPanel()" class="ap-close">&times;</button>
+        </div>
+        <div class="ap-controls">
+            <div class="ap-row">
+                <label>ALT HOLD</label>
+                <button id="ap-alt-hold" onclick="toggleAltitudeHold()">OFF</button>
+                <input type="number" id="ap-target-alt" placeholder="ft" step="100">
+            </div>
+            <div class="ap-row">
+                <label>HDG HOLD</label>
+                <button id="ap-hdg-hold" onclick="toggleHeadingHold()">OFF</button>
+                <input type="number" id="ap-target-hdg" placeholder="deg" min="0" max="360">
+            </div>
+        </div>
+        <div class="ap-note">
+            Note: Assists provide visual guidance only.<br>
+            Inceptor remains primary control via X-Plane.
+        </div>
+    </div>
+
+    <!-- X-Plane Debug Panel -->
+    <div id="xplane-debug" class="xplane-debug-panel">
+        <div class="debug-header">
+            <span>X-PLANE DEBUG</span>
+            <button onclick="minimizeDebugPanel()" class="debug-minimize" id="debug-minimize-btn">−</button>
+            <button onclick="toggleXPlaneDebug()" class="debug-close">&times;</button>
+        </div>
+        <div class="debug-content" id="debug-content">
+            <div class="debug-row"><span>Status:</span><span id="dbg-status">Disconnected</span></div>
+            <div class="debug-row"><span>Packets:</span><span id="dbg-packets">0</span></div>
+            <div class="debug-row"><span>Source:</span><span id="dbg-source">-</span></div>
+            <div class="debug-separator"></div>
+            <div class="debug-row"><span>LAT:</span><span id="dbg-lat">0.000000</span></div>
+            <div class="debug-row"><span>LON:</span><span id="dbg-lon">0.000000</span></div>
+            <div class="debug-row"><span>ALT MSL:</span><span id="dbg-alt">0 ft</span></div>
+            <div class="debug-row"><span>ALT AGL:</span><span id="dbg-agl">0 ft</span></div>
+            <div class="debug-separator"></div>
+            <div class="debug-row"><span>PITCH:</span><span id="dbg-pitch">0.0°</span></div>
+            <div class="debug-row"><span>ROLL:</span><span id="dbg-roll">0.0°</span></div>
+            <div class="debug-row"><span>HDG TRUE:</span><span id="dbg-hdg-true">0°</span></div>
+            <div class="debug-row"><span>HDG MAG:</span><span id="dbg-hdg-mag">0°</span></div>
+            <div class="debug-row"><span>MAG VAR:</span><span id="dbg-magvar">0°</span></div>
+            <div class="debug-separator"></div>
+            <div class="debug-row"><span>IAS:</span><span id="dbg-ias">0 kts</span></div>
+            <div class="debug-row"><span>TAS:</span><span id="dbg-tas">0 kts</span></div>
+            <div class="debug-row"><span>GS:</span><span id="dbg-gs">0 kts</span></div>
+            <div class="debug-row"><span>VS:</span><span id="dbg-vs">0 fpm</span></div>
+            <div class="debug-separator"></div>
+            <div class="debug-row"><span>AOA:</span><span id="dbg-aoa">0.0°</span></div>
+            <div class="debug-row"><span>G-Force:</span><span id="dbg-g">1.0</span></div>
+            <div class="debug-row"><span>Mach:</span><span id="dbg-mach">0.00</span></div>
+        </div>
+    </div>
+
     <!-- Main SVS Canvas -->
     <div id="svs-container">
         <canvas id="svs-canvas"></canvas>
@@ -1874,7 +2313,7 @@
             fuelBurnRate: 0,            // Current gph
             overlays: {
                 terrain: true,
-                traffic: true,  // Live ADS-B traffic
+                traffic: false,  // Live ADS-B traffic - disabled in performance mode
                 weather: false,
                 airspace: false,
                 towers: false,
@@ -1897,6 +2336,397 @@
             windDirection: 270,  // Wind FROM direction (degrees)
             windSpeed: 12       // Wind speed in knots
         };
+
+        // ==================== X-PLANE 12 INTEGRATION STATE ====================
+        const xplaneState = {
+            enabled: false,           // X-Plane mode active
+            connected: false,         // WebSocket connected to backend
+            receiving: false,         // Receiving UDP data from X-Plane
+            websocket: null,          // WebSocket connection
+            lastPacketTime: 0,        // Last data received timestamp
+            reconnectAttempts: 0,
+            maxReconnectAttempts: 10,
+            reconnectDelay: 2000,     // ms
+            packetsReceived: 0,
+
+            // Autopilot assist features (available in X-Plane mode)
+            autopilotAssist: {
+                altitudeHold: false,
+                headingHold: false,
+                targetAltitude: null,
+                targetHeading: null
+            }
+        };
+
+        // Last terrain position for reload checking
+        let lastTerrainPosition = { lat: 0, lon: 0 };
+        const TERRAIN_RELOAD_THRESHOLD_NM = 5;
+
+        // ==================== X-PLANE WEBSOCKET CLIENT ====================
+        function connectXPlaneWebSocket() {
+            if (xplaneState.websocket && xplaneState.websocket.readyState === WebSocket.OPEN) {
+                return; // Already connected
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/xplane`;
+
+            console.log('Connecting to X-Plane WebSocket:', wsUrl);
+            xplaneState.websocket = new WebSocket(wsUrl);
+
+            xplaneState.websocket.onopen = function() {
+                console.log('X-Plane WebSocket connected');
+                xplaneState.connected = true;
+                xplaneState.reconnectAttempts = 0;
+                updateXPlaneStatusIndicator();
+            };
+
+            xplaneState.websocket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'ping') {
+                        // Respond to keep-alive
+                        xplaneState.websocket.send(JSON.stringify({ type: 'pong' }));
+                        return;
+                    }
+
+                    if (data.type === 'connection_status') {
+                        xplaneState.receiving = data.xplane_connected;
+                        xplaneState.packetsReceived = data.packets_received || 0;
+                        updateXPlaneStatusIndicator();
+                        return;
+                    }
+
+                    // Flight data update from X-Plane
+                    if (data.lat !== undefined && xplaneState.enabled) {
+                        handleXPlaneData(data);
+                    }
+                } catch (e) {
+                    console.error('Error parsing X-Plane data:', e);
+                }
+            };
+
+            xplaneState.websocket.onclose = function() {
+                console.log('X-Plane WebSocket disconnected');
+                xplaneState.connected = false;
+                xplaneState.receiving = false;
+                updateXPlaneStatusIndicator();
+
+                // Attempt reconnect
+                if (xplaneState.enabled && xplaneState.reconnectAttempts < xplaneState.maxReconnectAttempts) {
+                    xplaneState.reconnectAttempts++;
+                    console.log(`Reconnecting in ${xplaneState.reconnectDelay}ms (attempt ${xplaneState.reconnectAttempts})`);
+                    setTimeout(connectXPlaneWebSocket, xplaneState.reconnectDelay);
+                }
+            };
+
+            xplaneState.websocket.onerror = function(error) {
+                console.error('X-Plane WebSocket error:', error);
+            };
+        }
+
+        function disconnectXPlaneWebSocket() {
+            if (xplaneState.websocket) {
+                xplaneState.websocket.close();
+                xplaneState.websocket = null;
+            }
+            xplaneState.connected = false;
+            xplaneState.receiving = false;
+        }
+
+        // ==================== HANDLE INCOMING X-PLANE DATA ====================
+        function handleXPlaneData(data) {
+            if (!xplaneState.enabled) return;
+
+            xplaneState.lastPacketTime = performance.now();
+            xplaneState.receiving = data.connected;
+            xplaneState.packetsReceived = data.packets_received || xplaneState.packetsReceived;
+
+            // Update SVS state from X-Plane data
+            state.position.lat = data.lat;
+            state.position.lon = data.lon;
+            state.altitude = data.alt_msl;
+            // Use magnetic heading if available, otherwise compute from true + mag_var
+            if (data.heading_mag > -900) {
+                state.heading = data.heading_mag;
+            } else {
+                // Estimate magnetic variation if not provided by X-Plane
+                // For Western US (California), variation is approximately 11-13° East
+                // Simple approximation based on longitude
+                let magVar = data.mag_var;
+                if (!magVar || magVar === 0) {
+                    // Approximate magnetic variation for US based on longitude
+                    // West Coast: ~12°E, Central: ~5°E, East Coast: ~10-15°W
+                    const lon = data.lon || 0;
+                    if (lon < -100) {
+                        // West of 100°W - approximate 12° East
+                        magVar = 12;
+                    } else if (lon < -80) {
+                        // Central US - approximate 3° East
+                        magVar = 3;
+                    } else {
+                        // East Coast - approximate 12° West
+                        magVar = -12;
+                    }
+                }
+                // Compute magnetic from true: mag = true - variation (East positive)
+                state.heading = (data.heading_true - magVar + 360) % 360;
+            }
+            state.pitch = data.pitch;
+            state.roll = data.roll;
+            state.groundSpeed = data.groundspeed;
+            state.verticalSpeed = data.vertical_speed;
+
+            // Additional data for enhanced displays
+            if (data.airspeed_ind !== undefined) {
+                state.indicatedAirspeed = data.airspeed_ind;
+            }
+            if (data.airspeed_true !== undefined) {
+                state.trueAirspeed = data.airspeed_true;
+            }
+            if (data.alpha !== undefined) {
+                state.angleOfAttack = data.alpha;
+            }
+
+            // Calculate wind from TAS vs groundspeed (approximation)
+            if (data.airspeed_true !== undefined && data.groundspeed !== undefined) {
+                const tas = data.airspeed_true;
+                const gs = data.groundspeed;
+                // Use same heading as state.heading (magnetic when available)
+                const hdg = state.heading;
+
+                // Wind component along flight path (headwind positive, tailwind negative)
+                const windComponent = tas - gs;
+
+                // Estimate wind speed (simplified - assumes wind is along flight path)
+                state.windSpeed = Math.abs(windComponent);
+
+                // Wind direction: if headwind, wind is FROM the heading direction
+                // if tailwind, wind is FROM opposite direction
+                if (windComponent > 0) {
+                    // Headwind - wind coming from ahead
+                    state.windDirection = hdg;
+                } else {
+                    // Tailwind - wind coming from behind
+                    state.windDirection = (hdg + 180) % 360;
+                }
+
+                // Update wind dial
+                updateWindDial();
+            }
+            if (data.g_normal !== undefined) {
+                state.gForce = data.g_normal;
+            }
+            if (data.mach !== undefined) {
+                state.mach = data.mach;
+            }
+
+            // Trigger terrain reload if position changed significantly
+            checkTerrainReload();
+
+            updateXPlaneStatusIndicator();
+            updateXPlaneDebugPanel(data);
+        }
+
+        // ==================== X-PLANE DEBUG PANEL ====================
+        function updateXPlaneDebugPanel(data) {
+            const dbg = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val;
+            };
+
+            dbg('dbg-status', data.connected ? 'CONNECTED' : 'DISCONNECTED');
+            dbg('dbg-packets', data.packets_received || 0);
+            dbg('dbg-source', data.source_ip ? `${data.source_ip}:${data.source_port}` : '-');
+
+            dbg('dbg-lat', data.lat?.toFixed(6) || '0.000000');
+            dbg('dbg-lon', data.lon?.toFixed(6) || '0.000000');
+            dbg('dbg-alt', `${Math.round(data.alt_msl || 0)} ft`);
+            dbg('dbg-agl', `${Math.round(data.alt_agl || 0)} ft`);
+
+            dbg('dbg-pitch', `${(data.pitch || 0).toFixed(1)}°`);
+            dbg('dbg-roll', `${(data.roll || 0).toFixed(1)}°`);
+            dbg('dbg-hdg-true', `${Math.round(data.heading_true || 0)}°`);
+            dbg('dbg-hdg-mag', data.heading_mag > -900 ? `${Math.round(data.heading_mag)}°` : `~${Math.round(state.heading)}°`);
+            // Show magnetic variation with source indicator
+            let magVarDisplay = 'N/A';
+            if (data.mag_var && data.mag_var !== 0) {
+                magVarDisplay = `${data.mag_var.toFixed(1)}°`;
+            } else if (data.lon) {
+                // Show estimated value
+                const lon = data.lon;
+                const estVar = lon < -100 ? 12 : lon < -80 ? 3 : -12;
+                magVarDisplay = `~${estVar}° (est)`;
+            }
+            dbg('dbg-magvar', magVarDisplay);
+
+            dbg('dbg-ias', `${Math.round(data.airspeed_ind || 0)} kts`);
+            dbg('dbg-tas', `${Math.round(data.airspeed_true || 0)} kts`);
+            dbg('dbg-gs', `${Math.round(data.groundspeed || 0)} kts`);
+            dbg('dbg-vs', `${Math.round(data.vertical_speed || 0)} fpm`);
+
+            dbg('dbg-aoa', `${(data.alpha || 0).toFixed(1)}°`);
+            dbg('dbg-g', (data.g_normal || 1).toFixed(2));
+            dbg('dbg-mach', (data.mach || 0).toFixed(3));
+        }
+
+        function toggleXPlaneDebug() {
+            const panel = document.getElementById('xplane-debug');
+            if (panel) {
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        // ==================== TERRAIN RELOAD CHECK ====================
+        function checkTerrainReload() {
+            const dist = calculateDistance(
+                lastTerrainPosition.lat,
+                lastTerrainPosition.lon,
+                state.position.lat,
+                state.position.lon
+            );
+
+            if (dist > TERRAIN_RELOAD_THRESHOLD_NM) {
+                lastTerrainPosition = { lat: state.position.lat, lon: state.position.lon };
+                // Trigger terrain reload - the existing loadTerrainData function handles this
+                if (typeof loadTerrainData === 'function') {
+                    loadTerrainData(state.position.lat, state.position.lon);
+                }
+            }
+        }
+
+        // ==================== MODE SWITCHING ====================
+        function enableXPlaneMode() {
+            xplaneState.enabled = true;
+
+            // Stop internal simulation if running
+            if (state.simulation && state.simulation.active) {
+                if (typeof stopSimulation === 'function') {
+                    stopSimulation();
+                } else {
+                    state.simulation.active = false;
+                }
+            }
+
+            // Connect WebSocket
+            connectXPlaneWebSocket();
+
+            // Update UI
+            updateXPlaneStatusIndicator();
+            showXPlaneNotification('X-Plane mode enabled - awaiting data from simulator');
+        }
+
+        function disableXPlaneMode() {
+            xplaneState.enabled = false;
+            disconnectXPlaneWebSocket();
+            updateXPlaneStatusIndicator();
+            showXPlaneNotification('X-Plane mode disabled - internal simulation available');
+        }
+
+        function toggleXPlaneMode() {
+            if (xplaneState.enabled) {
+                disableXPlaneMode();
+            } else {
+                enableXPlaneMode();
+            }
+        }
+
+        // ==================== X-PLANE STATUS INDICATOR ====================
+        function updateXPlaneStatusIndicator() {
+            const statusEl = document.getElementById('xplane-status');
+            const labelEl = document.getElementById('xplane-status-label');
+            const detailEl = document.getElementById('xplane-status-detail');
+
+            if (!statusEl) return;
+
+            // Reset classes
+            statusEl.classList.remove('connected', 'receiving');
+
+            if (!xplaneState.enabled) {
+                labelEl.textContent = 'X-Plane';
+                detailEl.textContent = 'Click to enable';
+            } else if (!xplaneState.connected) {
+                labelEl.textContent = 'X-Plane';
+                detailEl.textContent = 'Connecting...';
+            } else if (!xplaneState.receiving) {
+                statusEl.classList.add('connected');
+                labelEl.textContent = 'X-Plane';
+                detailEl.textContent = 'Awaiting data';
+            } else {
+                statusEl.classList.add('connected', 'receiving');
+                labelEl.textContent = 'X-Plane LIVE';
+                detailEl.textContent = `${Math.round(state.altitude)} ft | ${Math.round(state.groundSpeed)} kts`;
+            }
+        }
+
+        function showXPlaneNotification(message) {
+            // Create and show a temporary notification
+            const notification = document.createElement('div');
+            notification.className = 'xplane-notification';
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 80px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.85);
+                color: #fff;
+                padding: 12px 24px;
+                border-radius: 8px;
+                font-size: 14px;
+                z-index: 10000;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                animation: fadeInOut 3s forwards;
+            `;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // ==================== AUTOPILOT ASSIST FUNCTIONS ====================
+        function toggleAltitudeHold() {
+            const assist = xplaneState.autopilotAssist;
+            assist.altitudeHold = !assist.altitudeHold;
+
+            if (assist.altitudeHold) {
+                const input = document.getElementById('ap-target-alt');
+                assist.targetAltitude = input ? (parseInt(input.value) || Math.round(state.altitude)) : Math.round(state.altitude);
+                if (input) input.value = assist.targetAltitude;
+            }
+
+            const btn = document.getElementById('ap-alt-hold');
+            if (btn) {
+                btn.textContent = assist.altitudeHold ? 'ON' : 'OFF';
+                btn.classList.toggle('active', assist.altitudeHold);
+            }
+        }
+
+        function toggleHeadingHold() {
+            const assist = xplaneState.autopilotAssist;
+            assist.headingHold = !assist.headingHold;
+
+            if (assist.headingHold) {
+                const input = document.getElementById('ap-target-hdg');
+                assist.targetHeading = input ? (parseInt(input.value) || Math.round(state.heading)) : Math.round(state.heading);
+                if (input) input.value = assist.targetHeading;
+            }
+
+            const btn = document.getElementById('ap-hdg-hold');
+            if (btn) {
+                btn.textContent = assist.headingHold ? 'ON' : 'OFF';
+                btn.classList.toggle('active', assist.headingHold);
+            }
+        }
+
+        function toggleAutopilotAssistPanel() {
+            const panel = document.getElementById('autopilot-assist');
+            if (panel) {
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            }
+        }
 
         // Comprehensive US & International Airport Database with Runway Data
         // Runway data sourced from OurAirports open data (ourairports.com/data/)
@@ -2453,6 +3283,7 @@
 
         // Fetch ALL airports from OurAirports (comprehensive database including small airports)
         async function fetchOurAirports() {
+            if (PERFORMANCE_MODE) return; // Disable external fetching
             if (ourAirportsLoaded) return;
 
             try {
@@ -2559,6 +3390,7 @@
 
         // Fetch from FAA AWC (backup - only has airports with weather stations)
         async function fetchFAAairports() {
+            if (PERFORMANCE_MODE) return; // Disable external fetching
             if (dynamicAirportsLoaded) return;
 
             try {
@@ -2658,6 +3490,9 @@
         // INITIALIZATION
         // ============================================
 
+        // Performance mode - disable all external API fetching
+        const PERFORMANCE_MODE = true;
+
         async function init() {
             setupThreeJS();
             setupControls();
@@ -2666,27 +3501,36 @@
             setupPanelControls();
             generateCompassDial();
 
-            // Load initial terrain
-            await loadTerrainData(state.position.lat, state.position.lon);
+            // Minimize panels on startup for clean display
+            minimizeDebugPanel();
+            document.getElementById('svsControls').classList.add('minimized');
 
-            // Fetch initial wind data for current position
-            const initialWind = await fetchWindData(state.position.lat, state.position.lon);
-            if (initialWind) {
-                state.windSpeed = initialWind.speed;
-                state.windDirection = initialWind.direction;
-            }
+            if (!PERFORMANCE_MODE) {
+                // Load initial terrain
+                await loadTerrainData(state.position.lat, state.position.lon);
 
-            // Create initial overlay visuals (will be empty if disabled)
-            createSimulatedTraffic();
-            createSimulatedHazards();
-            createSimulatedObstacles();
+                // Fetch initial wind data for current position
+                const initialWind = await fetchWindData(state.position.lat, state.position.lon);
+                if (initialWind) {
+                    state.windSpeed = initialWind.speed;
+                    state.windDirection = initialWind.direction;
+                }
 
-            // Initialize clouds and icing (enabled by default)
-            if (state.overlays.clouds) {
-                updateCloudsOverlay();
-            }
-            if (state.overlays.icing) {
-                updateIcingOverlay();
+                // Create initial overlay visuals (will be empty if disabled)
+                createSimulatedTraffic();
+                createSimulatedHazards();
+                createSimulatedObstacles();
+
+                // Initialize clouds and icing (enabled by default)
+                if (state.overlays.clouds) {
+                    updateCloudsOverlay();
+                }
+                if (state.overlays.icing) {
+                    updateIcingOverlay();
+                }
+            } else {
+                // Performance mode: create simple static ground plane
+                createSimpleGround();
             }
 
             // Start render loop
@@ -2696,6 +3540,19 @@
             setTimeout(() => {
                 document.getElementById('loadingOverlay').classList.add('hidden');
             }, 500);
+        }
+
+        function createSimpleGround() {
+            // Simple flat ground plane for performance mode
+            const groundGeometry = new THREE.PlaneGeometry(500000, 500000);
+            const groundMaterial = new THREE.MeshBasicMaterial({
+                color: 0x3d5c3d,  // Ground green
+                side: THREE.DoubleSide
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = 0;
+            scene.add(ground);
         }
 
         function setupThreeJS() {
@@ -2710,10 +3567,20 @@
             scene.add(camera); // Add camera to scene so its children (flight path) render
 
             // Renderer
-            renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+            renderer = new THREE.WebGLRenderer({
+                canvas,
+                antialias: false,  // Disable for better GPU performance
+                powerPreference: "high-performance",  // Request dedicated GPU
+                precision: "mediump",  // Medium precision for speed
+                stencil: false,
+                depth: true
+            });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.setClearColor(0x0a0a0a);
+            renderer.setPixelRatio(1);  // Fixed pixel ratio for consistent GPU performance
+            // Set clear color based on theme (light mode is default)
+            const isLightMode = document.documentElement.classList.contains('light-mode');
+            renderer.setClearColor(isLightMode ? 0xf5f5f5 : 0x0a0a0a);
+            renderer.sortObjects = false;  // Disable sorting for speed
 
             // Groups
             trafficGroup = new THREE.Group();
@@ -2723,13 +3590,17 @@
             cloudsGroup = new THREE.Group();
             icingGroup = new THREE.Group();
             visibilityGroup = new THREE.Group();
-            scene.add(trafficGroup);
-            scene.add(hazardsGroup);
-            scene.add(obstaclesGroup);
-            scene.add(buildingsGroup);
-            scene.add(cloudsGroup);
-            scene.add(icingGroup);
-            scene.add(visibilityGroup);
+
+            // In performance mode, don't add traffic/hazards/obstacles/buildings
+            if (!PERFORMANCE_MODE) {
+                scene.add(trafficGroup);
+                scene.add(hazardsGroup);
+                scene.add(obstaclesGroup);
+                scene.add(buildingsGroup);
+                scene.add(cloudsGroup);
+                scene.add(icingGroup);
+                scene.add(visibilityGroup);
+            }
 
             // Create sky gradient
             createSkyGradient();
@@ -2743,11 +3614,12 @@
 
         function createSkyGradient() {
             // Sky dome using hemisphere gradient
+            const isLightMode = document.documentElement.classList.contains('light-mode');
             const skyGeo = new THREE.SphereGeometry(200000, 32, 32);
             const skyMat = new THREE.ShaderMaterial({
                 uniforms: {
-                    topColor: { value: new THREE.Color(0x1a365d) },
-                    bottomColor: { value: new THREE.Color(0x78350f) },
+                    topColor: { value: new THREE.Color(isLightMode ? 0xbfdbfe : 0x1a365d) },
+                    bottomColor: { value: new THREE.Color(isLightMode ? 0xfcd34d : 0x78350f) },
                     offset: { value: 0 },
                     exponent: { value: 0.6 }
                 },
@@ -2782,11 +3654,12 @@
         // ============================================
 
         async function loadTerrainData(lat, lon) {
+            if (PERFORMANCE_MODE) return; // Disable all external fetching
             try {
                 // Reset world offset when loading new terrain
                 worldOffset = { x: 0, z: 0 };
 
-                const gridSize = 150; // Higher resolution for better detail
+                const gridSize = 80; // Reduced for better performance on embedded systems
                 const radiusNM = 35; // Original radius
                 const degreesPerNM = 1 / 60;
                 const span = radiusNM * 2 * degreesPerNM;
@@ -3661,6 +4534,7 @@
         }
 
         async function updateLiveTraffic() {
+            if (PERFORMANCE_MODE) return;
             if (!state.overlays.traffic) return;
 
             const now = performance.now();
@@ -3834,6 +4708,9 @@
 
         // Legacy function name for compatibility
         function createSimulatedTraffic() {
+            // Disabled in performance mode
+            if (PERFORMANCE_MODE) return;
+
             // Now triggers live traffic update
             if (state.overlays.traffic) {
                 lastTrafficFetch = 0; // Force immediate fetch
@@ -3844,6 +4721,7 @@
         }
 
         function createSimulatedHazards() {
+            if (PERFORMANCE_MODE) return;
             hazardsGroup.clear();
 
             if (!state.overlays.weather) return;
@@ -3935,6 +4813,7 @@
         }
 
         function createSimulatedObstacles() {
+            if (PERFORMANCE_MODE) return;
             obstaclesGroup.clear();
 
             // Towers - physical obstacles spread along route (extended range)
@@ -4292,6 +5171,7 @@
         // ============================================
 
         async function fetchBuildingData(lat, lon) {
+            if (PERFORMANCE_MODE) return []; // Disable external fetching
             // Cancel any in-flight request
             if (buildingsFetchController) {
                 buildingsFetchController.abort();
@@ -4469,6 +5349,7 @@
         }
 
         async function updateBuildingsOverlay() {
+            if (PERFORMANCE_MODE) return; // Disable external fetching
             if (!state.overlays.buildings) {
                 buildingsGroup.clear();
                 return;
@@ -4834,6 +5715,7 @@
         }
 
         function updateFlightPathLine() {
+            if (PERFORMANCE_MODE) return; // Disable flight path ribbon
             // 3D Flight Path Tunnel - Smooth world-space route visualization
             try {
                 if (!camera) return;
@@ -5287,8 +6169,9 @@
             vsiEl.textContent = `${vsiPrefix}${Math.round(state.verticalSpeed)} fpm`;
             vsiEl.className = 'tape-secondary' + (state.verticalSpeed > 100 ? ' positive' : state.verticalSpeed < -100 ? ' negative' : '');
 
-            // Speed
-            document.getElementById('speedCurrent').textContent = Math.round(state.groundSpeed);
+            // Speed - use IAS (Indicated Airspeed) if available, otherwise groundspeed
+            const displaySpeed = state.indicatedAirspeed || state.groundSpeed;
+            document.getElementById('speedCurrent').textContent = Math.round(displaySpeed);
 
             // Acceleration (knots per minute)
             const accelEl = document.getElementById('accelValue');
@@ -5403,6 +6286,7 @@
         const WIND_FETCH_INTERVAL = 30000; // Fetch every 30 seconds
 
         async function fetchWindData(lat, lon) {
+            if (PERFORMANCE_MODE) return null; // Disable all external fetching
             try {
                 const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn`;
                 const response = await fetch(url);
@@ -5715,22 +6599,48 @@
             }
         }
 
+        // Debug panel minimize function
+        function minimizeDebugPanel() {
+            const content = document.getElementById('debug-content');
+            const btn = document.getElementById('debug-minimize-btn');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                btn.textContent = '−';
+            } else {
+                content.style.display = 'none';
+                btn.textContent = '+';
+            }
+        }
+
         function setupPanelControls() {
             const toggleBtn = document.getElementById('togglePanelBtn');
             const resetBtn = document.getElementById('resetBtn');
             const panel = document.getElementById('svsControls');
 
+            // Track panel state: normal -> expanded -> minimized -> normal
+            let panelState = 'normal';
+
             toggleBtn.addEventListener('click', () => {
-                panel.classList.toggle('expanded');
                 const expandIcon = toggleBtn.querySelector('.expand-icon');
                 const collapseIcon = toggleBtn.querySelector('.collapse-icon');
 
-                if (panel.classList.contains('expanded')) {
+                if (panelState === 'normal') {
+                    panel.classList.add('expanded');
+                    panel.classList.remove('fully-minimized');
                     expandIcon.style.display = 'none';
                     collapseIcon.style.display = 'block';
-                } else {
+                    panelState = 'expanded';
+                } else if (panelState === 'expanded') {
+                    panel.classList.remove('expanded');
+                    panel.classList.add('fully-minimized');
                     expandIcon.style.display = 'block';
                     collapseIcon.style.display = 'none';
+                    panelState = 'minimized';
+                } else {
+                    panel.classList.remove('fully-minimized');
+                    expandIcon.style.display = 'block';
+                    collapseIcon.style.display = 'none';
+                    panelState = 'normal';
                 }
             });
 
@@ -5978,6 +6888,11 @@
         }
 
         function updateSimulation() {
+            // Skip internal simulation when X-Plane mode is active and receiving data
+            if (xplaneState.enabled && xplaneState.receiving) {
+                return; // X-Plane is providing flight data
+            }
+
             if (!state.simulation.active) return;
 
             const now = performance.now();
@@ -6421,12 +7336,26 @@
         // RENDER LOOP
         // ============================================
 
+        // Performance optimization: frame throttling
+        let targetFPS = 30; // Cap at 30fps for smoother performance
+        let frameInterval = 1000 / targetFPS;
+        let lastRenderTime = 0;
+        let slowUpdateCounter = 0;
+
         function animate() {
             requestAnimationFrame(animate);
 
             const now = performance.now();
+            const elapsed = now - lastRenderTime;
+
+            // Throttle to target FPS
+            if (elapsed < frameInterval) return;
+            lastRenderTime = now - (elapsed % frameInterval);
+
             const deltaTime = lastFrameTime ? (now - lastFrameTime) / 1000 : 0;
             lastFrameTime = now;
+
+            slowUpdateCounter++;
 
             // Update simulation if active
             updateSimulation();
@@ -6473,8 +7402,11 @@
                 terrainPoints.material.size = terrainPoints.material.size * 0.9 + targetSize * 0.1; // Smooth transition
             }
 
-            // Update terrain colors based on current altitude (fixes frozen color bug)
-            updateTerrainColors();
+            // Update terrain colors every 10 frames (reduces CPU load)
+            // Disabled in performance mode
+            if (!PERFORMANCE_MODE && slowUpdateCounter % 10 === 0) {
+                updateTerrainColors();
+            }
 
             // Overlays now move with forward motion - no need to recreate periodically
             // They are only recreated when terrain reloads (world offset reset)
@@ -6486,11 +7418,16 @@
             }
 
             updateCamera();
-            updateHUD();
-            updateInfoDisplay();
 
-            // Update live ADS-B traffic
-            if (state.overlays.traffic) {
+            // Update HUD every frame, but info display less frequently
+            updateHUD();
+            if (slowUpdateCounter % 5 === 0) {
+                updateInfoDisplay();
+            }
+
+            // Update live ADS-B traffic every 15 frames (~0.5 sec at 30fps)
+            // Disabled in performance mode
+            if (!PERFORMANCE_MODE && state.overlays.traffic && slowUpdateCounter % 15 === 0) {
                 updateLiveTraffic();
             }
 
@@ -6639,10 +7576,8 @@
             }
         }
 
-        // Load saved theme
-        if (localStorage.getItem('theme') === 'light') {
-            document.documentElement.classList.add('light-mode');
-        }
+        // Always start in light mode (default)
+        document.documentElement.classList.add('light-mode');
 
         // Initialize on load
         document.addEventListener('DOMContentLoaded', init);
