@@ -227,6 +227,36 @@ class XPlaneUDPListener:
                         except Exception as e:
                             logger.error(f"Error in data callback: {e}")
 
+    def _estimate_magnetic_declination(self, lat: float, lon: float) -> float:
+        """
+        Estimate magnetic declination based on position.
+        Simple model for continental US - accurate to within ~2 degrees.
+        Positive = East declination, Negative = West declination.
+
+        For more accuracy, use the World Magnetic Model (WMM).
+        """
+        if lat == 0 and lon == 0:
+            return 0.0  # No position data yet
+
+        # Simple linear model for continental US (2020-2025 epoch)
+        # Declination varies roughly linearly with longitude in the US
+        # West coast (~-120°): ~+11 to +14° East
+        # East coast (~-70°): ~-10 to -15° West
+        # The variation also changes slightly with latitude
+
+        # Base declination estimate from longitude
+        # At lon=-120: decl ≈ +12°, at lon=-70: decl ≈ -13°
+        decl = -0.5 * (lon + 95)  # Roughly linear approximation
+
+        # Latitude adjustment (declination is slightly more East in southern US)
+        lat_adjustment = (lat - 40) * 0.1
+        decl += lat_adjustment
+
+        # Clamp to reasonable range
+        decl = max(-20, min(20, decl))
+
+        return decl
+
     def _handle_packet(self, data: bytes, addr: tuple):
         """Parse X-Plane UDP packet"""
         try:
@@ -303,9 +333,14 @@ class XPlaneUDPListener:
             if values[3] > -900:
                 self.flight_data.heading_mag = values[3]
             else:
-                # Use true heading as magnetic (close enough for display purposes)
-                # The UI can apply mag_var if needed
-                self.flight_data.heading_mag = values[2]
+                # Compute magnetic heading from true heading using estimated declination
+                # Based on aircraft position (simple model for continental US)
+                declination = self._estimate_magnetic_declination(
+                    self.flight_data.lat, self.flight_data.lon
+                )
+                self.flight_data.mag_var = declination
+                mag_hdg = (values[2] - declination) % 360
+                self.flight_data.heading_mag = mag_hdg
 
         elif index == self.INDEX_AOA_SIDESLIP:
             # Index 18: Alpha, Beta, Paths
