@@ -13,12 +13,14 @@ class XPlaneSettings(BaseSettings):
     """X-Plane connection settings"""
 
     # UDP listener settings - receives data FROM X-Plane
+    # NOTE: Use a different port than 49000 to avoid conflict with X-Plane's command port
     XPLANE_UDP_HOST: str = "0.0.0.0"  # Listen on all interfaces
-    XPLANE_UDP_PORT: int = 49000       # X-Plane default data output port
+    XPLANE_UDP_PORT: int = 49001       # Port to receive X-Plane data (configure X-Plane to send here)
 
-    # X-Plane PC settings (for potential future bidirectional control)
-    XPLANE_PC_IP: Optional[str] = None  # IP of PC running X-Plane
-    XPLANE_PC_PORT: int = 49000         # X-Plane command input port
+    # X-Plane PC settings - for sending commands TO X-Plane
+    # X-Plane always listens for commands on port 49000
+    XPLANE_PC_IP: Optional[str] = None  # IP of PC running X-Plane (None = 127.0.0.1)
+    XPLANE_PC_PORT: int = 49000         # X-Plane command input port (do not change)
 
     # Feature flags
     XPLANE_BRIDGE_ENABLED: bool = True  # Enable/disable X-Plane integration

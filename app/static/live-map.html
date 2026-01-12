@@ -3345,6 +3345,59 @@
             transition: transform 0.3s ease;
         }
 
+        /* X-Plane Aircraft Marker */
+        .xplane-aircraft-marker {
+            background: none !important;
+            border: none !important;
+        }
+
+        .xplane-aircraft-icon {
+            filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.8));
+            transition: transform 0.1s ease-out;
+        }
+
+        .xplane-aircraft-icon svg path {
+            fill: #3b82f6;
+        }
+
+        .xplane-aircraft-marker::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(59, 130, 246, 0.2);
+            animation: xplane-pulse 2s ease-out infinite;
+        }
+
+        @keyframes xplane-pulse {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+        }
+
+        .xplane-status-dot {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .overlay-toggle.xplane-toggle {
+            position: relative;
+        }
+
+        .overlay-toggle.xplane-toggle.active {
+            background: rgba(0, 255, 0, 0.2);
+            border-color: rgba(0, 255, 0, 0.4);
+            color: #00ff00;
+        }
+
         .traffic-popup {
             font-size: 12px;
         }
@@ -3721,6 +3774,82 @@
 
         .light-mode .floating-theme-toggle:hover {
             background: rgba(245, 245, 245, 0.95);
+        }
+
+        /* X-Plane toggle button */
+        .xplane-toggle {
+            position: fixed;
+            top: 16px;
+            right: 72px;
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            border-radius: 10px;
+            background: rgba(26, 26, 26, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-secondary);
+        }
+
+        .xplane-toggle:hover {
+            background: rgba(26, 26, 26, 0.95);
+            transform: scale(1.05);
+        }
+
+        .xplane-toggle svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .xplane-toggle .xplane-label {
+            display: none;
+        }
+
+        .xplane-toggle .xplane-status-dot {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .xplane-toggle.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.4);
+            color: #3b82f6;
+        }
+
+        .xplane-toggle.active svg {
+            fill: #3b82f6;
+        }
+
+        .light-mode .xplane-toggle {
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            color: #333;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .light-mode .xplane-toggle:hover {
+            background: rgba(255, 255, 255, 1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .light-mode .xplane-toggle.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.4);
+            color: #2563eb;
+        }
+
+        .light-mode .xplane-toggle.active svg {
+            fill: #2563eb;
         }
 
         /* Overlay toolbar buttons - icon only, larger touch targets */
@@ -4127,6 +4256,15 @@
             <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
             <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
         </svg>
+    </button>
+
+    <!-- X-Plane Mode Toggle -->
+    <button id="xplaneToggle" class="xplane-toggle" onclick="toggleXPlaneMode()" title="Toggle X-Plane Live Mode">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none">
+            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+        </svg>
+        <span class="xplane-label">X-PLANE</span>
+        <span class="xplane-status-dot"></span>
     </button>
 
     <!-- Overlay Toolbar -->
@@ -6168,6 +6306,286 @@
             console.log(`Traffic: ${trafficData.length} aircraft displayed`);
         }
 
+        // ==================== X-PLANE 12 INTEGRATION ====================
+
+        function connectXPlaneWebSocket() {
+            if (xplaneState.websocket?.readyState === WebSocket.OPEN) return;
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/xplane`;
+
+            console.log('Connecting to X-Plane WebSocket:', wsUrl);
+            xplaneState.websocket = new WebSocket(wsUrl);
+
+            xplaneState.websocket.onopen = () => {
+                console.log('X-Plane WebSocket connected');
+                xplaneState.connected = true;
+                xplaneState.reconnectAttempts = 0;
+                updateXPlaneStatus();
+            };
+
+            xplaneState.websocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'ping') {
+                    xplaneState.websocket.send(JSON.stringify({ type: 'pong' }));
+                    return;
+                }
+                if (data.lat !== undefined) {
+                    handleXPlaneData(data);
+                }
+            };
+
+            xplaneState.websocket.onclose = () => {
+                console.log('X-Plane WebSocket disconnected');
+                xplaneState.connected = false;
+                xplaneState.receiving = false;
+                updateXPlaneStatus();
+                // Auto-reconnect
+                if (xplaneState.enabled && xplaneState.reconnectAttempts < xplaneState.maxReconnectAttempts) {
+                    xplaneState.reconnectAttempts++;
+                    console.log(`Reconnecting in ${xplaneState.reconnectDelay}ms (attempt ${xplaneState.reconnectAttempts})`);
+                    setTimeout(connectXPlaneWebSocket, xplaneState.reconnectDelay);
+                }
+            };
+
+            xplaneState.websocket.onerror = (error) => {
+                console.error('X-Plane WebSocket error:', error);
+            };
+        }
+
+        function disconnectXPlaneWebSocket() {
+            if (xplaneState.websocket) {
+                xplaneState.websocket.close();
+                xplaneState.websocket = null;
+            }
+        }
+
+        function handleXPlaneData(data) {
+            xplaneState.receiving = true;
+            xplaneState.lastPacketTime = Date.now();
+            xplaneState.packetsReceived = data.packets_received || 0;
+
+            // Store flight data
+            xplaneState.flightData = {
+                lat: data.lat,
+                lon: data.lon,
+                alt_msl: data.alt_msl,
+                alt_agl: data.alt_agl,
+                heading_true: data.heading_true,
+                heading_mag: data.heading_mag > -900 ? data.heading_mag : data.heading_true,
+                pitch: data.pitch,
+                roll: data.roll,
+                airspeed_ind: data.airspeed_ind,
+                groundspeed: data.groundspeed,
+                vertical_speed: data.vertical_speed
+            };
+
+            // Update map marker
+            updateXPlaneMapMarker();
+
+            // Update profile marker (only if route is loaded)
+            if (currentRoute.dep && currentRoute.dest) {
+                updateXPlaneProfileMarker();
+            }
+
+            // Update status display
+            updateXPlaneStatus();
+        }
+
+        function initXPlaneMapMarker() {
+            const icon = L.divIcon({
+                className: 'xplane-aircraft-marker',
+                html: `<div class="xplane-aircraft-icon" style="transform: rotate(0deg);">
+                    <svg viewBox="0 0 24 24" width="36" height="36">
+                        <path fill="#3b82f6" d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                    </svg>
+                </div>`,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18]
+            });
+
+            xplaneMarker = L.marker([0, 0], {
+                icon,
+                zIndexOffset: 2000,
+                interactive: false
+            });
+        }
+
+        function updateXPlaneMapMarker() {
+            if (!xplaneMarker || !xplaneState.enabled) return;
+
+            const { lat, lon, heading_mag } = xplaneState.flightData;
+
+            // Update position
+            xplaneMarker.setLatLng([lat, lon]);
+
+            // Update rotation
+            const iconEl = xplaneMarker.getElement()?.querySelector('.xplane-aircraft-icon');
+            if (iconEl) {
+                iconEl.style.transform = `rotate(${heading_mag}deg)`;
+            }
+
+            // Add to map if not already
+            if (!map.hasLayer(xplaneMarker)) {
+                xplaneMarker.addTo(map);
+            }
+        }
+
+        function updateXPlaneProfileMarker() {
+            if (!xplaneState.enabled || !currentRoute.dep || !currentRoute.dest) {
+                xplaneState.profilePosition = null;
+                return;
+            }
+
+            const { lat, lon, alt_msl } = xplaneState.flightData;
+            const canvas = document.getElementById('profileCanvas');
+            if (!canvas) return;
+
+            // Get route path
+            const routePath = getRouteWaypoints();
+            if (routePath.length < 2) return;
+
+            // Helper: Find closest point on a line segment and return interpolation factor
+            function closestPointOnSegment(px, py, ax, ay, bx, by) {
+                const dx = bx - ax;
+                const dy = by - ay;
+                const lenSq = dx * dx + dy * dy;
+
+                if (lenSq === 0) return { t: 0, dist: Math.sqrt((px - ax) ** 2 + (py - ay) ** 2) };
+
+                // Project point onto line, clamped to segment
+                let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+                t = Math.max(0, Math.min(1, t));
+
+                // Closest point on segment
+                const closestX = ax + t * dx;
+                const closestY = ay + t * dy;
+                const dist = Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2);
+
+                return { t, dist };
+            }
+
+            // Calculate cumulative distances for each waypoint
+            let totalDist = 0;
+            const segmentDists = [0];
+            const segmentLengths = [];
+
+            for (let i = 1; i < routePath.length; i++) {
+                const segLen = haversineDistanceNM(
+                    routePath[i-1].lat, routePath[i-1].lon,
+                    routePath[i].lat, routePath[i].lon
+                );
+                segmentLengths.push(segLen);
+                totalDist += segLen;
+                segmentDists.push(totalDist);
+            }
+
+            // Find closest point on any segment of the route
+            let minDist = Infinity;
+            let bestProgress = 0;
+
+            for (let i = 0; i < routePath.length - 1; i++) {
+                const p1 = routePath[i];
+                const p2 = routePath[i + 1];
+
+                // Find closest point on this segment (using lat/lon as x/y for simplicity)
+                const result = closestPointOnSegment(
+                    lon, lat,  // Aircraft position (lon=x, lat=y)
+                    p1.lon, p1.lat,
+                    p2.lon, p2.lat
+                );
+
+                // Convert to actual distance using haversine for the perpendicular distance
+                const closestLat = p1.lat + result.t * (p2.lat - p1.lat);
+                const closestLon = p1.lon + result.t * (p2.lon - p1.lon);
+                const actualDist = haversineDistanceNM(lat, lon, closestLat, closestLon);
+
+                if (actualDist < minDist) {
+                    minDist = actualDist;
+                    // Calculate progress: distance to start of segment + interpolated distance within segment
+                    const distToSegmentStart = segmentDists[i];
+                    const distWithinSegment = result.t * segmentLengths[i];
+                    bestProgress = (distToSegmentStart + distWithinSegment) / totalDist;
+                }
+            }
+
+            // Clamp progress to [0, 1]
+            bestProgress = Math.max(0, Math.min(1, bestProgress));
+
+            // Store position for profile redraw
+            xplaneState.profilePosition = {
+                progress: bestProgress,
+                alt: alt_msl,
+                nearRoute: minDist < 25  // Within 25nm of route
+            };
+
+            // Throttle profile redraws to max 10Hz to prevent performance issues
+            const now = Date.now();
+            if (!xplaneState.lastProfileRedraw || now - xplaneState.lastProfileRedraw > 100) {
+                xplaneState.lastProfileRedraw = now;
+                if (currentRoute.dep && currentRoute.dest) {
+                    drawProfile(currentRoute.dep, currentRoute.dest);
+                }
+            }
+        }
+
+        function updateXPlaneStatus() {
+            const toggle = document.getElementById('xplaneToggle');
+            const dot = toggle?.querySelector('.xplane-status-dot');
+            const label = toggle?.querySelector('.xplane-label');
+
+            if (!toggle) return;
+
+            toggle.classList.toggle('active', xplaneState.enabled);
+
+            if (dot) {
+                if (!xplaneState.enabled) {
+                    dot.style.background = '#666';
+                    dot.title = 'X-Plane mode disabled';
+                } else if (!xplaneState.connected) {
+                    dot.style.background = '#f59e0b';
+                    dot.title = 'Connecting...';
+                } else if (!xplaneState.receiving) {
+                    dot.style.background = '#3b82f6';
+                    dot.title = 'Connected - awaiting X-Plane data';
+                } else {
+                    dot.style.background = '#3b82f6';
+                    dot.title = `Live: ${Math.round(xplaneState.flightData.alt_msl).toLocaleString()} ft MSL`;
+                }
+            }
+
+            if (label) {
+                if (xplaneState.enabled && xplaneState.receiving) {
+                    label.textContent = `LIVE ${Math.round(xplaneState.flightData.alt_msl).toLocaleString()}ft`;
+                } else {
+                    label.textContent = 'X-PLANE';
+                }
+            }
+        }
+
+        function toggleXPlaneMode() {
+            xplaneState.enabled = !xplaneState.enabled;
+
+            if (xplaneState.enabled) {
+                initXPlaneMapMarker();
+                connectXPlaneWebSocket();
+            } else {
+                disconnectXPlaneWebSocket();
+                xplaneState.profilePosition = null;
+                if (xplaneMarker && map.hasLayer(xplaneMarker)) {
+                    map.removeLayer(xplaneMarker);
+                }
+                // Redraw profile without X-Plane marker
+                if (currentRoute.dep && currentRoute.dest) {
+                    drawProfile(currentRoute.dep, currentRoute.dest);
+                }
+            }
+
+            updateXPlaneStatus();
+        }
+
+        // ==================== END X-PLANE INTEGRATION ====================
+
         // Helper function to parse CSV line with quoted fields
         function parseCSVLine(line) {
             const result = [];
@@ -7319,6 +7737,31 @@
 
         // Alias for profile drawing compatibility
         const profileOverlays = overlayState;
+
+        // X-Plane 12 Integration State
+        const xplaneState = {
+            enabled: false,
+            connected: false,
+            receiving: false,
+            websocket: null,
+            lastPacketTime: 0,
+            reconnectAttempts: 0,
+            maxReconnectAttempts: 10,
+            reconnectDelay: 2000,
+            packetsReceived: 0,
+            profilePosition: null,
+            flightData: {
+                lat: 0, lon: 0,
+                alt_msl: 0, alt_agl: 0,
+                heading_true: 0, heading_mag: 0,
+                pitch: 0, roll: 0,
+                airspeed_ind: 0, groundspeed: 0,
+                vertical_speed: 0
+            }
+        };
+
+        // X-Plane aircraft marker
+        let xplaneMarker = null;
 
         // Custom waypoint state (currentRoute, customWaypoints, customStops defined earlier)
         let waypointMode = false;
@@ -13995,6 +14438,69 @@
                 ctx.font = 'bold 10px sans-serif';
                 ctx.textAlign = 'right';
                 ctx.fillText(`${zoom.toFixed(1)}x`, width - paddingRight - 5, padding + 12);
+            }
+
+            // Draw X-Plane aircraft position if active
+            if (xplaneState.enabled && xplaneState.receiving && xplaneState.profilePosition) {
+                const { progress, alt, nearRoute } = xplaneState.profilePosition;
+
+                // Calculate X position (progress along route)
+                const profileWidth = width - padding - paddingRight;
+                const xPos = padding + (progress * profileWidth);
+
+                // Calculate Y position (altitude) - clamp to visible range
+                // If aircraft is above max altitude, show at top; if below 0, show at bottom
+                const clampedAlt = Math.max(0, Math.min(alt, maxAltitude * 1.1));
+                const yPos = height - paddingBottom - (clampedAlt / maxAltitude) * profileHeight;
+
+                // Apply zoom transform to position
+                const screenX = (xPos - centerX) * zoom + centerX + profileView.panX;
+                const screenY = (yPos - centerY) * zoom + centerY + profileView.panY;
+
+                // Clamp to visible area (always show the aircraft, clamped to bounds)
+                const clampedScreenX = Math.max(padding + 10, Math.min(width - paddingRight - 10, screenX));
+                const clampedScreenY = Math.max(padding + 15, Math.min(height - paddingBottom - 10, screenY));
+
+                // Draw aircraft marker
+                {
+                    ctx.save();
+                    ctx.translate(clampedScreenX, clampedScreenY);
+
+                    // Glow effect
+                    ctx.shadowColor = '#3b82f6';
+                    ctx.shadowBlur = 12;
+
+                    // Aircraft triangle (pointing up/right like direction of flight)
+                    ctx.fillStyle = nearRoute ? '#3b82f6' : '#f59e0b';
+                    ctx.beginPath();
+                    ctx.moveTo(0, -10);   // Top point
+                    ctx.lineTo(-7, 8);    // Bottom left
+                    ctx.lineTo(7, 8);     // Bottom right
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Inner highlight
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.beginPath();
+                    ctx.moveTo(0, -6);
+                    ctx.lineTo(-4, 4);
+                    ctx.lineTo(4, 4);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    ctx.restore();
+
+                    // Altitude label above aircraft
+                    ctx.save();
+                    ctx.fillStyle = nearRoute ? '#3b82f6' : '#f59e0b';
+                    ctx.font = 'bold 11px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                    ctx.shadowBlur = 4;
+                    ctx.fillText(`${Math.round(alt).toLocaleString()} ft`, clampedScreenX, clampedScreenY - 16);
+                    ctx.restore();
+                }
             }
 
             // Store profile data for hover (use original coordinates, not transformed)

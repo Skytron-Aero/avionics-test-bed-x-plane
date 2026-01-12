@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
-from typing import Optional, List, Dict, Set
+from typing import Optional, List, Dict, Set, Tuple
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
@@ -19,7 +19,7 @@ import json
 from enum import Enum
 
 # X-Plane 12 UDP Bridge
-from .xplane_bridge import XPlaneUDPListener, XPlaneFlightData
+from .xplane_bridge import XPlaneUDPListener, XPlaneFlightData, XPlaneCommandSender
 from .xplane_config import xplane_settings
 
 
@@ -49,6 +49,7 @@ ENABLED_DATA_SOURCES = {
 # ==================== X-PLANE 12 INTEGRATION ====================
 # Global instances for X-Plane UDP bridge and WebSocket clients
 xplane_listener: Optional[XPlaneUDPListener] = None
+xplane_commander: Optional[XPlaneCommandSender] = None
 xplane_clients: Set[WebSocket] = set()
 
 
@@ -1446,7 +1447,7 @@ def xplane_data_callback(data: XPlaneFlightData):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown events"""
-    global http_client, xplane_listener
+    global http_client, xplane_listener, xplane_commander
 
     print("Aviation Weather API starting up...")
     print("API Documentation available at: http://localhost:8000/docs")
@@ -1475,12 +1476,20 @@ async def lifespan(app: FastAPI):
         await xplane_listener.start()
         print(f"X-Plane UDP bridge started on port {xplane_settings.XPLANE_UDP_PORT}")
 
+        # Initialize command sender (uses X-Plane PC IP if configured, else localhost)
+        xplane_ip = xplane_settings.XPLANE_PC_IP or "127.0.0.1"
+        xplane_commander = XPlaneCommandSender(xplane_ip=xplane_ip, xplane_port=xplane_settings.XPLANE_PC_PORT)
+        print(f"X-Plane command sender initialized (target: {xplane_ip}:{xplane_settings.XPLANE_PC_PORT})")
+
     yield
 
-    # Stop X-Plane listener
+    # Stop X-Plane listener and commander
     if xplane_listener:
         await xplane_listener.stop()
         print("X-Plane UDP bridge stopped")
+    if xplane_commander:
+        xplane_commander.close()
+        print("X-Plane command sender closed")
 
     # Cancel background task on shutdown
     freshness_task.cancel()
@@ -3553,6 +3562,254 @@ def calculate_optimal_path(terrain_points: List[TerrainPoint], waypoints: List[W
     return path
 
 
+# ==================== USGS 3DEP TERRAIN GRID ====================
+
+class TerrainGridRequest(BaseModel):
+    """Request for USGS 3DEP terrain grid data"""
+    center_lat: float
+    center_lon: float
+    radius_nm: float = 10.0  # Radius in nautical miles
+    grid_size: int = 32  # Number of points per side (32x32 grid)
+
+class TerrainGridResponse(BaseModel):
+    """Response containing terrain grid elevations"""
+    grid: List[List[float]]  # 2D array of elevations in meters
+    bounds: Dict[str, float]  # min_lat, max_lat, min_lon, max_lon
+    center_lat: float
+    center_lon: float
+    resolution_m: float  # Meters between grid points
+    max_elevation_m: float
+    min_elevation_m: float
+
+# Cache for terrain grid data (center coordinates -> data)
+terrain_grid_cache: Dict[str, Tuple[TerrainGridResponse, float]] = {}
+TERRAIN_CACHE_TTL = 300  # 5 minutes
+
+@app.post("/api/terrain/usgs3dep", response_model=TerrainGridResponse)
+async def get_usgs_3dep_terrain(request: TerrainGridRequest):
+    """
+    Get terrain elevation grid from USGS 3DEP for SVS terrain visualization.
+    Returns a 2D grid of elevations that can be used to create a 3D terrain mesh.
+    """
+    import asyncio
+
+    # Round center coordinates for cache key (to 0.01 degrees ~ 1km)
+    cache_key = f"{round(request.center_lat, 2)},{round(request.center_lon, 2)},{request.radius_nm},{request.grid_size}"
+
+    # Check cache
+    current_time = time.time()
+    if cache_key in terrain_grid_cache:
+        cached_data, cache_time = terrain_grid_cache[cache_key]
+        if current_time - cache_time < TERRAIN_CACHE_TTL:
+            return cached_data
+
+    # Calculate bounds (1 nautical mile = 1/60 degree latitude)
+    nm_to_deg_lat = 1.0 / 60.0
+    nm_to_deg_lon = 1.0 / (60.0 * math.cos(math.radians(request.center_lat)))
+
+    lat_offset = request.radius_nm * nm_to_deg_lat
+    lon_offset = request.radius_nm * nm_to_deg_lon
+
+    min_lat = request.center_lat - lat_offset
+    max_lat = request.center_lat + lat_offset
+    min_lon = request.center_lon - lon_offset
+    max_lon = request.center_lon + lon_offset
+
+    # Create grid of coordinates
+    lat_step = (max_lat - min_lat) / (request.grid_size - 1)
+    lon_step = (max_lon - min_lon) / (request.grid_size - 1)
+
+    # Calculate resolution in meters
+    resolution_m = request.radius_nm * 1852 * 2 / (request.grid_size - 1)
+
+    # Build list of all coordinates to query
+    coordinates = []
+    for i in range(request.grid_size):
+        for j in range(request.grid_size):
+            lat = min_lat + i * lat_step
+            lon = min_lon + j * lon_step
+            coordinates.append((lat, lon))
+
+    # Fetch elevations from USGS EPQS in batches
+    # USGS EPQS is slow, so we'll use concurrent requests but limit them
+    async def fetch_elevation(lat: float, lon: float) -> float:
+        """Fetch single elevation point from USGS EPQS"""
+        try:
+            url = f"https://epqs.nationalmap.gov/v1/json?x={lon}&y={lat}&units=Meters&wkid=4326&includeDate=False"
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url)
+                if response.status_code == 200:
+                    data = response.json()
+                    return data.get("value", 0.0)
+        except Exception as e:
+            print(f"USGS EPQS error at {lat},{lon}: {e}")
+        return 0.0
+
+    # Use semaphore to limit concurrent requests
+    semaphore = asyncio.Semaphore(10)  # Max 10 concurrent requests
+
+    async def fetch_with_semaphore(lat: float, lon: float) -> float:
+        async with semaphore:
+            return await fetch_elevation(lat, lon)
+
+    # Fetch all elevations concurrently
+    tasks = [fetch_with_semaphore(lat, lon) for lat, lon in coordinates]
+    elevations = await asyncio.gather(*tasks)
+
+    # Build 2D grid from flat list
+    grid = []
+    idx = 0
+    for i in range(request.grid_size):
+        row = []
+        for j in range(request.grid_size):
+            row.append(elevations[idx])
+            idx += 1
+        grid.append(row)
+
+    # Calculate stats
+    flat_elevations = [e for e in elevations if e is not None]
+    max_elev = max(flat_elevations) if flat_elevations else 0.0
+    min_elev = min(flat_elevations) if flat_elevations else 0.0
+
+    response = TerrainGridResponse(
+        grid=grid,
+        bounds={
+            "min_lat": min_lat,
+            "max_lat": max_lat,
+            "min_lon": min_lon,
+            "max_lon": max_lon
+        },
+        center_lat=request.center_lat,
+        center_lon=request.center_lon,
+        resolution_m=resolution_m,
+        max_elevation_m=max_elev,
+        min_elevation_m=min_elev
+    )
+
+    # Cache the result
+    terrain_grid_cache[cache_key] = (response, current_time)
+
+    return response
+
+
+@app.get("/api/terrain/usgs3dep/fast")
+async def get_usgs_3dep_terrain_fast(
+    lat: float,
+    lon: float,
+    radius_nm: float = 5.0,
+    grid_size: int = 16
+):
+    """
+    Fast terrain endpoint using Open-Meteo elevation API (faster but less accurate).
+    Better for real-time updates. Falls back from USGS 3DEP for performance.
+    """
+    # Calculate bounds
+    nm_to_deg_lat = 1.0 / 60.0
+    nm_to_deg_lon = 1.0 / (60.0 * math.cos(math.radians(lat)))
+
+    lat_offset = radius_nm * nm_to_deg_lat
+    lon_offset = radius_nm * nm_to_deg_lon
+
+    min_lat = lat - lat_offset
+    max_lat = lat + lat_offset
+    min_lon = lon - lon_offset
+    max_lon = lon + lon_offset
+
+    # Create grid of coordinates
+    lat_step = (max_lat - min_lat) / (grid_size - 1)
+    lon_step = (max_lon - min_lon) / (grid_size - 1)
+
+    # Build coordinate lists for Open-Meteo batch query
+    lats = []
+    lons = []
+    for i in range(grid_size):
+        for j in range(grid_size):
+            lats.append(round(min_lat + i * lat_step, 6))
+            lons.append(round(min_lon + j * lon_step, 6))
+
+    # Open-Meteo elevation API (batch query)
+    lat_str = ",".join(map(str, lats))
+    lon_str = ",".join(map(str, lons))
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            url = f"https://api.open-meteo.com/v1/elevation?latitude={lat_str}&longitude={lon_str}"
+            response = await client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                elevations = data.get("elevation", [])
+            else:
+                raise HTTPException(status_code=500, detail="Failed to fetch elevation data")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Elevation API error: {str(e)}")
+
+    # Build 2D grid
+    grid = []
+    idx = 0
+    for i in range(grid_size):
+        row = []
+        for j in range(grid_size):
+            elev = elevations[idx] if idx < len(elevations) else 0
+            row.append(elev)
+            idx += 1
+        grid.append(row)
+
+    # Calculate stats
+    max_elev = max(elevations) if elevations else 0
+    min_elev = min(elevations) if elevations else 0
+    resolution_m = radius_nm * 1852 * 2 / (grid_size - 1)
+
+    return {
+        "grid": grid,
+        "bounds": {
+            "min_lat": min_lat,
+            "max_lat": max_lat,
+            "min_lon": min_lon,
+            "max_lon": max_lon
+        },
+        "center_lat": lat,
+        "center_lon": lon,
+        "resolution_m": resolution_m,
+        "max_elevation_m": max_elev,
+        "min_elevation_m": min_elev
+    }
+
+
+class BulkElevationRequest(BaseModel):
+    latitudes: List[float]
+    longitudes: List[float]
+
+@app.post("/api/terrain/elevation/bulk")
+async def get_bulk_elevation(request: BulkElevationRequest):
+    """
+    Proxy endpoint for Open-Meteo elevation API to avoid CORS issues.
+    Accepts JSON body with latitude and longitude arrays.
+    Handles large requests by batching internally.
+    """
+    try:
+        all_elevations = []
+        batch_size = 100  # Open-Meteo works better with smaller batches
+
+        for i in range(0, len(request.latitudes), batch_size):
+            batch_lats = request.latitudes[i:i + batch_size]
+            batch_lons = request.longitudes[i:i + batch_size]
+
+            lats_str = ",".join([f"{lat:.5f}" for lat in batch_lats])
+            lons_str = ",".join([f"{lon:.5f}" for lon in batch_lons])
+
+            url = f"https://api.open-meteo.com/v1/elevation?latitude={lats_str}&longitude={lons_str}"
+            response = await http_client.get(url, timeout=30.0)
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get("elevation"):
+                all_elevations.extend(data["elevation"])
+
+        return {"elevation": all_elevations}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch elevation: {str(e)}")
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
@@ -4233,6 +4490,237 @@ async def get_airways_count():
         raise HTTPException(status_code=503, detail=f"Failed to fetch airways count: {str(e)}")
 
 
+# ==================== FAA CLASS AIRSPACE DATA ====================
+# Real-time Class B/C/D/E airspace boundaries from FAA ArcGIS
+
+FAA_CLASS_AIRSPACE_BASE = "https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/Class_Airspace/FeatureServer/0/query"
+
+
+class AirspaceFeature(BaseModel):
+    """Individual airspace polygon feature"""
+    name: str
+    airspace_class: str
+    local_type: str
+    ident: Optional[str] = None
+    icao_id: Optional[str] = None
+    upper_val: float
+    upper_uom: str
+    lower_val: float
+    lower_uom: str
+    geometry: Dict  # GeoJSON polygon
+
+
+class AirspaceResponse(BaseModel):
+    """Response containing airspace features"""
+    type: str = "FeatureCollection"
+    features: List[Dict]
+    query_center: Dict
+    query_radius_nm: float
+    airspace_classes: List[str]
+    count: int
+    fetched_at: str
+
+
+@app.get("/api/aviation/airspace")
+async def get_class_airspace(
+    lat: float = Query(..., description="Center latitude"),
+    lon: float = Query(..., description="Center longitude"),
+    radius_nm: float = Query(30, ge=1, le=100, description="Search radius in nautical miles"),
+    classes: str = Query("B,C,D,E", description="Comma-separated airspace classes to include")
+):
+    """
+    Get FAA Class B/C/D/E airspace boundaries near a location.
+
+    Returns GeoJSON FeatureCollection with airspace polygons including:
+    - Airspace class (B, C, D, E)
+    - Name and identifier
+    - Upper and lower altitude limits
+    - Polygon geometry for 3D rendering
+
+    Data source: FAA Aeronautical Information Services (AIS)
+    Updated every 8 weeks by FAA.
+    """
+    start_time = datetime.now(timezone.utc)
+
+    # Convert nautical miles to meters for spatial query
+    radius_meters = radius_nm * 1852
+
+    # Parse requested classes
+    requested_classes = [c.strip().upper() for c in classes.split(",")]
+    valid_classes = [c for c in requested_classes if c in ["B", "C", "D", "E"]]
+
+    if not valid_classes:
+        raise HTTPException(status_code=400, detail="No valid airspace classes specified. Use B, C, D, or E.")
+
+    # Build WHERE clause for class filter
+    class_conditions = " OR ".join([f"CLASS='{c}'" for c in valid_classes])
+
+    try:
+        params = {
+            "where": class_conditions,
+            "geometry": f"{lon},{lat}",
+            "geometryType": "esriGeometryPoint",
+            "spatialRel": "esriSpatialRelIntersects",
+            "distance": radius_meters,
+            "units": "esriSRUnit_Meter",
+            "outFields": "NAME,CLASS,LOCAL_TYPE,IDENT,ICAO_ID,UPPER_VAL,UPPER_UOM,UPPER_CODE,LOWER_VAL,LOWER_UOM,LOWER_CODE,SECTOR",
+            "returnGeometry": "true",
+            "outSR": "4326",
+            "f": "geojson"
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(FAA_CLASS_AIRSPACE_BASE, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+        elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        health_tracker.record_call("FAA_CLASS_AIRSPACE", True, elapsed_ms)
+
+        # Process features to add computed fields
+        features = data.get("features", [])
+        for feature in features:
+            props = feature.get("properties", {})
+            # Normalize altitude values to feet
+            upper_val = props.get("UPPER_VAL", 0) or 0
+            lower_val = props.get("LOWER_VAL", 0) or 0
+            upper_uom = props.get("UPPER_UOM", "FT") or "FT"
+            lower_uom = props.get("LOWER_UOM", "FT") or "FT"
+
+            # Convert to standard format
+            feature["properties"] = {
+                "name": props.get("NAME", "Unknown"),
+                "airspace_class": props.get("CLASS", ""),
+                "local_type": props.get("LOCAL_TYPE", ""),
+                "ident": props.get("IDENT"),
+                "icao_id": props.get("ICAO_ID"),
+                "sector": props.get("SECTOR"),
+                "upper_val": upper_val,
+                "upper_uom": upper_uom,
+                "upper_code": props.get("UPPER_CODE", ""),
+                "lower_val": lower_val,
+                "lower_uom": lower_uom,
+                "lower_code": props.get("LOWER_CODE", ""),
+                # Pre-computed values for rendering
+                "ceiling_ft": upper_val if upper_uom == "FT" else upper_val * 100,  # FL to feet
+                "floor_ft": lower_val if lower_uom == "FT" else lower_val * 100
+            }
+
+        return {
+            "type": "FeatureCollection",
+            "features": features,
+            "query_center": {"lat": lat, "lon": lon},
+            "query_radius_nm": radius_nm,
+            "airspace_classes": valid_classes,
+            "count": len(features),
+            "data_source": "FAA_AIS",
+            "fetched_at": datetime.now(timezone.utc).isoformat()
+        }
+
+    except httpx.HTTPError as e:
+        health_tracker.record_call("FAA_CLASS_AIRSPACE", False, 0)
+        raise HTTPException(status_code=503, detail=f"Failed to fetch airspace data: {str(e)}")
+    except Exception as e:
+        health_tracker.record_call("FAA_CLASS_AIRSPACE", False, 0)
+        raise HTTPException(status_code=500, detail=f"Error processing airspace data: {str(e)}")
+
+
+@app.get("/api/aviation/airspace/nearby")
+async def get_nearby_airspace(
+    lat: float = Query(..., description="Aircraft latitude"),
+    lon: float = Query(..., description="Aircraft longitude"),
+    altitude_ft: float = Query(0, description="Aircraft altitude in feet MSL"),
+    look_ahead_nm: float = Query(50, ge=5, le=100, description="Look-ahead distance in nautical miles")
+):
+    """
+    Get airspace relevant to current flight position.
+
+    Optimized for SVS/PFD overlay rendering:
+    - Filters to airspace within altitude range
+    - Returns simplified geometry suitable for 3D rendering
+    - Includes distance and bearing from current position
+    """
+    start_time = datetime.now(timezone.utc)
+    radius_meters = look_ahead_nm * 1852
+
+    # Query all controlled airspace classes
+    class_conditions = "CLASS='B' OR CLASS='C' OR CLASS='D' OR CLASS='E'"
+
+    try:
+        params = {
+            "where": class_conditions,
+            "geometry": f"{lon},{lat}",
+            "geometryType": "esriGeometryPoint",
+            "spatialRel": "esriSpatialRelIntersects",
+            "distance": radius_meters,
+            "units": "esriSRUnit_Meter",
+            "outFields": "NAME,CLASS,LOCAL_TYPE,IDENT,ICAO_ID,UPPER_VAL,UPPER_UOM,LOWER_VAL,LOWER_UOM,SECTOR",
+            "returnGeometry": "true",
+            "outSR": "4326",
+            "f": "geojson"
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(FAA_CLASS_AIRSPACE_BASE, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+        elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        health_tracker.record_call("FAA_CLASS_AIRSPACE", True, elapsed_ms)
+
+        features = data.get("features", [])
+        relevant_features = []
+
+        for feature in features:
+            props = feature.get("properties", {})
+            upper_val = props.get("UPPER_VAL", 0) or 0
+            lower_val = props.get("LOWER_VAL", 0) or 0
+            upper_uom = props.get("UPPER_UOM", "FT") or "FT"
+            lower_uom = props.get("LOWER_UOM", "FT") or "FT"
+
+            # Convert to feet
+            ceiling_ft = upper_val if upper_uom == "FT" else upper_val * 100
+            floor_ft = lower_val if lower_uom == "FT" else lower_val * 100
+
+            # Check if aircraft altitude is relevant (within 5000ft of floor or below ceiling)
+            altitude_relevant = (altitude_ft >= floor_ft - 5000) and (altitude_ft <= ceiling_ft + 2000)
+
+            if altitude_relevant or altitude_ft == 0:  # Include all if altitude not specified
+                feature["properties"] = {
+                    "name": props.get("NAME", "Unknown"),
+                    "airspace_class": props.get("CLASS", ""),
+                    "local_type": props.get("LOCAL_TYPE", ""),
+                    "ident": props.get("IDENT"),
+                    "icao_id": props.get("ICAO_ID"),
+                    "sector": props.get("SECTOR"),
+                    "ceiling_ft": ceiling_ft,
+                    "floor_ft": floor_ft,
+                    "altitude_relevant": altitude_relevant
+                }
+                relevant_features.append(feature)
+
+        # Sort by class priority (B first, then C, D, E)
+        class_priority = {"B": 0, "C": 1, "D": 2, "E": 3}
+        relevant_features.sort(key=lambda f: class_priority.get(f["properties"].get("airspace_class", "E"), 4))
+
+        return {
+            "type": "FeatureCollection",
+            "features": relevant_features,
+            "aircraft_position": {"lat": lat, "lon": lon, "altitude_ft": altitude_ft},
+            "look_ahead_nm": look_ahead_nm,
+            "count": len(relevant_features),
+            "data_source": "FAA_AIS",
+            "fetched_at": datetime.now(timezone.utc).isoformat()
+        }
+
+    except httpx.HTTPError as e:
+        health_tracker.record_call("FAA_CLASS_AIRSPACE", False, 0)
+        raise HTTPException(status_code=503, detail=f"Failed to fetch airspace data: {str(e)}")
+    except Exception as e:
+        health_tracker.record_call("FAA_CLASS_AIRSPACE", False, 0)
+        raise HTTPException(status_code=500, detail=f"Error processing airspace data: {str(e)}")
+
+
 # ==================== X-PLANE 12 WEBSOCKET & REST ENDPOINTS ====================
 
 @app.websocket("/ws/xplane")
@@ -4283,6 +4771,166 @@ async def xplane_websocket(websocket: WebSocket):
 
                 elif message.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
+
+                # ==================== AUTOPILOT COMMANDS ====================
+                elif message.get("type") == "set_heading":
+                    # Set autopilot heading bug
+                    heading = message.get("heading", 0)
+                    if xplane_commander:
+                        success = xplane_commander.set_heading_bug(heading)
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "set_heading",
+                            "success": success,
+                            "value": heading
+                        })
+
+                elif message.get("type") == "set_altitude":
+                    # Set autopilot altitude bug
+                    altitude = message.get("altitude", 0)
+                    if xplane_commander:
+                        success = xplane_commander.set_altitude_bug(altitude)
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "set_altitude",
+                            "success": success,
+                            "value": altitude
+                        })
+
+                elif message.get("type") == "engage_heading":
+                    # Engage heading hold mode
+                    if xplane_commander:
+                        # First set the heading bug if provided
+                        heading = message.get("heading")
+                        if heading is not None:
+                            xplane_commander.set_heading_bug(heading)
+                        # Then engage heading mode
+                        success = xplane_commander.engage_heading_mode()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "engage_heading",
+                            "success": success,
+                            "heading": heading
+                        })
+
+                elif message.get("type") == "engage_nav":
+                    # Engage nav mode (follow flight plan)
+                    if xplane_commander:
+                        success = xplane_commander.engage_nav_mode()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "engage_nav",
+                            "success": success
+                        })
+
+                elif message.get("type") == "engage_altitude":
+                    # Engage altitude hold mode
+                    if xplane_commander:
+                        # First set the altitude bug if provided
+                        altitude = message.get("altitude")
+                        if altitude is not None:
+                            xplane_commander.set_altitude_bug(altitude)
+                        # Then engage altitude hold mode
+                        success = xplane_commander.engage_altitude_hold()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "engage_altitude",
+                            "success": success,
+                            "altitude": altitude
+                        })
+
+                elif message.get("type") == "engage_vs":
+                    # Engage vertical speed mode
+                    vs = message.get("vs", 0)
+                    if xplane_commander:
+                        xplane_commander.set_vs_bug(vs)
+                        success = xplane_commander.engage_vs_mode()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "engage_vs",
+                            "success": success,
+                            "value": vs
+                        })
+
+                elif message.get("type") == "autopilot_on":
+                    # Master autopilot on
+                    if xplane_commander:
+                        success = xplane_commander.engage_autopilot()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "autopilot_on",
+                            "success": success
+                        })
+
+                elif message.get("type") == "autopilot_off":
+                    # Master autopilot off
+                    if xplane_commander:
+                        success = xplane_commander.disengage_autopilot()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "autopilot_off",
+                            "success": success
+                        })
+
+                elif message.get("type") == "engage_ap":
+                    # Master autopilot on (alias)
+                    if xplane_commander:
+                        success = xplane_commander.engage_autopilot()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "engage_ap",
+                            "success": success
+                        })
+
+                elif message.get("type") == "disengage_ap":
+                    # Master autopilot off (alias)
+                    if xplane_commander:
+                        success = xplane_commander.disengage_autopilot()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "disengage_ap",
+                            "success": success
+                        })
+
+                elif message.get("type") == "disengage_heading":
+                    # Disengage heading hold mode
+                    if xplane_commander:
+                        success = xplane_commander.disengage_heading_mode()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "disengage_heading",
+                            "success": success
+                        })
+
+                elif message.get("type") == "disengage_nav":
+                    # Disengage nav mode
+                    if xplane_commander:
+                        success = xplane_commander.disengage_nav_mode()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "disengage_nav",
+                            "success": success
+                        })
+
+                elif message.get("type") == "disengage_altitude":
+                    # Disengage altitude hold
+                    if xplane_commander:
+                        success = xplane_commander.disengage_altitude_hold()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "disengage_altitude",
+                            "success": success
+                        })
+
+                elif message.get("type") == "disengage_vs":
+                    # Disengage vertical speed mode
+                    if xplane_commander:
+                        success = xplane_commander.disengage_vs_mode()
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "disengage_vs",
+                            "success": success
+                        })
 
             except asyncio.TimeoutError:
                 # Send keepalive ping
