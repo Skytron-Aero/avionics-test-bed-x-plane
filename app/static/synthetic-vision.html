@@ -179,11 +179,13 @@
             z-index: 1001;
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            padding: 0;
             background: rgba(0, 0, 0, 0.7);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
             cursor: pointer;
             transition: all 0.2s ease;
             pointer-events: auto;
@@ -193,17 +195,17 @@
         .xplane-status:hover {
             background: rgba(0, 0, 0, 0.85);
             border-color: rgba(255, 255, 255, 0.4);
-            transform: translateX(-50%) scale(1.02);
+            transform: translateX(-50%) scale(1.1);
         }
 
         .xplane-status.connected {
             border-color: #22c55e;
-            box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+            box-shadow: 0 0 12px rgba(34, 197, 94, 0.5);
         }
 
         .xplane-status.receiving {
             border-color: #3b82f6;
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
         }
 
         .xplane-status.receiving .xplane-icon {
@@ -223,9 +225,9 @@
         }
 
         .xplane-icon {
-            width: 20px;
-            height: 20px;
-            color: rgba(255, 255, 255, 0.6);
+            width: 24px;
+            height: 24px;
+            color: rgba(255, 255, 255, 0.5);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -234,19 +236,6 @@
         .xplane-status.connected .xplane-icon,
         .xplane-status.receiving .xplane-icon {
             color: #22c55e;
-        }
-
-        .xplane-text {
-            display: flex;
-            flex-direction: column;
-            gap: 1px;
-        }
-
-        #xplane-status-label {
-            font-weight: 600;
-            font-size: 12px;
-            color: #fff;
-            letter-spacing: 0.5px;
         }
 
         #xplane-status-detail {
@@ -410,78 +399,6 @@
 
         .light-mode .ap-note {
             color: rgba(0, 0, 0, 0.4);
-        }
-
-        /* X-Plane Debug Panel */
-        .xplane-debug-panel {
-            position: fixed;
-            top: 350px;
-            right: 16px;
-            z-index: 1002;
-            background: rgba(0, 0, 0, 0.9);
-            border: 1px solid #22c55e;
-            border-radius: 8px;
-            padding: 10px;
-            min-width: 220px;
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            backdrop-filter: blur(8px);
-            box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
-        }
-
-        .debug-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-            padding-bottom: 6px;
-            border-bottom: 1px solid #22c55e;
-        }
-
-        .debug-header span {
-            font-weight: bold;
-            color: #22c55e;
-            letter-spacing: 1px;
-        }
-
-        .debug-close {
-            background: none;
-            border: none;
-            color: #22c55e;
-            font-size: 16px;
-            cursor: pointer;
-            padding: 0 4px;
-        }
-
-        .debug-close:hover {
-            color: #fff;
-        }
-
-        .debug-content {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-        }
-
-        .debug-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-        }
-
-        .debug-row span:first-child {
-            color: #888;
-        }
-
-        .debug-row span:last-child {
-            color: #0f0;
-            text-align: right;
-        }
-
-        .debug-separator {
-            height: 1px;
-            background: rgba(34, 197, 94, 0.3);
-            margin: 4px 0;
         }
 
         /* HUD Overlay */
@@ -658,7 +575,7 @@
         /* Circular Compass - Bottom Center */
         .compass-container {
             position: fixed;
-            bottom: 100px;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
             width: 280px;
@@ -874,7 +791,7 @@
         /* Wind Dial - Bottom Right of Compass */
         .wind-dial-container {
             position: fixed;
-            bottom: 140px;
+            bottom: 60px;
             left: calc(50% + 170px);
             width: 140px;
             height: 140px;
@@ -980,7 +897,7 @@
         /* Traffic Mini Map - Bottom Left of Compass */
         .traffic-map-container {
             position: fixed;
-            bottom: 140px;
+            bottom: 60px;
             right: calc(50% + 170px);
             width: 140px;
             height: 140px;
@@ -1088,18 +1005,9 @@
             display: none;
         }
 
-        /* Controls Panel - Bottom Left */
+        /* Controls Panel - HIDDEN */
         .svs-controls {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            z-index: 1001;
-            background: rgba(10, 10, 10, 0.8);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 16px;
-            width: 280px;
+            display: none !important;
             pointer-events: auto;
             transition: all 0.3s ease;
         }
@@ -1121,6 +1029,22 @@
             display: none;
         }
 
+        /* Show fuel bar when minimized */
+        .svs-controls.minimized .sim-progress-panel {
+            display: block;
+            padding: 8px;
+            margin-bottom: 8px;
+        }
+
+        .svs-controls.minimized .sim-progress-panel .progress-info,
+        .svs-controls.minimized .sim-progress-panel .flight-phase-indicator {
+            display: none;
+        }
+
+        .svs-controls.minimized .sim-progress-panel .fuel-section {
+            display: block;
+        }
+
         .svs-controls.fully-minimized {
             width: auto;
             min-width: 180px;
@@ -1137,20 +1061,6 @@
 
         .svs-controls.expanded {
             width: 320px;
-        }
-
-        .debug-minimize {
-            background: none;
-            border: none;
-            color: #22c55e;
-            font-size: 18px;
-            cursor: pointer;
-            padding: 0 8px;
-            line-height: 1;
-        }
-
-        .debug-minimize:hover {
-            color: #4ade80;
         }
 
         .svs-controls.expanded .sim-progress-panel {
@@ -1522,6 +1432,52 @@
         .overlay-btn svg {
             width: 24px;
             height: 24px;
+        }
+
+        /* Overlay toolbar minimize/expand */
+        .overlay-toolbar.minimized .overlay-btn {
+            display: none;
+        }
+
+        .overlay-toolbar.minimized {
+            padding: 4px;
+        }
+
+        .overlay-expand-btn {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+            border: none;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            box-shadow:
+                4px 4px 8px rgba(0, 0, 0, 0.5),
+                -2px -2px 4px rgba(255, 255, 255, 0.02);
+        }
+
+        .overlay-expand-btn:hover {
+            background: linear-gradient(180deg, #323232 0%, #222222 100%);
+            color: var(--text-primary);
+        }
+
+        .overlay-expand-btn svg {
+            width: 18px;
+            height: 18px;
+            transition: transform 0.2s ease;
+        }
+
+        .overlay-toolbar.minimized .overlay-expand-btn svg {
+            transform: rotate(180deg);
+        }
+
+        .light-mode .overlay-expand-btn {
+            background: linear-gradient(180deg, #ffffff 0%, #f0f0f0 100%);
+            color: #333333;
         }
 
         /* Light mode overlay buttons - white */
@@ -1950,13 +1906,9 @@
     <!-- X-Plane Connection Status Indicator -->
     <div id="xplane-status" class="xplane-status" onclick="toggleXPlaneMode()" title="Toggle X-Plane Mode">
         <div class="xplane-icon">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
                 <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
             </svg>
-        </div>
-        <div class="xplane-text">
-            <span id="xplane-status-label">X-Plane</span>
-            <span id="xplane-status-detail">Click to enable</span>
         </div>
     </div>
 
@@ -1981,47 +1933,6 @@
         <div class="ap-note">
             Note: Assists provide visual guidance only.<br>
             Inceptor remains primary control via X-Plane.
-        </div>
-    </div>
-
-    <!-- X-Plane Debug Panel -->
-    <div id="xplane-debug" class="xplane-debug-panel">
-        <div class="debug-header">
-            <span>X-PLANE DEBUG</span>
-            <button onclick="minimizeDebugPanel()" class="debug-minimize" id="debug-minimize-btn">−</button>
-            <button onclick="toggleXPlaneDebug()" class="debug-close">&times;</button>
-        </div>
-        <div class="debug-content" id="debug-content">
-            <div class="debug-row"><span>Status:</span><span id="dbg-status">Disconnected</span></div>
-            <div class="debug-row"><span>Packets:</span><span id="dbg-packets">0</span></div>
-            <div class="debug-row"><span>Source:</span><span id="dbg-source">-</span></div>
-            <div class="debug-separator"></div>
-            <div class="debug-row"><span>LAT:</span><span id="dbg-lat">0.000000</span></div>
-            <div class="debug-row"><span>LON:</span><span id="dbg-lon">0.000000</span></div>
-            <div class="debug-row"><span>ALT MSL:</span><span id="dbg-alt">0 ft</span></div>
-            <div class="debug-row"><span>ALT AGL:</span><span id="dbg-agl">0 ft</span></div>
-            <div class="debug-separator"></div>
-            <div class="debug-row"><span>PITCH:</span><span id="dbg-pitch">0.0°</span></div>
-            <div class="debug-row"><span>ROLL:</span><span id="dbg-roll">0.0°</span></div>
-            <div class="debug-row"><span>HDG TRUE:</span><span id="dbg-hdg-true">0°</span></div>
-            <div class="debug-row"><span>HDG MAG:</span><span id="dbg-hdg-mag">0°</span></div>
-            <div class="debug-row"><span>MAG VAR:</span><span id="dbg-magvar">0°</span></div>
-            <div class="debug-separator"></div>
-            <div class="debug-row"><span>IAS:</span><span id="dbg-ias">0 kts</span></div>
-            <div class="debug-row"><span>TAS:</span><span id="dbg-tas">0 kts</span></div>
-            <div class="debug-row"><span>GS:</span><span id="dbg-gs">0 kts</span></div>
-            <div class="debug-row"><span>VS:</span><span id="dbg-vs">0 fpm</span></div>
-            <div class="debug-separator"></div>
-            <div class="debug-row"><span>AOA:</span><span id="dbg-aoa">0.0°</span></div>
-            <div class="debug-row"><span>G-Force:</span><span id="dbg-g">1.0</span></div>
-            <div class="debug-row"><span>Mach:</span><span id="dbg-mach">0.00</span></div>
-            <div class="debug-separator"></div>
-            <div class="debug-row" style="color: #0ea5e9;"><span>WEATHER</span><span id="dbg-wx-status">-</span></div>
-            <div class="debug-row"><span>Visibility:</span><span id="dbg-wx-vis">10 SM</span></div>
-            <div class="debug-row"><span>Temperature:</span><span id="dbg-wx-temp">15°C</span></div>
-            <div class="debug-row"><span>Wind:</span><span id="dbg-wx-wind">0 kts</span></div>
-            <div class="debug-row"><span>Precip:</span><span id="dbg-wx-precip">None</span></div>
-            <div class="debug-row"><span>Clouds:</span><span id="dbg-wx-clouds">-</span></div>
         </div>
     </div>
 
@@ -2100,14 +2011,12 @@
 
         <!-- Altitude Tape -->
         <div class="altitude-tape">
-            <div class="tape-label">ALT</div>
             <div class="tape-current" id="altitudeCurrent">5000</div>
             <div class="tape-secondary" id="vsiValue">+0 fpm</div>
         </div>
 
         <!-- Speed Tape -->
         <div class="speed-tape">
-            <div class="tape-label">IAS</div>
             <div class="tape-current" id="speedCurrent">120</div>
             <div class="tape-secondary" id="accelValue">0 kt/m</div>
         </div>
@@ -2132,39 +2041,7 @@
         </div>
     </div>
 
-    <!-- Autopilot Control Panel -->
-    <div class="autopilot-panel" id="autopilotPanel">
-        <button class="ap-btn master" id="apMasterBtn" title="Autopilot Master">
-            <svg viewBox="0 0 24 24">
-                <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm-1 6h2v2h-2V8zm0 4h2v6h-2v-6z"/>
-            </svg>
-            <span>AP</span>
-        </button>
-        <button class="ap-btn" id="apHdgBtn" title="Heading Hold">
-            <svg viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
-            </svg>
-            <span>HDG</span>
-        </button>
-        <button class="ap-btn" id="apNavBtn" title="Navigation Mode">
-            <svg viewBox="0 0 24 24">
-                <path d="M21 3L3 10.53v.98l6.84 2.65L12.48 21h.98L21 3z"/>
-            </svg>
-            <span>NAV</span>
-        </button>
-        <button class="ap-btn" id="apAltBtn" title="Altitude Hold">
-            <svg viewBox="0 0 24 24">
-                <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/>
-            </svg>
-            <span>ALT</span>
-        </button>
-        <button class="ap-btn" id="apVsBtn" title="Vertical Speed">
-            <svg viewBox="0 0 24 24">
-                <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/>
-            </svg>
-            <span>VS</span>
-        </button>
-    </div>
+    <!-- Autopilot buttons removed - heading override via compass click only -->
 
     <!-- Wind Dial -->
     <div class="wind-dial-container">
@@ -2350,7 +2227,7 @@
     </div>
 
     <!-- Overlay Toggles -->
-    <div class="overlay-toolbar">
+    <div class="overlay-toolbar minimized">
         <button class="overlay-btn terrain active" data-layer="terrain" title="Terrain">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 20h18L15 8l-3 4-4-3-5 11z"/>
@@ -2389,20 +2266,25 @@
                 <path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>
             </svg>
         </button>
-        <button class="overlay-btn clouds active" data-layer="clouds" title="Clouds">
+        <button class="overlay-btn clouds" data-layer="clouds" title="Clouds">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
             </svg>
         </button>
-        <button class="overlay-btn icing active" data-layer="icing" title="Icing">
+        <button class="overlay-btn icing" data-layer="icing" title="Icing">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07"/>
             </svg>
         </button>
-        <button class="overlay-btn visibility active" data-layer="visibility" title="Visibility">
+        <button class="overlay-btn visibility" data-layer="visibility" title="Visibility">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                 <circle cx="12" cy="12" r="3"/>
+            </svg>
+        </button>
+        <button class="overlay-expand-btn" id="overlayExpandBtn" onclick="toggleOverlayToolbar()" title="Expand Overlays">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
             </svg>
         </button>
     </div>
@@ -2452,9 +2334,9 @@
                 towers: false,      // Towers/obstacles - off by default
                 tfr: false,         // TFRs - off by default
                 buildings: false,   // Buildings - off by default
-                clouds: true,       // Cloud layers enabled
-                icing: true,        // Icing overlay enabled
-                visibility: true    // Visibility overlay enabled
+                clouds: false,      // Cloud layers - off by default
+                icing: false,       // Icing overlay - off by default
+                visibility: false   // Visibility overlay - off by default
             },
             buildingData: null, // Cached building data from OSM
             simulation: {
@@ -2948,93 +2830,6 @@
             checkTerrainReload();
 
             updateXPlaneStatusIndicator();
-            updateXPlaneDebugPanel(data);
-        }
-
-        // ==================== X-PLANE DEBUG PANEL ====================
-        function updateXPlaneDebugPanel(data) {
-            const dbg = (id, val) => {
-                const el = document.getElementById(id);
-                if (el) el.textContent = val;
-            };
-
-            dbg('dbg-status', data.connected ? 'CONNECTED' : 'DISCONNECTED');
-            dbg('dbg-packets', data.packets_received || 0);
-            dbg('dbg-source', data.source_ip ? `${data.source_ip}:${data.source_port}` : '-');
-
-            dbg('dbg-lat', data.lat?.toFixed(6) || '0.000000');
-            dbg('dbg-lon', data.lon?.toFixed(6) || '0.000000');
-            dbg('dbg-alt', `${Math.round(data.alt_msl || 0)} ft`);
-            dbg('dbg-agl', `${Math.round(data.alt_agl || 0)} ft`);
-
-            dbg('dbg-pitch', `${(data.pitch || 0).toFixed(1)}°`);
-            dbg('dbg-roll', `${(data.roll || 0).toFixed(1)}°`);
-            dbg('dbg-hdg-true', `${Math.round(data.heading_true || 0)}°`);
-            dbg('dbg-hdg-mag', data.heading_mag > -900 ? `${Math.round(data.heading_mag)}°` : `~${Math.round(state.heading)}°`);
-            // Show magnetic variation with source indicator
-            let magVarDisplay = 'N/A';
-            if (data.mag_var && data.mag_var !== 0) {
-                magVarDisplay = `${data.mag_var.toFixed(1)}°`;
-            } else if (data.lon) {
-                // Show estimated value
-                const lon = data.lon;
-                const estVar = lon < -100 ? 12 : lon < -80 ? 3 : -12;
-                magVarDisplay = `~${estVar}° (est)`;
-            }
-            dbg('dbg-magvar', magVarDisplay);
-
-            dbg('dbg-ias', `${Math.round(data.airspeed_ind || 0)} kts`);
-            dbg('dbg-tas', `${Math.round(data.airspeed_true || 0)} kts`);
-            dbg('dbg-gs', `${Math.round(data.groundspeed || 0)} kts`);
-            dbg('dbg-vs', `${Math.round(data.vertical_speed || 0)} fpm`);
-
-            dbg('dbg-aoa', `${(data.alpha || 0).toFixed(1)}°`);
-            dbg('dbg-g', (data.g_normal || 1).toFixed(2));
-            dbg('dbg-mach', (data.mach || 0).toFixed(3));
-
-            // Weather data from X-Plane
-            const wx = xplaneState.weather;
-            if (wx.hasData) {
-                dbg('dbg-wx-status', 'LIVE');
-                dbg('dbg-wx-vis', `${wx.visibility_sm.toFixed(1)} SM`);
-                dbg('dbg-wx-temp', `${Math.round(wx.local_temp)}°C`);
-                dbg('dbg-wx-wind', `${Math.round(wx.wind_speed_kts)} kts @ ${Math.round(wx.wind_direction_true)}°`);
-
-                // Precipitation
-                if (wx.precipitation_rate > 0.5) {
-                    dbg('dbg-wx-precip', 'Heavy');
-                } else if (wx.precipitation_rate > 0.2) {
-                    dbg('dbg-wx-precip', 'Moderate');
-                } else if (wx.precipitation_rate > 0) {
-                    dbg('dbg-wx-precip', 'Light');
-                } else {
-                    dbg('dbg-wx-precip', 'None');
-                }
-
-                // Cloud summary
-                const activeClouds = wx.cloud_layers.filter(l => l.coverage > 0);
-                if (activeClouds.length > 0) {
-                    const lowest = activeClouds.sort((a, b) => a.base_ft - b.base_ft)[0];
-                    const covText = lowest.coverage > 0.7 ? 'OVC' : lowest.coverage > 0.5 ? 'BKN' : lowest.coverage > 0.25 ? 'SCT' : 'FEW';
-                    dbg('dbg-wx-clouds', `${covText} ${Math.round(lowest.base_ft/100)}00`);
-                } else {
-                    dbg('dbg-wx-clouds', 'CLR');
-                }
-            } else {
-                dbg('dbg-wx-status', 'SIM');
-                dbg('dbg-wx-vis', '10 SM');
-                dbg('dbg-wx-temp', '15°C');
-                dbg('dbg-wx-wind', '-');
-                dbg('dbg-wx-precip', '-');
-                dbg('dbg-wx-clouds', '-');
-            }
-        }
-
-        function toggleXPlaneDebug() {
-            const panel = document.getElementById('xplane-debug');
-            if (panel) {
-                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-            }
         }
 
         // ==================== TERRAIN RELOAD CHECK ====================
@@ -3094,8 +2889,6 @@
         // ==================== X-PLANE STATUS INDICATOR ====================
         function updateXPlaneStatusIndicator() {
             const statusEl = document.getElementById('xplane-status');
-            const labelEl = document.getElementById('xplane-status-label');
-            const detailEl = document.getElementById('xplane-status-detail');
 
             if (!statusEl) return;
 
@@ -3103,19 +2896,13 @@
             statusEl.classList.remove('connected', 'receiving');
 
             if (!xplaneState.enabled) {
-                labelEl.textContent = 'X-Plane';
-                detailEl.textContent = 'Click to enable';
+                // Icon only - off state (default gray)
             } else if (!xplaneState.connected) {
-                labelEl.textContent = 'X-Plane';
-                detailEl.textContent = 'Connecting...';
+                // Connecting - no special class yet
             } else if (!xplaneState.receiving) {
                 statusEl.classList.add('connected');
-                labelEl.textContent = 'X-Plane';
-                detailEl.textContent = 'Awaiting data';
             } else {
                 statusEl.classList.add('connected', 'receiving');
-                labelEl.textContent = 'X-Plane LIVE';
-                detailEl.textContent = `${Math.round(state.altitude)} ft | ${Math.round(state.groundSpeed)} kts`;
             }
         }
 
@@ -3964,18 +3751,26 @@
             initAutopilotButtons();
 
             // Minimize panels on startup for clean display
-            minimizeDebugPanel();
             document.getElementById('svsControls').classList.add('minimized');
 
             if (!PERFORMANCE_MODE) {
-                // Load initial terrain
-                await loadTerrainData(state.position.lat, state.position.lon);
+                // Load initial terrain (non-blocking - page continues even if this fails)
+                try {
+                    await loadTerrainData(state.position.lat, state.position.lon);
+                } catch (terrainError) {
+                    console.error('Initial terrain load failed:', terrainError);
+                    generateProceduralTerrain();
+                }
 
                 // Fetch initial wind data for current position
-                const initialWind = await fetchWindData(state.position.lat, state.position.lon);
-                if (initialWind) {
-                    state.windSpeed = initialWind.speed;
-                    state.windDirection = initialWind.direction;
+                try {
+                    const initialWind = await fetchWindData(state.position.lat, state.position.lon);
+                    if (initialWind) {
+                        state.windSpeed = initialWind.speed;
+                        state.windDirection = initialWind.direction;
+                    }
+                } catch (windError) {
+                    console.warn('Initial wind fetch failed:', windError);
                 }
 
                 // Create initial overlay visuals (will be empty if disabled)
@@ -4127,7 +3922,7 @@
         // ============================================
 
         let lastTerrainLoadTime = 0;
-        const TERRAIN_LOAD_COOLDOWN = 5000; // Minimum 5 seconds between terrain loads
+        const TERRAIN_LOAD_COOLDOWN = 15000; // Minimum 15 seconds between terrain loads for performance
 
         async function loadTerrainData(lat, lon) {
             if (PERFORMANCE_MODE) return; // Disable all external fetching
@@ -4144,7 +3939,7 @@
                 // Reset world offset when loading new terrain
                 worldOffset = { x: 0, z: 0 };
 
-                const gridSize = 80; // Reduced for better performance on embedded systems
+                const gridSize = 50; // Smaller grid for faster rendering
                 const radiusNM = 35; // Original radius
                 const degreesPerNM = 1 / 60;
                 const span = radiusNM * 2 * degreesPerNM;
@@ -4167,31 +3962,49 @@
                     }
                 }
 
-                // Fetch elevation data from Open-Meteo API (batched)
-                const elevations = [];
-                const batchSize = 1000;
-
                 // Show loading state
                 if (terrainPoints) {
                     terrainPoints.material.opacity = 0.5;
                 }
 
-                // Use POST to send all coordinates at once (backend handles batching)
+                // Fetch elevation data from AWS Terrain Tiles (USGS 3DEP ~10m resolution)
+                let elevations = [];
                 try {
-                    const response = await fetch('/api/terrain/elevation/bulk', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            latitudes: lats.map(l => parseFloat(l)),
-                            longitudes: lons.map(l => parseFloat(l))
-                        })
-                    });
-                    const data = await response.json();
-                    if (data.elevation) {
-                        elevations.push(...data.elevation);
+                    // Add 10-second timeout to prevent hanging
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                    const awsResponse = await fetch(
+                        `/api/terrain/aws?lat=${offsetLat}&lon=${offsetLon}&radius_nm=${radiusNM}&grid_size=${gridSize}&zoom=10`,
+                        { signal: controller.signal }
+                    );
+                    clearTimeout(timeoutId);
+
+                    const awsData = await awsResponse.json();
+                    if (awsData.grid) {
+                        // Flatten 2D grid to 1D array (row by row)
+                        elevations = awsData.grid.flat();
+                        console.log(`AWS Terrain Tiles: ${elevations.length} points at ${awsData.resolution_m?.toFixed(1)}m resolution`);
                     }
-                } catch (fetchError) {
-                    console.error('Elevation fetch error:', fetchError);
+                } catch (awsError) {
+                    console.warn('AWS Terrain Tiles failed or timed out, falling back to Open-Meteo:', awsError);
+                    // Fallback to Open-Meteo bulk API
+                    try {
+                        const response = await fetch('/api/terrain/elevation/bulk', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                latitudes: lats.map(l => parseFloat(l)),
+                                longitudes: lons.map(l => parseFloat(l))
+                            })
+                        });
+                        const data = await response.json();
+                        if (data.elevation) {
+                            elevations.push(...data.elevation);
+                        }
+                    } catch (fetchError) {
+                        console.error('Elevation fetch error:', fetchError);
+                    }
                 }
 
                 console.log(`Terrain API returned ${elevations.length} elevation points`);
@@ -4383,7 +4196,9 @@
                     const x = rawX * cosH + rawZ * sinH;
                     const z = -rawX * sinH + rawZ * cosH - forwardOffsetMeters;
                     // Position Y relative to reference ground level, with additional lowering offset
-                    const y = elevation - referenceGroundLevel - terrainLowerOffset;
+                    // Add 75m vertical offset to float point cloud above terrain mesh for TAWS visibility
+                    const pointCloudOffset = 10; // meters above terrain surface (just enough to float above mesh)
+                    const y = elevation + pointCloudOffset - referenceGroundLevel - terrainLowerOffset;
 
                     maxElevation = Math.max(maxElevation, elevation); // Track absolute max for display
 
@@ -4398,9 +4213,8 @@
                     const dist = Math.sqrt(x * x + z * z);
                     const distFade = Math.max(0.3, 1 - dist / (spanMeters * 0.7));
 
-                    // During ground operations (< 500ft AGL), use neutral coloring
-                    // This avoids confusing red terrain while taxiing
-                    const isGroundOps = state.altitude < 1500 || (state.groundSpeed < 60 && state.verticalSpeed < 100);
+                    // Ground ops only when very low AND slow (taxiing) - show TAWS colors when flying
+                    const isGroundOps = state.altitude < 200 && state.groundSpeed < 40;
 
                     if (isGroundOps) {
                         // Neutral gray/white terrain during taxi and low altitude
@@ -4457,18 +4271,21 @@
             const baseSize = Math.min(50, Math.max(12, 12 + altAGL / 300)); // 12-50 range for visible terrain with better scale
 
             const material = new THREE.PointsMaterial({
-                size: baseSize,
+                size: baseSize * 0.8,  // Slightly smaller points when hovering above mesh
                 vertexColors: true,
                 transparent: true,
-                opacity: oldTerrainPoints ? 0 : 0.95,
+                opacity: oldTerrainPoints ? 0 : 0.85,  // Slightly transparent to see mesh below
                 sizeAttenuation: true,
                 map: circleTexture,
                 alphaMap: circleTexture,
-                alphaTest: 0.01
+                alphaTest: 0.01,
+                depthTest: true,
+                depthWrite: false  // Don't write to depth buffer - always visible above mesh
             });
 
             terrainPoints = new THREE.Points(geometry, material);
-            terrainPoints.visible = state.overlays.terrain && !terrainMeshEnabled;
+            // Show point cloud alongside mesh for dual TAWS visualization
+            terrainPoints.visible = state.overlays.terrain;
             scene.add(terrainPoints);
             console.log(`Terrain point cloud created: ${totalPoints} points, visible=${terrainPoints.visible}, size=${baseSize.toFixed(1)}`);
             console.log(`Terrain geometry: positions=${terrainPoints.geometry.attributes.position.count}, has colors=${!!terrainPoints.geometry.attributes.color}`);
@@ -4519,7 +4336,8 @@
                 const spanMeters = state.terrainData.span * metersPerDegree;
                 const refGround = state.referenceGroundLevel || 0;
 
-                const isGroundOps = state.altitude < 1500 || (state.groundSpeed < 60 && state.verticalSpeed < 100);
+                // Ground ops only when very low AND slow (taxiing) - show TAWS colors when flying
+                const isGroundOps = state.altitude < 200 && state.groundSpeed < 40;
 
                 for (let i = 0; i < numPoints; i++) {
                     const x = positions[i * 3];
@@ -4690,7 +4508,8 @@
             const cosH = Math.cos(headingRad);
             const sinH = Math.sin(headingRad);
 
-            const isGroundOps = state.altitude < 1500 || (state.groundSpeed < 60 && state.verticalSpeed < 100);
+            // Ground ops only when very low AND slow (taxiing) - show TAWS colors when flying
+            const isGroundOps = state.altitude < 200 && state.groundSpeed < 40;
 
             // Update vertex heights from elevation data
             for (let i = 0; i < gridSize; i++) {
@@ -4811,7 +4630,8 @@
             const aircraftAltMeters = state.altitude * ftToMeters;
             const refGround = state.referenceGroundLevel || 0;
 
-            const isGroundOps = state.altitude < 1500 || (state.groundSpeed < 60 && state.verticalSpeed < 100);
+            // Ground ops only when very low AND slow (taxiing) - show TAWS colors when flying
+            const isGroundOps = state.altitude < 200 && state.groundSpeed < 40;
 
             for (let idx = 0; idx < gridSize * gridSize; idx++) {
                 const vertexIdx = idx * 3;
@@ -6989,7 +6809,11 @@
             vsMode: false,
             targetHeading: null,
             targetAltitude: null,
-            targetVS: 0
+            targetVS: 0,
+            // Manual heading override state
+            manualHeadingOverride: false,
+            overrideTargetHeading: null,
+            headingCaptureTolerance: 5  // degrees
         };
 
         // Update heading bug visual position
@@ -7039,18 +6863,24 @@
                 let targetHeading = (angle + state.heading) % 360;
                 targetHeading = Math.round(targetHeading);
 
-                // Set the target heading
+                // Set manual heading override - flight manager will respect this
+                autopilotState.manualHeadingOverride = true;
+                autopilotState.overrideTargetHeading = targetHeading;
                 autopilotState.targetHeading = targetHeading;
                 state.targetHeading = targetHeading;
 
                 // Update the heading bug visual
                 updateHeadingBug();
 
-                // Send to X-Plane if connected
-                sendAutopilotCommand('set_heading', { heading: targetHeading });
+                // Send heading override command to backend
+                // This tells flight_manager to hold this heading until captured
+                sendAutopilotCommand('set_heading_override', {
+                    heading: targetHeading,
+                    override: true
+                });
 
                 // Visual feedback
-                console.log(`Target heading set to ${targetHeading}°`);
+                console.log(`Manual heading override: ${targetHeading}° (will resume route after capture)`);
             });
         }
 
@@ -7477,8 +7307,9 @@
 
                     switch(layer) {
                         case 'terrain':
-                            if (terrainPoints) terrainPoints.visible = state.overlays.terrain && !terrainMeshEnabled;
-                            if (terrainMesh) terrainMesh.visible = state.overlays.terrain && terrainMeshEnabled;
+                            // Show both point cloud AND mesh simultaneously for dual visualization
+                            if (terrainPoints) terrainPoints.visible = state.overlays.terrain;
+                            if (terrainMesh) terrainMesh.visible = state.overlays.terrain;
                             break;
                         case 'traffic':
                             createSimulatedTraffic();
@@ -7508,6 +7339,11 @@
             });
         }
 
+        function toggleOverlayToolbar() {
+            const toolbar = document.querySelector('.overlay-toolbar');
+            toolbar.classList.toggle('minimized');
+        }
+
         function updateInfoDisplay() {
             document.getElementById('infoLat').textContent = state.position.lat.toFixed(4);
             document.getElementById('infoLon').textContent = state.position.lon.toFixed(4);
@@ -7535,19 +7371,6 @@
                 fuelBar.classList.add('critical');
             } else if (fuelPercent <= 30) {
                 fuelBar.classList.add('low');
-            }
-        }
-
-        // Debug panel minimize function
-        function minimizeDebugPanel() {
-            const content = document.getElementById('debug-content');
-            const btn = document.getElementById('debug-minimize-btn');
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                btn.textContent = '−';
-            } else {
-                content.style.display = 'none';
-                btn.textContent = '+';
             }
         }
 
@@ -8558,7 +8381,24 @@
         document.documentElement.classList.add('light-mode');
 
         // Initialize on load
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('SVS: DOMContentLoaded fired');
+            // Failsafe: hide loading overlay after 5 seconds regardless
+            setTimeout(() => {
+                const overlay = document.getElementById('loadingOverlay');
+                if (overlay && !overlay.classList.contains('hidden')) {
+                    console.warn('SVS: Failsafe hiding loading overlay');
+                    overlay.classList.add('hidden');
+                }
+            }, 5000);
+
+            try {
+                await init();
+            } catch (initError) {
+                console.error('SVS: Init failed:', initError);
+                document.getElementById('loadingOverlay')?.classList.add('hidden');
+            }
+        });
     </script>
 </body>
 </html>

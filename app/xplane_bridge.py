@@ -598,6 +598,367 @@ class XPlaneCommandSender:
         """Disengage vertical speed mode"""
         return self.send_command("sim/autopilot/vertical_speed")  # Toggle off
 
+    # ==================== POSITION CONTROL ====================
+
+    def set_position(self, lat: float, lon: float, elevation_m: float, heading: float) -> bool:
+        """
+        Set aircraft position and orientation.
+        Used to reposition aircraft to departure airport.
+
+        Args:
+            lat: Latitude in degrees
+            lon: Longitude in degrees
+            elevation_m: Elevation in meters MSL
+            heading: Heading in degrees true
+        """
+        try:
+            # First, pause to prevent physics issues during teleport
+            self.send_command("sim/operation/pause_toggle")
+
+            # Set position
+            self.send_dref("sim/flightmodel/position/latitude", lat)
+            self.send_dref("sim/flightmodel/position/longitude", lon)
+            self.send_dref("sim/flightmodel/position/elevation", elevation_m)
+            self.send_dref("sim/flightmodel/position/psi", heading)  # True heading
+
+            # Reset velocities to prevent crash
+            self.send_dref("sim/flightmodel/position/local_vx", 0.0)
+            self.send_dref("sim/flightmodel/position/local_vy", 0.0)
+            self.send_dref("sim/flightmodel/position/local_vz", 0.0)
+
+            # Reset angular velocities
+            self.send_dref("sim/flightmodel/position/P", 0.0)  # Roll rate
+            self.send_dref("sim/flightmodel/position/Q", 0.0)  # Pitch rate
+            self.send_dref("sim/flightmodel/position/R", 0.0)  # Yaw rate
+
+            # Set on ground
+            self.send_dref("sim/flightmodel/position/y_agl", 0.0)
+
+            # Unpause
+            self.send_command("sim/operation/pause_toggle")
+
+            logger.info(f"Position set: lat={lat}, lon={lon}, elev={elevation_m}m, hdg={heading}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error setting position: {e}")
+            return False
+
+    # ==================== ENGINE CONTROL ====================
+
+    async def start_engines_async(self) -> bool:
+        """Start all engines with full startup sequence - async version that holds starter"""
+        import asyncio
+        try:
+            # ===== STEP 1: POWER ON =====
+            print("[ENGINE START] Step 1: Power on")
+            self.send_dref("sim/cockpit/electrical/battery_on", 1)
+            self.send_dref("sim/cockpit/electrical/battery_array_on[0]", 1)
+            self.send_dref("sim/cockpit/electrical/generator_on[0]", 1)
+            self.send_dref("sim/cockpit2/switches/avionics_power_on", 1)
+            await asyncio.sleep(1.0)
+
+            # ===== STEP 2: FUEL TANK TO RIGHT =====
+            print("[ENGINE START] Step 2: Selecting RIGHT fuel tank")
+            # Try EVERY possible fuel tank dataref
+            self.send_dref("sim/cockpit2/fuel/fuel_tank_selector", 2)
+            self.send_dref("sim/cockpit/fuel/fuel_tank_selector", 2)
+            self.send_dref("sim/cockpit2/fuel/fuel_tank_selector[0]", 2)
+            self.send_dref("sim/cockpit/fuel/fuel_tank_selector[0]", 2)
+            # For aircraft with individual tank selectors
+            self.send_dref("sim/cockpit2/fuel/fuel_tank_selector_left", 0)
+            self.send_dref("sim/cockpit2/fuel/fuel_tank_selector_right", 1)
+            # Commands
+            self.send_command("sim/fuel/fuel_tank_selector_rgt")
+            self.send_command("sim/fuel/fuel_selector_rgt")
+            # Cirrus-specific - try clicking the fuel selector
+            self.send_command("sim/fuel/fuel_tank_pump_1_on")
+            await asyncio.sleep(1.0)
+
+            # ===== STEP 3: FUEL & MIXTURE =====
+            print("[ENGINE START] Step 3: Fuel pump ON, mixture RICH")
+            self.send_dref("sim/cockpit/engine/fuel_pump_on", 1)
+            self.send_dref("sim/cockpit2/fuel/fuel_tank_pump_on[0]", 1)
+            self.send_dref("sim/cockpit2/engine/actuators/mixture_ratio_all", 1.0)
+            self.send_dref("sim/cockpit2/engine/actuators/mixture_ratio[0]", 1.0)
+            await asyncio.sleep(0.5)
+
+            # ===== STEP 4: MAGNETOS/IGNITION =====
+            print("[ENGINE START] Step 4: Ignition ON")
+            self.send_dref("sim/cockpit2/engine/actuators/ignition_key[0]", 3)  # BOTH
+            self.send_dref("sim/cockpit/engine/ignition_on", 1)
+            await asyncio.sleep(0.5)
+
+            # ===== STEP 5: CRANK ENGINE FOR 8 SECONDS =====
+            print("[ENGINE START] Step 5: CRANKING ENGINE (holding for 8 seconds)...")
+
+            # Set ignition key to START position and HOLD IT
+            self.send_dref("sim/cockpit2/engine/actuators/ignition_key[0]", 4)  # START position
+
+            # Also set starter running datarefs
+            self.send_dref("sim/cockpit/engine/starter_on[0]", 1)
+            self.send_dref("sim/cockpit2/engine/actuators/starter_hit[0]", 1)
+
+            # Now wait while holding - just refresh the values periodically
+            for second in range(8):
+                # Keep the starter engaged by re-sending every second
+                self.send_dref("sim/cockpit2/engine/actuators/ignition_key[0]", 4)
+                self.send_dref("sim/cockpit/engine/starter_on[0]", 1)
+                self.send_command("sim/starters/engage_starter_1")
+                self.send_command("sim/ignition/engage_starter_1")
+
+                print(f"  Cranking... {second + 1}s")
+                await asyncio.sleep(1.0)
+
+            # ===== STEP 6: RELEASE STARTER =====
+            print("[ENGINE START] Step 6: Releasing starter")
+            self.send_dref("sim/cockpit2/engine/actuators/ignition_key[0]", 3)  # Back to BOTH
+            self.send_dref("sim/cockpit/engine/starter_on[0]", 0)
+            self.send_dref("sim/cockpit2/engine/actuators/throttle_ratio_all", 0.1)
+            await asyncio.sleep(1.0)
+
+            print("[ENGINE START] Complete!")
+            return True
+        except Exception as e:
+            print(f"[ENGINE START] ERROR: {e}")
+            return False
+
+    def start_engines(self) -> bool:
+        """Start all engines - sync wrapper (use start_engines_async when possible)"""
+        try:
+            print("[ENGINE START] Step 1: Power on - battery and alternator")
+            self.send_dref("sim/cockpit/electrical/battery_on", 1)
+            self.send_dref("sim/cockpit/electrical/generator_on[0]", 1)
+            self.send_dref("sim/cockpit2/switches/avionics_power_on", 1)
+
+            print("[ENGINE START] Step 2: Fuel system - selecting RIGHT tank")
+            self.send_dref("sim/cockpit2/fuel/fuel_tank_selector", 2)  # RIGHT tank
+            self.send_dref("sim/cockpit/engine/fuel_pump_on", 1)
+            self.send_dref("sim/cockpit2/engine/actuators/mixture_ratio_all", 1.0)  # Full rich
+
+            print("[ENGINE START] Step 3: Magnetos to BOTH then START")
+            self.send_dref("sim/cockpit2/engine/actuators/ignition_key[0]", 3)  # BOTH
+
+            print("[ENGINE START] Step 4: Engage starter")
+            self.send_command("sim/starters/engage_starter_1")
+            self.send_dref("sim/cockpit2/engine/actuators/ignition_key[0]", 4)  # START
+            self.send_dref("sim/cockpit/engine/ignition_on", 1)
+
+            print("[ENGINE START] Starter engaged (sync mode)")
+            return True
+        except Exception as e:
+            print(f"[ENGINE START] ERROR: {e}")
+            return False
+
+    def set_mixture(self, ratio: float) -> bool:
+        """Set mixture for all engines (0.0 = cutoff, 1.0 = full rich)"""
+        ratio = max(0.0, min(1.0, ratio))
+        return self.send_dref("sim/cockpit2/engine/actuators/mixture_ratio_all", ratio)
+
+    def set_magnetos(self, position: int) -> bool:
+        """Set magnetos (0=off, 1=left, 2=right, 3=both, 4=start)"""
+        return self.send_dref("sim/cockpit2/engine/actuators/ignition_key[0]", position)
+
+    # ==================== FLIGHT CONTROLS ====================
+
+    def set_throttle(self, ratio: float) -> bool:
+        """
+        Set throttle position for all engines.
+
+        Args:
+            ratio: Throttle ratio 0.0 (idle) to 1.0 (full)
+        """
+        ratio = max(0.0, min(1.0, ratio))
+        return self.send_dref("sim/cockpit2/engine/actuators/throttle_ratio_all", ratio)
+
+    def set_throttle_smoothly(self, target: float, current: float, step: float = 0.05) -> float:
+        """
+        Increment throttle toward target value.
+        Returns new throttle value.
+
+        Args:
+            target: Target throttle ratio (0.0-1.0)
+            current: Current throttle ratio
+            step: Increment per call
+        """
+        if current < target:
+            new_value = min(current + step, target)
+        else:
+            new_value = max(current - step, target)
+        self.set_throttle(new_value)
+        return new_value
+
+    def set_flaps(self, ratio: float) -> bool:
+        """
+        Set flap position.
+
+        Args:
+            ratio: Flap ratio 0.0 (up) to 1.0 (full)
+        """
+        ratio = max(0.0, min(1.0, ratio))
+        return self.send_dref("sim/flightmodel/controls/flaprqst", ratio)
+
+    def set_parking_brake(self, engaged: bool) -> bool:
+        """Set parking brake on/off"""
+        print(f"[PARKING BRAKE] {'ENGAGED' if engaged else 'Releasing...'}")
+        if engaged:
+            self.send_dref("sim/flightmodel/controls/parkbrake", 1.0)
+            self.send_dref("sim/cockpit2/controls/parking_brake_ratio", 1.0)
+        else:
+            # Use BOTH commands and datarefs for maximum compatibility
+            # Commands
+            self.send_command("sim/flight_controls/brakes_off")
+            # Datarefs - set everything to 0
+            self.send_dref("sim/flightmodel/controls/parkbrake", 0.0)
+            self.send_dref("sim/cockpit2/controls/parking_brake_ratio", 0.0)
+            self.send_dref("sim/cockpit2/controls/left_brake_ratio", 0.0)
+            self.send_dref("sim/cockpit2/controls/right_brake_ratio", 0.0)
+            self.send_dref("sim/flightmodel/controls/l_brake_add", 0.0)
+            self.send_dref("sim/flightmodel/controls/r_brake_add", 0.0)
+            # Also try the toe brakes
+            self.send_dref("sim/cockpit2/controls/toe_brakes_left", 0.0)
+            self.send_dref("sim/cockpit2/controls/toe_brakes_right", 0.0)
+            print("[PARKING BRAKE] RELEASED (command + datarefs)")
+        return True
+
+    def release_parking_brake(self) -> bool:
+        """Release parking brake and all wheel brakes"""
+        print("[PARKING BRAKE] Releasing all brakes...")
+        # Use command first
+        self.send_command("sim/flight_controls/brakes_off")
+        # Then datarefs
+        self.send_dref("sim/flightmodel/controls/parkbrake", 0.0)
+        self.send_dref("sim/cockpit2/controls/parking_brake_ratio", 0.0)
+        self.send_dref("sim/cockpit2/controls/left_brake_ratio", 0.0)
+        self.send_dref("sim/cockpit2/controls/right_brake_ratio", 0.0)
+        self.send_dref("sim/flightmodel/controls/l_brake_add", 0.0)
+        self.send_dref("sim/flightmodel/controls/r_brake_add", 0.0)
+        self.send_dref("sim/cockpit2/controls/toe_brakes_left", 0.0)
+        self.send_dref("sim/cockpit2/controls/toe_brakes_right", 0.0)
+        print("[PARKING BRAKE] ALL BRAKES RELEASED")
+        return True
+
+    def set_gear(self, down: bool) -> bool:
+        """
+        Set landing gear position.
+
+        Args:
+            down: True for gear down, False for gear up
+        """
+        return self.send_dref("sim/cockpit/switches/gear_handle_status", 1.0 if down else 0.0)
+
+    def gear_up(self) -> bool:
+        """Retract landing gear"""
+        return self.set_gear(False)
+
+    def gear_down(self) -> bool:
+        """Extend landing gear"""
+        return self.set_gear(True)
+
+    def set_pitch_trim(self, trim: float) -> bool:
+        """
+        Set pitch trim.
+
+        Args:
+            trim: Trim value -1.0 (nose down) to 1.0 (nose up)
+        """
+        trim = max(-1.0, min(1.0, trim))
+        return self.send_dref("sim/cockpit2/controls/elevator_trim", trim)
+
+    def set_rudder(self, value: float) -> bool:
+        """
+        Set rudder position for yaw control.
+
+        Args:
+            value: Rudder value -1.0 (full left) to 1.0 (full right)
+        """
+        value = max(-1.0, min(1.0, value))
+        # Override joystick to take control
+        self.send_dref("sim/operation/override/override_joystick", 1)
+        # Use yoke_heading_ratio only (simpler, avoids conflicts)
+        self.send_dref("sim/cockpit2/controls/yoke_heading_ratio", value)
+        return True
+
+    def set_nosewheel_steering(self, value: float) -> bool:
+        """
+        Set nosewheel steering for ground control.
+
+        Args:
+            value: Steering value -1.0 (full left) to 1.0 (full right)
+        """
+        value = max(-1.0, min(1.0, value))
+        return self.send_dref("sim/flightmodel/controls/nwheel_steer", value)
+
+    def set_elevator(self, value: float) -> bool:
+        """
+        Set elevator position for pitch control.
+
+        Args:
+            value: Elevator value -1.0 (full down/nose down) to 1.0 (full up/nose up)
+        """
+        value = max(-1.0, min(1.0, value))
+        # Override joystick to take control
+        self.send_dref("sim/operation/override/override_joystick", 1)
+        # Only use yoke_pitch_ratio - simplest and most reliable
+        # X-Plane: positive = pull back = nose UP
+        self.send_dref("sim/cockpit2/controls/yoke_pitch_ratio", value)
+        return True
+
+    def set_aileron(self, value: float) -> bool:
+        """
+        Set aileron position for roll/bank control.
+
+        Args:
+            value: Aileron value -1.0 (full left/bank left) to 1.0 (full right/bank right)
+        """
+        value = max(-1.0, min(1.0, value))
+        # Override joystick to take control
+        self.send_dref("sim/operation/override/override_joystick", 1)
+        # Use yoke_roll_ratio only (simpler, avoids conflicts with flightmodel controls)
+        # Positive value = roll right, negative = roll left
+        self.send_dref("sim/cockpit2/controls/yoke_roll_ratio", value)
+        return True
+
+    def engage_wing_leveler(self) -> bool:
+        """Engage wing leveler mode to keep wings level"""
+        print("[AUTOPILOT] Engaging wing leveler (LVL)")
+        # First ensure autopilot is on
+        self.send_command("sim/autopilot/fdir_on")
+        self.send_command("sim/autopilot/servos_on")
+        # Then engage wing leveler
+        return self.send_command("sim/autopilot/wing_leveler")
+
+    def release_joystick_override(self) -> bool:
+        """
+        Release joystick override - gives control back to the user's hardware.
+        Call this when you want the pilot to take over.
+        """
+        print("[CONTROL] Releasing joystick override - PILOT HAS CONTROL")
+        # Release override
+        self.send_dref("sim/operation/override/override_joystick", 0)
+        # Also reset all control surfaces to neutral to avoid sudden movements
+        self.send_dref("sim/cockpit2/controls/yoke_pitch_ratio", 0)
+        self.send_dref("sim/cockpit2/controls/yoke_roll_ratio", 0)
+        self.send_dref("sim/cockpit2/controls/yoke_heading_ratio", 0)
+        return True
+
+    def engage_autopilot_for_handoff(self) -> bool:
+        """
+        Engage X-Plane's autopilot before releasing manual control.
+        This prevents the plane from crashing when automation stops.
+        """
+        print("[CONTROL] Engaging X-Plane autopilot for handoff...")
+        # Engage flight director
+        self.send_command("sim/autopilot/fdir_on")
+        # Engage autopilot servos
+        self.send_command("sim/autopilot/servos_on")
+        # Engage altitude hold (hold current altitude)
+        self.send_command("sim/autopilot/altitude_arm")
+        self.send_command("sim/autopilot/altitude_hold")
+        # Engage heading hold
+        self.send_command("sim/autopilot/heading")
+        return True
+
     def close(self):
         """Close the UDP socket"""
         if self._socket:

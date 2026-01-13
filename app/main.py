@@ -16,11 +16,14 @@ from pydantic import BaseModel
 import httpx
 import asyncio
 import json
+import math
+import time
 from enum import Enum
 
 # X-Plane 12 UDP Bridge
 from .xplane_bridge import XPlaneUDPListener, XPlaneFlightData, XPlaneCommandSender
 from .xplane_config import xplane_settings
+from .flight_manager import FlightManager, FlightPhase, TakeoffState
 
 
 # ==================== DATA SOURCE CONFIGURATION ====================
@@ -51,6 +54,7 @@ ENABLED_DATA_SOURCES = {
 xplane_listener: Optional[XPlaneUDPListener] = None
 xplane_commander: Optional[XPlaneCommandSender] = None
 xplane_clients: Set[WebSocket] = set()
+flight_manager: Optional[FlightManager] = None
 
 
 # ==================== COMPLIANCE & QUALITY FEATURES ====================
@@ -1447,7 +1451,7 @@ def xplane_data_callback(data: XPlaneFlightData):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown events"""
-    global http_client, xplane_listener, xplane_commander
+    global http_client, xplane_listener, xplane_commander, flight_manager
 
     print("Aviation Weather API starting up...")
     print("API Documentation available at: http://localhost:8000/docs")
@@ -1481,7 +1485,19 @@ async def lifespan(app: FastAPI):
         xplane_commander = XPlaneCommandSender(xplane_ip=xplane_ip, xplane_port=xplane_settings.XPLANE_PC_PORT)
         print(f"X-Plane command sender initialized (target: {xplane_ip}:{xplane_settings.XPLANE_PC_PORT})")
 
+        # Initialize flight manager for automated flight operations
+        def get_flight_data():
+            return xplane_listener.flight_data if xplane_listener else None
+
+        flight_manager = FlightManager(xplane_commander, get_flight_data, aircraft_type="cirrus_sr22")
+        print("Flight manager initialized with Cirrus SR22 profile")
+
     yield
+
+    # Stop flight manager
+    if flight_manager:
+        flight_manager.stop()
+        print("Flight manager stopped")
 
     # Stop X-Plane listener and commander
     if xplane_listener:
@@ -3775,6 +3791,181 @@ async def get_usgs_3dep_terrain_fast(
     }
 
 
+# ==================== AWS TERRAIN TILES (USGS 3DEP) ====================
+
+# Cache for AWS terrain tiles
+aws_tile_cache: Dict[str, Tuple[bytes, float]] = {}
+AWS_TILE_CACHE_TTL = 600  # 10 minutes
+
+def lat_lon_to_tile(lat: float, lon: float, zoom: int) -> Tuple[int, int]:
+    """Convert lat/lon to tile coordinates at given zoom level"""
+    n = 2 ** zoom
+    x = int((lon + 180) / 360 * n)
+    y = int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n)
+    return x, y
+
+def tile_to_lat_lon(x: int, y: int, zoom: int) -> Tuple[float, float]:
+    """Convert tile coordinates to lat/lon (northwest corner)"""
+    n = 2 ** zoom
+    lon = x / n * 360 - 180
+    lat = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
+    return lat, lon
+
+def decode_terrarium(r: int, g: int, b: int) -> float:
+    """Decode Terrarium RGB encoding to elevation in meters"""
+    return (r * 256 + g + b / 256) - 32768
+
+@app.get("/api/terrain/aws")
+async def get_aws_terrain(
+    lat: float,
+    lon: float,
+    radius_nm: float = 10.0,
+    grid_size: int = 64,
+    zoom: int = 12
+):
+    """
+    Fetch terrain grid from AWS Terrain Tiles (USGS 3DEP on S3).
+    Tiles are in Terrarium format - high accuracy elevation data.
+
+    Args:
+        lat: Center latitude
+        lon: Center longitude
+        radius_nm: Radius in nautical miles (default 10)
+        grid_size: Number of points per side (default 64x64)
+        zoom: Tile zoom level (10=150m, 12=40m, 14=10m resolution)
+    """
+    from PIL import Image
+    import io
+
+    # Calculate bounds
+    nm_to_deg_lat = 1.0 / 60.0
+    nm_to_deg_lon = 1.0 / (60.0 * math.cos(math.radians(lat)))
+
+    lat_offset = radius_nm * nm_to_deg_lat
+    lon_offset = radius_nm * nm_to_deg_lon
+
+    min_lat = lat - lat_offset
+    max_lat = lat + lat_offset
+    min_lon = lon - lon_offset
+    max_lon = lon + lon_offset
+
+    # Create grid of coordinates to sample
+    lat_step = (max_lat - min_lat) / (grid_size - 1)
+    lon_step = (max_lon - min_lon) / (grid_size - 1)
+
+    # Find which tiles we need
+    tiles_needed = set()
+    for i in range(grid_size):
+        for j in range(grid_size):
+            sample_lat = min_lat + i * lat_step
+            sample_lon = min_lon + j * lon_step
+            tile_x, tile_y = lat_lon_to_tile(sample_lat, sample_lon, zoom)
+            tiles_needed.add((tile_x, tile_y))
+
+    # Fetch tiles
+    tile_images: Dict[Tuple[int, int], Image.Image] = {}
+    current_time = time.time()
+
+    async def fetch_tile(tx: int, ty: int) -> Tuple[Tuple[int, int], bytes]:
+        cache_key = f"aws_{zoom}_{tx}_{ty}"
+
+        # Check cache
+        if cache_key in aws_tile_cache:
+            cached_data, cache_time = aws_tile_cache[cache_key]
+            if current_time - cache_time < AWS_TILE_CACHE_TTL:
+                return ((tx, ty), cached_data)
+
+        # Fetch from AWS S3
+        url = f"https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{zoom}/{tx}/{ty}.png"
+        try:
+            response = await http_client.get(url, timeout=15.0)
+            if response.status_code == 200:
+                tile_data = response.content
+                aws_tile_cache[cache_key] = (tile_data, current_time)
+                return ((tx, ty), tile_data)
+        except Exception as e:
+            print(f"Failed to fetch tile {zoom}/{tx}/{ty}: {e}")
+        return ((tx, ty), None)
+
+    # Fetch all tiles concurrently
+    import asyncio
+    tasks = [fetch_tile(tx, ty) for tx, ty in tiles_needed]
+    results = await asyncio.gather(*tasks)
+
+    # Parse tile images
+    for (tx, ty), tile_data in results:
+        if tile_data:
+            try:
+                img = Image.open(io.BytesIO(tile_data))
+                tile_images[(tx, ty)] = img
+            except Exception as e:
+                print(f"Failed to parse tile {tx},{ty}: {e}")
+
+    # Sample elevations from tiles
+    grid = []
+    tile_size = 256  # Standard terrain tile size
+
+    for i in range(grid_size):
+        row = []
+        for j in range(grid_size):
+            sample_lat = min_lat + i * lat_step
+            sample_lon = min_lon + j * lon_step
+
+            # Find which tile and pixel
+            tile_x, tile_y = lat_lon_to_tile(sample_lat, sample_lon, zoom)
+
+            if (tile_x, tile_y) not in tile_images:
+                row.append(0.0)  # No data
+                continue
+
+            img = tile_images[(tile_x, tile_y)]
+
+            # Calculate pixel position within tile
+            nw_lat, nw_lon = tile_to_lat_lon(tile_x, tile_y, zoom)
+            se_lat, se_lon = tile_to_lat_lon(tile_x + 1, tile_y + 1, zoom)
+
+            # Interpolate pixel position
+            px = int((sample_lon - nw_lon) / (se_lon - nw_lon) * tile_size)
+            py = int((nw_lat - sample_lat) / (nw_lat - se_lat) * tile_size)
+
+            # Clamp to valid range
+            px = max(0, min(tile_size - 1, px))
+            py = max(0, min(tile_size - 1, py))
+
+            # Get RGB values and decode elevation
+            try:
+                r, g, b = img.getpixel((px, py))[:3]
+                elevation = decode_terrarium(r, g, b)
+                row.append(elevation)
+            except Exception:
+                row.append(0.0)
+
+        grid.append(row)
+
+    # Calculate stats
+    flat_grid = [e for row in grid for e in row if e != 0]
+    max_elev = max(flat_grid) if flat_grid else 0
+    min_elev = min(flat_grid) if flat_grid else 0
+    resolution_m = radius_nm * 1852 * 2 / (grid_size - 1)
+
+    return {
+        "grid": grid,
+        "bounds": {
+            "min_lat": min_lat,
+            "max_lat": max_lat,
+            "min_lon": min_lon,
+            "max_lon": max_lon
+        },
+        "center_lat": lat,
+        "center_lon": lon,
+        "resolution_m": resolution_m,
+        "max_elevation_m": max_elev,
+        "min_elevation_m": min_elev,
+        "zoom": zoom,
+        "tiles_fetched": len(tile_images)
+    }
+
+
 class BulkElevationRequest(BaseModel):
     latitudes: List[float]
     longitudes: List[float]
@@ -4785,6 +4976,27 @@ async def xplane_websocket(websocket: WebSocket):
                             "value": heading
                         })
 
+                elif message.get("type") == "set_heading_override":
+                    # Manual heading override from SVS compass click
+                    # Tells flight_manager to hold this heading until captured, then resume route
+                    heading = message.get("heading", 0)
+                    override = message.get("override", False)
+
+                    # Set heading bug in X-Plane
+                    if xplane_commander:
+                        xplane_commander.set_heading_bug(heading)
+
+                    # Tell flight manager about the override
+                    if flight_manager:
+                        flight_manager.set_manual_heading_override(heading, override)
+
+                    await websocket.send_json({
+                        "type": "heading_override",
+                        "active": override,
+                        "target_heading": heading,
+                        "message": f"Manual heading override: {heading}°" if override else "Resuming route"
+                    })
+
                 elif message.get("type") == "set_altitude":
                     # Set autopilot altitude bug
                     altitude = message.get("altitude", 0)
@@ -4930,6 +5142,112 @@ async def xplane_websocket(websocket: WebSocket):
                             "type": "command_result",
                             "command": "disengage_vs",
                             "success": success
+                        })
+
+                # ==================== FLIGHT AUTOMATION COMMANDS ====================
+
+                elif message.get("type") == "upload_flight_plan":
+                    # Upload flight plan for automated navigation
+                    if flight_manager:
+                        waypoints = message.get("waypoints", [])
+                        cruise_alt = message.get("cruise_altitude", 8000)
+                        departure = message.get("departure", "")
+                        destination = message.get("destination", "")
+                        departure_runway = message.get("departure_runway")
+                        departure_heading = message.get("departure_heading", 0)
+
+                        flight_manager.set_flight_plan(
+                            waypoints=waypoints,
+                            cruise_altitude=cruise_alt,
+                            departure=departure,
+                            destination=destination,
+                            departure_runway=departure_runway,
+                            departure_heading=departure_heading
+                        )
+
+                        # Set up status callback to broadcast to this client
+                        async def status_callback(status):
+                            try:
+                                await websocket.send_json(status)
+                            except:
+                                pass
+                        flight_manager.set_status_callback(status_callback)
+
+                        await websocket.send_json({
+                            "type": "flight_plan_loaded",
+                            "waypoints_count": len(waypoints),
+                            "cruise_altitude": cruise_alt,
+                            "departure": departure,
+                            "destination": destination
+                        })
+
+                elif message.get("type") == "position_aircraft":
+                    # Reposition aircraft to departure airport
+                    if flight_manager and xplane_commander:
+                        lat = message.get("lat", 0)
+                        lon = message.get("lon", 0)
+                        elevation_m = message.get("elevation_m", 0)
+                        heading = message.get("heading", 0)
+
+                        await flight_manager.position_to_departure(
+                            lat, lon, elevation_m, heading
+                        )
+
+                        await websocket.send_json({
+                            "type": "position_set",
+                            "success": True,
+                            "lat": lat,
+                            "lon": lon,
+                            "heading": heading
+                        })
+
+                elif message.get("type") == "auto_takeoff":
+                    # Start auto-takeoff sequence
+                    if flight_manager:
+                        runway_heading = message.get("runway_heading", 0)
+                        await flight_manager.start_auto_takeoff(runway_heading)
+
+                        await websocket.send_json({
+                            "type": "takeoff_initiated",
+                            "runway_heading": runway_heading
+                        })
+
+                elif message.get("type") == "start_navigation":
+                    # Start navigation without takeoff (already airborne)
+                    if flight_manager:
+                        await flight_manager.start_navigation()
+
+                        await websocket.send_json({
+                            "type": "navigation_started"
+                        })
+
+                elif message.get("type") == "emergency_stop":
+                    # Emergency stop - disengage all automation
+                    if flight_manager:
+                        flight_manager.emergency_stop()
+
+                        await websocket.send_json({
+                            "type": "emergency_stop_executed",
+                            "success": True
+                        })
+
+                elif message.get("type") == "release_to_pilot":
+                    # Gracefully release control to pilot (engages AP first)
+                    if flight_manager:
+                        flight_manager.release_to_pilot()
+
+                        await websocket.send_json({
+                            "type": "released_to_pilot",
+                            "success": True
+                        })
+
+                elif message.get("type") == "get_automation_status":
+                    # Get current automation status
+                    if flight_manager:
+                        status = flight_manager.get_status()
+                        await websocket.send_json({
+                            "type": "automation_status",
+                            **status
                         })
 
             except asyncio.TimeoutError:

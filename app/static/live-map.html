@@ -7,6 +7,17 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+        }
+
         :root {
             --bg-primary: #0a0a0a;
             --bg-secondary: #1a1a1a;
@@ -1159,14 +1170,17 @@
         .main-container {
             display: flex;
             flex-direction: column;
+            height: 100vh;
             min-height: 100vh;
+            width: 100%;
             padding-top: 100px; /* navbar + toolbar */
+            margin-left: 0;
+            background: var(--bg-secondary);
         }
 
         /* Map Container */
         .map-container {
-            flex: 0 0 auto;
-            height: calc(100vh - 100px - 400px); /* viewport - navbar/toolbar - profile */
+            flex: 1 1 auto;
             min-height: 300px;
             position: relative;
         }
@@ -1205,6 +1219,8 @@
         }
 
         #map {
+            position: absolute;
+            inset: 0;
             width: 100%;
             height: 100%;
             background: var(--bg-secondary);
@@ -1397,7 +1413,8 @@
         /* Push main content when ATC panel is visible */
         body.atc-panel-open .main-container {
             margin-left: 280px;
-            transition: margin-left 0.3s ease;
+            width: calc(100% - 280px);
+            transition: margin-left 0.3s ease, width 0.3s ease;
         }
 
         body.atc-panel-open .floating-brand {
@@ -1406,15 +1423,14 @@
         }
 
         body.atc-panel-open .overlay-toolbar {
-            padding-left: 280px !important;
-            justify-content: flex-start !important;
-            transition: padding-left 0.3s ease;
+            left: calc(50% + 140px);  /* Shift right by half panel width */
+            transition: left 0.3s ease;
         }
 
         body .main-container,
         body .floating-brand,
         body .overlay-toolbar {
-            transition: margin-left 0.3s ease, left 0.3s ease, padding-left 0.3s ease;
+            transition: margin-left 0.3s ease, width 0.3s ease, left 0.3s ease;
         }
 
         .atc-header {
@@ -2533,6 +2549,381 @@
             border-bottom: none;
         }
 
+        /* Flight Automation Panel */
+        .flight-automation {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .automation-status {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .automation-status.idle {
+            background: rgba(107, 114, 128, 0.1);
+            border-color: rgba(107, 114, 128, 0.3);
+        }
+
+        .automation-status.active {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+
+        .automation-status.takeoff {
+            background: rgba(245, 158, 11, 0.1);
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .automation-phase {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #3b82f6;
+            margin-bottom: 8px;
+        }
+
+        .automation-status.idle .automation-phase {
+            color: #6b7280;
+        }
+
+        .automation-status.active .automation-phase {
+            color: #22c55e;
+        }
+
+        .automation-status.takeoff .automation-phase {
+            color: #f59e0b;
+        }
+
+        .automation-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .automation-stat {
+            font-size: 11px;
+        }
+
+        .automation-stat-label {
+            color: var(--text-tertiary);
+            margin-bottom: 2px;
+        }
+
+        .automation-stat-value {
+            color: var(--text-primary);
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .automation-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .automation-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .automation-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .automation-btn.position {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+
+        .automation-btn.position:hover:not(:disabled) {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            transform: translateY(-1px);
+        }
+
+        .automation-btn.upload {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            color: white;
+        }
+
+        .automation-btn.upload:hover:not(:disabled) {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            transform: translateY(-1px);
+        }
+
+        .automation-btn.takeoff {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+        }
+
+        .automation-btn.takeoff:hover:not(:disabled) {
+            background: linear-gradient(135deg, #16a34a, #15803d);
+            transform: translateY(-1px);
+        }
+
+        .automation-btn.emergency {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .automation-btn.emergency:hover:not(:disabled) {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+        }
+
+        .automation-btn.emergency:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .automation-btn.release-pilot {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            font-weight: 600;
+        }
+
+        .automation-btn.release-pilot:hover:not(:disabled) {
+            background: linear-gradient(135deg, #d97706, #b45309);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+        }
+
+        .automation-btn.release-pilot:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .automation-btn.autopilot {
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            padding: 16px 24px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .automation-btn.autopilot:hover:not(:disabled) {
+            background: linear-gradient(135deg, #0891b2, #0e7490);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(6, 182, 212, 0.4);
+        }
+
+        .automation-btn.autopilot:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .automation-btn.autopilot.engaged {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            animation: autopilot-pulse 2s ease-in-out infinite;
+        }
+
+        .automation-btn.autopilot.positioning {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+
+        .automation-btn.autopilot.uploading {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        }
+
+        .automation-btn.autopilot.takeoff-active {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
+        @keyframes autopilot-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            50% { box-shadow: 0 0 20px 4px rgba(34, 197, 94, 0.3); }
+        }
+
+        .autopilot-phase {
+            font-size: 10px;
+            font-weight: 500;
+            opacity: 0.9;
+            margin-top: 2px;
+            letter-spacing: 0.5px;
+        }
+
+        .automation-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .automation-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .automation-row .automation-btn {
+            flex: 1;
+        }
+
+        /* Icon-only autopilot buttons */
+        .automation-btn-icon {
+            width: 48px;
+            height: 48px;
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .automation-btn-icon:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .automation-btn-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .automation-btn-icon.autopilot {
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            color: white;
+        }
+
+        .automation-btn-icon.autopilot:hover:not(:disabled) {
+            background: linear-gradient(135deg, #0891b2, #0e7490);
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
+        }
+
+        .automation-btn-icon.autopilot.engaged {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            animation: autopilot-icon-pulse 2s ease-in-out infinite;
+        }
+
+        .automation-btn-icon.autopilot.positioning {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+
+        .automation-btn-icon.autopilot.uploading {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        }
+
+        .automation-btn-icon.autopilot.takeoff-active {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
+        @keyframes autopilot-icon-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            50% { box-shadow: 0 0 20px 6px rgba(34, 197, 94, 0.4); }
+        }
+
+        .automation-btn-icon.disengage {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .automation-btn-icon.disengage:hover:not(:disabled) {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+        }
+
+        .automation-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 8px;
+        }
+
+        /* Floating Autopilot Controls */
+        .autopilot-float {
+            position: absolute;
+            bottom: 16px;
+            right: 348px;  /* To the left of trip panel (320px + gap) */
+            z-index: 1001;
+            display: none;
+            flex-direction: row;
+            align-items: center;
+            gap: 12px;
+            pointer-events: auto;
+        }
+
+        .autopilot-float.visible {
+            display: flex;
+        }
+
+        .autopilot-float .automation-btn-icon {
+            width: 56px;
+            height: 56px;
+        }
+
+        .autopilot-float .automation-btn-icon svg {
+            width: 28px;
+            height: 28px;
+        }
+
+        .autopilot-status-float {
+            background: rgba(10, 10, 10, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 8px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .autopilot-status-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .autopilot-status-phase {
+            font-size: 14px;
+            font-weight: 700;
+            color: #22c55e;
+        }
+
+        .autopilot-status-phase.idle {
+            color: var(--text-secondary);
+        }
+
+        .autopilot-status-phase.active {
+            color: #22c55e;
+        }
+
+        .light-mode .autopilot-status-float {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .light-mode .autopilot-status-label {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .light-mode .autopilot-status-phase.idle {
+            color: rgba(0, 0, 0, 0.6);
+        }
+
         /* Profile View */
         .profile-container {
             height: 400px;
@@ -2543,6 +2934,14 @@
             flex-direction: column;
             flex-shrink: 0;
             overflow: hidden;
+            transition: height 0.3s ease;
+        }
+
+        /* Minimized profile - collapse to just header */
+        .profile-container.minimized {
+            height: auto;
+            min-height: auto;
+            max-height: none;
         }
 
         .profile-header {
@@ -2882,6 +3281,164 @@
                 -2px -2px 4px rgba(255, 255, 255, 0.02),
                 inset 0 1px 1px rgba(255, 255, 255, 0.04),
                 inset 0 -2px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Profile Expand/Minimize Button (prominent) */
+        .profile-expand-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border: none;
+            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s ease;
+            box-shadow:
+                4px 4px 8px rgba(0, 0, 0, 0.5),
+                -2px -2px 4px rgba(255, 255, 255, 0.02),
+                inset 0 1px 1px rgba(255, 255, 255, 0.04),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        .profile-expand-btn svg {
+            width: 14px;
+            height: 14px;
+            stroke-width: 2.5;
+            transition: transform 0.2s ease;
+        }
+
+        .profile-expand-btn:hover {
+            background: linear-gradient(180deg, #323232 0%, #222222 100%);
+            color: var(--text-primary);
+        }
+
+        .profile-expand-btn:active {
+            transform: scale(0.97);
+        }
+
+        .profile-expand-btn.expanded svg {
+            transform: rotate(180deg);
+        }
+
+        .profile-expand-btn.expanded {
+            background: linear-gradient(180deg, #1a3a1a 0%, #0a2a0a 100%);
+            color: #4ade80;
+        }
+
+        .light-mode .profile-expand-btn {
+            background: #ECF0F3;
+            color: #4b5563;
+            box-shadow:
+                6px 6px 12px #D1D9E6,
+                -6px -6px 12px #FFFFFF;
+        }
+
+        .light-mode .profile-expand-btn:hover {
+            background: #e0e4e8;
+            color: #1a1a1a;
+        }
+
+        .light-mode .profile-expand-btn.expanded {
+            background: #d4edda;
+            color: #22c55e;
+        }
+
+        /* Profile Toggle Button (in zoom controls) */
+        .profile-toggle-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            box-shadow:
+                4px 4px 8px rgba(0, 0, 0, 0.5),
+                -2px -2px 4px rgba(255, 255, 255, 0.02),
+                inset 0 1px 1px rgba(255, 255, 255, 0.04),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        .profile-toggle-btn svg {
+            width: 18px;
+            height: 18px;
+            stroke-width: 2;
+            transition: transform 0.2s ease;
+        }
+
+        .profile-toggle-btn:hover {
+            background: linear-gradient(180deg, #323232 0%, #222222 100%);
+            color: var(--text-primary);
+        }
+
+        .profile-toggle-btn:active {
+            transform: scale(0.97);
+        }
+
+        .profile-toggle-btn.minimized svg {
+            transform: rotate(180deg);
+        }
+
+        /* Floating Trip Progress Bar */
+        .trip-progress-float {
+            position: absolute;
+            bottom: 20px;  /* Near bottom of map */
+            left: 16px;
+            z-index: 999;
+            display: none;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+            pointer-events: none;
+        }
+
+        .trip-progress-float.visible {
+            display: flex;
+        }
+
+        .trip-progress-time {
+            font-size: 84px;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+            letter-spacing: -1px;
+            text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+            line-height: 1;
+        }
+
+        .trip-progress-bar-container {
+            width: 280px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .trip-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e 0%, #4ade80 100%);
+            border-radius: 2px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        .light-mode .trip-progress-float .trip-progress-time {
+            color: var(--text-primary);
+            text-shadow: 0 1px 4px rgba(255, 255, 255, 0.5);
+        }
+
+        .light-mode .trip-progress-bar-container {
+            background: rgba(0, 0, 0, 0.1);
         }
 
         /* Profile Hover Tooltip */
@@ -3930,9 +4487,9 @@
             padding-top: 0;
         }
 
-        /* Map container - full vertical space */
+        /* Map container - flex to fill available space */
         .map-container {
-            height: calc(100vh - 400px);
+            flex: 1 1 auto;
         }
 
         /* Leaflet zoom controls - moved down to avoid logo */
@@ -4169,7 +4726,7 @@
             }
 
             .map-container {
-                height: calc(100vh - 350px);
+                flex: 1 1 auto;
             }
 
             .leaflet-control-zoom {
@@ -4206,6 +4763,7 @@
 
             body.atc-panel-open .main-container {
                 margin-left: 220px;
+                width: calc(100% - 220px);
             }
 
             body.atc-panel-open .floating-brand {
@@ -4213,7 +4771,7 @@
             }
 
             body.atc-panel-open .overlay-toolbar {
-                padding-left: 220px !important;
+                left: calc(50% + 110px);  /* Shift right by half panel width */
             }
 
             .atc-freq-row {
@@ -4467,6 +5025,34 @@
                 </div>
             </div>
 
+            <!-- Floating Trip Progress (visible when panel minimized) -->
+            <div class="trip-progress-float" id="tripProgressFloat">
+                <div class="trip-progress-time" id="tripFloatTime">-- hrs</div>
+                <div class="trip-progress-bar-container">
+                    <div class="trip-progress-bar" id="tripProgressBar"></div>
+                </div>
+            </div>
+
+            <!-- Floating Autopilot Controls (visible when panel minimized) -->
+            <div class="autopilot-float" id="autopilotFloat">
+                <div class="autopilot-status-float">
+                    <span class="autopilot-status-label">Autopilot</span>
+                    <span class="autopilot-status-phase idle" id="autopilotFloatPhase">IDLE</span>
+                </div>
+                <button class="automation-btn-icon autopilot" id="btnAutopilotFloat" onclick="engageAutopilot()" disabled title="Engage Autopilot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                    </svg>
+                </button>
+                <button class="automation-btn-icon disengage" id="btnDisengageFloat" onclick="disengageAutopilot()" title="Disengage Autopilot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="15" y1="9" x2="9" y2="15"/>
+                        <line x1="9" y1="9" x2="15" y2="15"/>
+                    </svg>
+                </button>
+            </div>
+
             <!-- Trip Summary Panel -->
             <div class="trip-summary" id="tripSummary">
                 <div class="trip-summary-header" onclick="toggleTripSummary()">
@@ -4603,6 +5189,54 @@
                             <!-- Populated dynamically -->
                         </div>
                     </div>
+
+                    <div class="trip-section" id="flightAutomationSection">
+                        <div class="trip-section-header">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5"/>
+                                <path d="M2 12l10 5 10-5"/>
+                            </svg>
+                            Flight Automation
+                        </div>
+                        <div class="flight-automation">
+                            <div class="automation-status idle" id="automationStatus">
+                                <div class="automation-phase" id="automationPhase">IDLE</div>
+                                <div class="automation-stats">
+                                    <div class="automation-stat">
+                                        <div class="automation-stat-label">Next Waypoint</div>
+                                        <div class="automation-stat-value" id="automationNextWpt">--</div>
+                                    </div>
+                                    <div class="automation-stat">
+                                        <div class="automation-stat-label">Distance</div>
+                                        <div class="automation-stat-value" id="automationDistance">-- NM</div>
+                                    </div>
+                                    <div class="automation-stat">
+                                        <div class="automation-stat-label">Target HDG</div>
+                                        <div class="automation-stat-value" id="automationTargetHdg">---°</div>
+                                    </div>
+                                    <div class="automation-stat">
+                                        <div class="automation-stat-label">Target ALT</div>
+                                        <div class="automation-stat-value" id="automationTargetAlt">-----</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="automation-buttons">
+                                <button class="automation-btn-icon autopilot" id="btnAutopilot" onclick="engageAutopilot()" disabled title="Engage Autopilot">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                                    </svg>
+                                </button>
+                                <button class="automation-btn-icon disengage" id="btnDisengage" onclick="disengageAutopilot()" title="Disengage Autopilot">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <line x1="15" y1="9" x2="9" y2="15"/>
+                                        <line x1="9" y1="9" x2="15" y2="15"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -4619,7 +5253,7 @@
         </div>
 
         <!-- Profile View -->
-        <div class="profile-container" id="profileSection">
+        <div class="profile-container minimized" id="profileSection">
             <div class="profile-header">
                 <div class="route-input">
                     <input type="text" id="departure" placeholder="FROM" maxlength="4">
@@ -4642,6 +5276,13 @@
                     <button id="snapModeBtn" class="snap-btn" onclick="toggleSnapMode()" title="Snap to Airports">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
                     </button>
+                    <!-- Profile Expand/Minimize Button -->
+                    <button id="profileExpandBtn" class="profile-expand-btn" onclick="toggleProfileCanvas()" title="Expand Profile" style="display: none;">
+                        <svg class="expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="18 15 12 9 6 15"/>
+                        </svg>
+                        <span class="expand-label">Profile</span>
+                    </button>
                     <div class="header-zoom-controls" id="headerZoomControls" style="display: none;">
                         <div class="zoom-divider"></div>
                         <button class="profile-zoom-btn" onclick="profileZoom(1.5)" title="Zoom In">
@@ -4654,11 +5295,16 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                         </button>
                         <div class="profile-zoom-info"><span id="profileZoomLevel">1.0x</span></div>
+                        <button id="profileToggleBtn" class="profile-toggle-btn" onclick="toggleProfileCanvas()" title="Minimize Profile">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
-            <div class="profile-content">
-                <div class="profile-canvas-container" id="profileContainer" style="display: none;">
+            <div class="profile-content" id="profileContent" style="display: none;">
+                <div class="profile-canvas-container" id="profileContainer">
                     <canvas id="profileCanvas"></canvas>
                     <div class="profile-crosshair" id="profileCrosshair"></div>
                     <div class="journey-marker" id="journeyMarker">
@@ -4693,7 +5339,7 @@
             localStorage.setItem('theme', isLightMode ? 'light' : 'dark');
 
             // Redraw profile canvas with new colors if visible
-            if (typeof currentRoute !== 'undefined' && currentRoute.dep && currentRoute.dest && document.getElementById('profileContainer').style.display !== 'none') {
+            if (typeof currentRoute !== 'undefined' && currentRoute.dep && currentRoute.dest && !profileView.minimized) {
                 drawProfile(currentRoute.dep, currentRoute.dest);
             }
         }
@@ -4701,6 +5347,423 @@
         // Apply saved theme on load
         if (isLightMode) {
             document.documentElement.classList.add('light-mode');
+        }
+
+        // ============================================
+        // DEPARTURE & ARRIVAL PROCEDURES DATABASE
+        // Realistic SID/STAR patterns for major airports
+        // ============================================
+        const airportProcedures = {
+            // Los Angeles International - Ocean departures, multiple arrival corridors
+            'KLAX': {
+                departures: {
+                    // Default westbound ocean departure (ORCKA-style)
+                    'default': {
+                        name: 'OCEAN DEP',
+                        waypoints: [
+                            { name: 'LAXDP', lat: 33.9350, lon: -118.5200, alt: 1500, desc: 'Initial climb over ocean' },
+                            { name: 'TOREL', lat: 33.9100, lon: -118.6500, alt: 3500, desc: 'Ocean turn point' },
+                            { name: 'GAATE', lat: 33.9400, lon: -118.7200, alt: 5000, desc: 'Departure gate' }
+                        ]
+                    },
+                    // Northbound departure (for BUR, SFO, SEA)
+                    'north': {
+                        name: 'ORCKA DEP',
+                        waypoints: [
+                            { name: 'LAXDP', lat: 33.9350, lon: -118.5200, alt: 1500, desc: 'Initial climb over ocean' },
+                            { name: 'ORCKA', lat: 33.9500, lon: -118.6400, alt: 4000, desc: 'ORCKA intersection' },
+                            { name: 'DOTSS', lat: 34.0200, lon: -118.6000, alt: 6000, desc: 'Turn to course' }
+                        ]
+                    },
+                    // Eastbound departure (for PHX, DEN, DFW)
+                    'east': {
+                        name: 'LAXX DEP',
+                        waypoints: [
+                            { name: 'LAXDP', lat: 33.9350, lon: -118.5200, alt: 1500, desc: 'Initial climb' },
+                            { name: 'SEAL', lat: 33.8800, lon: -118.4000, alt: 3000, desc: 'Seal Beach turn' },
+                            { name: 'SLI', lat: 33.7900, lon: -118.0500, alt: 6000, desc: 'SLI VOR' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    // Default arrival from east
+                    'default': {
+                        name: 'RIIVR ARR',
+                        waypoints: [
+                            { name: 'HECTOR', lat: 34.7900, lon: -117.3200, alt: 12000, desc: 'HECTOR arrival gate' },
+                            { name: 'RIIVR', lat: 34.1500, lon: -117.6800, alt: 8000, desc: 'RIIVR transition' },
+                            { name: 'SEAVU', lat: 33.9800, lon: -118.1500, alt: 4000, desc: 'Final approach' }
+                        ]
+                    },
+                    // Arrival from north
+                    'north': {
+                        name: 'SADDE ARR',
+                        waypoints: [
+                            { name: 'SADDE', lat: 34.6500, lon: -118.8500, alt: 10000, desc: 'SADDE fix' },
+                            { name: 'SILEX', lat: 34.3200, lon: -118.6800, alt: 7000, desc: 'SILEX descent' },
+                            { name: 'KIMMO', lat: 34.0500, lon: -118.5000, alt: 4000, desc: 'Final descent' }
+                        ]
+                    }
+                },
+                elevation: 128
+            },
+            // Burbank Bob Hope Airport
+            'KBUR': {
+                departures: {
+                    'default': {
+                        name: 'ELMOO DEP',
+                        waypoints: [
+                            { name: 'BURDP', lat: 34.2200, lon: -118.3800, alt: 2000, desc: 'Initial climb' },
+                            { name: 'ELMOO', lat: 34.3000, lon: -118.4500, alt: 4000, desc: 'ELMOO fix' }
+                        ]
+                    },
+                    'south': {
+                        name: 'VNY DEP',
+                        waypoints: [
+                            { name: 'VNY', lat: 34.2098, lon: -118.4896, alt: 3000, desc: 'Van Nuys VOR' },
+                            { name: 'DARTS', lat: 34.0500, lon: -118.4000, alt: 5000, desc: 'DARTS fix' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    'default': {
+                        name: 'CANOGA ARR',
+                        waypoints: [
+                            { name: 'CANOG', lat: 34.2000, lon: -118.6000, alt: 5000, desc: 'CANOGA fix' },
+                            { name: 'BOGET', lat: 34.2100, lon: -118.4500, alt: 3000, desc: 'Base turn' }
+                        ]
+                    }
+                },
+                elevation: 778
+            },
+            // San Francisco International
+            'KSFO': {
+                departures: {
+                    'default': {
+                        name: 'SFO DEP',
+                        waypoints: [
+                            { name: 'SFODP', lat: 37.5800, lon: -122.4500, alt: 2000, desc: 'Initial climb' },
+                            { name: 'SSTIK', lat: 37.5000, lon: -122.5500, alt: 4000, desc: 'Over bay' },
+                            { name: 'MODIS', lat: 37.4200, lon: -122.6800, alt: 7000, desc: 'Coastal turn' }
+                        ]
+                    },
+                    'east': {
+                        name: 'TRUKN DEP',
+                        waypoints: [
+                            { name: 'SFODP', lat: 37.5800, lon: -122.4500, alt: 2000, desc: 'Initial' },
+                            { name: 'TRUKN', lat: 37.6800, lon: -122.1200, alt: 6000, desc: 'TRUKN fix' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    'default': {
+                        name: 'SERFR ARR',
+                        waypoints: [
+                            { name: 'FAITH', lat: 37.3500, lon: -122.0500, alt: 8000, desc: 'FAITH arrival' },
+                            { name: 'MENLO', lat: 37.4500, lon: -122.2000, alt: 5000, desc: 'MENLO transition' },
+                            { name: 'ARCHI', lat: 37.5500, lon: -122.3200, alt: 3000, desc: 'Final' }
+                        ]
+                    }
+                },
+                elevation: 13
+            },
+            // San Diego Intl
+            'KSAN': {
+                departures: {
+                    'default': {
+                        name: 'PEBLE DEP',
+                        waypoints: [
+                            { name: 'SANDP', lat: 32.7500, lon: -117.2500, alt: 2000, desc: 'Over bay' },
+                            { name: 'PEBLE', lat: 32.7800, lon: -117.3500, alt: 4000, desc: 'PEBLE intersection' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    'default': {
+                        name: 'COMIX ARR',
+                        waypoints: [
+                            { name: 'COMIX', lat: 32.9500, lon: -117.0500, alt: 6000, desc: 'COMIX fix' },
+                            { name: 'VYDDA', lat: 32.8200, lon: -117.1200, alt: 3500, desc: 'VYDDA transition' }
+                        ]
+                    }
+                },
+                elevation: 17
+            },
+            // John F. Kennedy Intl
+            'KJFK': {
+                departures: {
+                    'default': {
+                        name: 'JFK DEP',
+                        waypoints: [
+                            { name: 'JFKDP', lat: 40.6200, lon: -73.8200, alt: 1500, desc: 'Initial climb' },
+                            { name: 'SHIPP', lat: 40.5000, lon: -73.9500, alt: 4000, desc: 'SHIPP fix' },
+                            { name: 'WAVEY', lat: 40.3500, lon: -73.8500, alt: 7000, desc: 'Oceanic gate' }
+                        ]
+                    },
+                    'west': {
+                        name: 'DEEZZ DEP',
+                        waypoints: [
+                            { name: 'JFKDP', lat: 40.6200, lon: -73.9000, alt: 2000, desc: 'Initial' },
+                            { name: 'DEEZZ', lat: 40.8000, lon: -74.2500, alt: 6000, desc: 'DEEZZ' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    'default': {
+                        name: 'CAMRN ARR',
+                        waypoints: [
+                            { name: 'CAMRN', lat: 40.9500, lon: -73.4500, alt: 8000, desc: 'CAMRN fix' },
+                            { name: 'ROBER', lat: 40.7500, lon: -73.6000, alt: 4000, desc: 'ROBER transition' }
+                        ]
+                    }
+                },
+                elevation: 13
+            },
+            // Denver Intl
+            'KDEN': {
+                departures: {
+                    'default': {
+                        name: 'PLAINS DEP',
+                        waypoints: [
+                            { name: 'DENDP', lat: 39.8200, lon: -104.6500, alt: 7500, desc: 'Initial climb' },
+                            { name: 'TOMSN', lat: 39.9500, lon: -104.4000, alt: 11000, desc: 'TOMSN fix' }
+                        ]
+                    },
+                    'west': {
+                        name: 'ROCKIES DEP',
+                        waypoints: [
+                            { name: 'DENDP', lat: 39.8200, lon: -104.6500, alt: 7500, desc: 'Initial' },
+                            { name: 'FLATI', lat: 39.8000, lon: -105.1000, alt: 12000, desc: 'Foothills climb' },
+                            { name: 'BAYLR', lat: 39.7500, lon: -105.4500, alt: 14000, desc: 'Mountain crossing' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    'default': {
+                        name: 'DANDD ARR',
+                        waypoints: [
+                            { name: 'DANDD', lat: 39.5000, lon: -104.2000, alt: 12000, desc: 'DANDD arrival' },
+                            { name: 'SAYGE', lat: 39.6500, lon: -104.4500, alt: 9000, desc: 'SAYGE transition' }
+                        ]
+                    }
+                },
+                elevation: 5434
+            },
+            // Salt Lake City Intl
+            'KSLC': {
+                departures: {
+                    'default': {
+                        name: 'SLC DEP',
+                        waypoints: [
+                            { name: 'SLCDP', lat: 40.7800, lon: -112.0000, alt: 6500, desc: 'Initial climb' },
+                            { name: 'MISAN', lat: 40.9000, lon: -112.3000, alt: 9000, desc: 'MISAN fix' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    'default': {
+                        name: 'KRAM ARR',
+                        waypoints: [
+                            { name: 'KRAM', lat: 40.5000, lon: -111.5000, alt: 11000, desc: 'KRAM arrival' },
+                            { name: 'PERKY', lat: 40.6500, lon: -111.8000, alt: 8000, desc: 'PERKY transition' }
+                        ]
+                    }
+                },
+                elevation: 4227
+            },
+            // Phoenix Sky Harbor
+            'KPHX': {
+                departures: {
+                    'default': {
+                        name: 'PHX DEP',
+                        waypoints: [
+                            { name: 'PHXDP', lat: 33.4500, lon: -112.0500, alt: 2500, desc: 'Initial climb' },
+                            { name: 'BUZAD', lat: 33.5500, lon: -112.2500, alt: 5000, desc: 'BUZAD fix' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    'default': {
+                        name: 'EAGUL ARR',
+                        waypoints: [
+                            { name: 'EAGUL', lat: 33.2500, lon: -111.7000, alt: 8000, desc: 'EAGUL arrival' },
+                            { name: 'GEELA', lat: 33.3500, lon: -111.9000, alt: 5000, desc: 'GEELA transition' }
+                        ]
+                    }
+                },
+                elevation: 1135
+            },
+            // Seattle-Tacoma Intl
+            'KSEA': {
+                departures: {
+                    'default': {
+                        name: 'SEA DEP',
+                        waypoints: [
+                            { name: 'SEADP', lat: 47.4200, lon: -122.4000, alt: 2000, desc: 'Initial climb' },
+                            { name: 'BANGR', lat: 47.5500, lon: -122.5500, alt: 5000, desc: 'BANGR fix' }
+                        ]
+                    },
+                    'east': {
+                        name: 'SUMMA DEP',
+                        waypoints: [
+                            { name: 'SEADP', lat: 47.4200, lon: -122.3000, alt: 2000, desc: 'Initial' },
+                            { name: 'SUMMA', lat: 47.4500, lon: -121.8000, alt: 8000, desc: 'Mountain crossing' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    'default': {
+                        name: 'HAWKZ ARR',
+                        waypoints: [
+                            { name: 'HAWKZ', lat: 47.2000, lon: -122.1500, alt: 8000, desc: 'HAWKZ arrival' },
+                            { name: 'ZADON', lat: 47.3500, lon: -122.2500, alt: 4000, desc: 'ZADON transition' }
+                        ]
+                    }
+                },
+                elevation: 433
+            },
+            // Chicago O'Hare
+            'KORD': {
+                departures: {
+                    'default': {
+                        name: 'ORD DEP',
+                        waypoints: [
+                            { name: 'ORDDP', lat: 41.9800, lon: -87.9500, alt: 2000, desc: 'Initial climb' },
+                            { name: 'PAITN', lat: 42.0500, lon: -88.2000, alt: 5000, desc: 'PAITN fix' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    'default': {
+                        name: 'TWOLF ARR',
+                        waypoints: [
+                            { name: 'TWOLF', lat: 41.7500, lon: -87.5000, alt: 8000, desc: 'TWOLF arrival' },
+                            { name: 'KRENA', lat: 41.8500, lon: -87.7500, alt: 4000, desc: 'KRENA transition' }
+                        ]
+                    }
+                },
+                elevation: 672
+            },
+            // Palm Springs Intl
+            'KPSP': {
+                departures: {
+                    'default': {
+                        name: 'PSP DEP',
+                        waypoints: [
+                            { name: 'PSPDP', lat: 33.8500, lon: -116.5500, alt: 2000, desc: 'Initial climb' },
+                            { name: 'JOTNU', lat: 33.9500, lon: -116.3000, alt: 5000, desc: 'Valley climb' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    'default': {
+                        name: 'ORCKA ARR',
+                        waypoints: [
+                            { name: 'TIPTK', lat: 33.9000, lon: -117.0000, alt: 7000, desc: 'TIPTK arrival' },
+                            { name: 'CIVET', lat: 33.8700, lon: -116.7000, alt: 4000, desc: 'Valley descent' }
+                        ]
+                    }
+                },
+                elevation: 477
+            },
+            // Las Vegas McCarran
+            'KLAS': {
+                departures: {
+                    'default': {
+                        name: 'LAS DEP',
+                        waypoints: [
+                            { name: 'LASDP', lat: 36.0500, lon: -115.2500, alt: 3000, desc: 'Initial climb' },
+                            { name: 'CEASR', lat: 36.1500, lon: -115.4000, alt: 6000, desc: 'CEASR fix' }
+                        ]
+                    }
+                },
+                arrivals: {
+                    'default': {
+                        name: 'GRNPA ARR',
+                        waypoints: [
+                            { name: 'GRNPA', lat: 35.8500, lon: -114.8000, alt: 10000, desc: 'GRNPA arrival' },
+                            { name: 'PRFUM', lat: 35.9500, lon: -115.0500, alt: 6000, desc: 'PRFUM transition' }
+                        ]
+                    }
+                },
+                elevation: 2181
+            }
+        };
+
+        // Get departure waypoints for an airport based on destination direction
+        function getDepartureWaypoints(depICAO, destLat, destLon, depLat, depLon) {
+            const procedures = airportProcedures[depICAO];
+            if (!procedures || !procedures.departures) {
+                return null;
+            }
+
+            // Calculate bearing from departure to destination
+            const bearing = calculateInitialBearing(depLat, depLon, destLat, destLon);
+
+            // Select appropriate departure procedure based on bearing
+            let selectedProc = null;
+            if (bearing >= 315 || bearing < 45) {
+                // Northbound
+                selectedProc = procedures.departures['north'] || procedures.departures['default'];
+            } else if (bearing >= 45 && bearing < 135) {
+                // Eastbound
+                selectedProc = procedures.departures['east'] || procedures.departures['default'];
+            } else if (bearing >= 135 && bearing < 225) {
+                // Southbound
+                selectedProc = procedures.departures['south'] || procedures.departures['default'];
+            } else {
+                // Westbound
+                selectedProc = procedures.departures['west'] || procedures.departures['default'];
+            }
+
+            if (!selectedProc) {
+                selectedProc = procedures.departures['default'];
+            }
+
+            return selectedProc ? { name: selectedProc.name, waypoints: selectedProc.waypoints } : null;
+        }
+
+        // Get arrival waypoints for an airport based on arrival direction
+        function getArrivalWaypoints(destICAO, depLat, depLon, destLat, destLon) {
+            const procedures = airportProcedures[destICAO];
+            if (!procedures || !procedures.arrivals) {
+                return null;
+            }
+
+            // Calculate bearing from departure to destination (arrival direction is opposite)
+            const bearing = calculateInitialBearing(depLat, depLon, destLat, destLon);
+            const arrivalFrom = (bearing + 180) % 360; // Direction arrival is coming FROM
+
+            // Select appropriate arrival procedure based on arrival direction
+            let selectedProc = null;
+            if (arrivalFrom >= 315 || arrivalFrom < 45) {
+                selectedProc = procedures.arrivals['north'] || procedures.arrivals['default'];
+            } else if (arrivalFrom >= 45 && arrivalFrom < 135) {
+                selectedProc = procedures.arrivals['east'] || procedures.arrivals['default'];
+            } else if (arrivalFrom >= 135 && arrivalFrom < 225) {
+                selectedProc = procedures.arrivals['south'] || procedures.arrivals['default'];
+            } else {
+                selectedProc = procedures.arrivals['west'] || procedures.arrivals['default'];
+            }
+
+            if (!selectedProc) {
+                selectedProc = procedures.arrivals['default'];
+            }
+
+            return selectedProc ? { name: selectedProc.name, waypoints: selectedProc.waypoints } : null;
+        }
+
+        // Calculate initial bearing between two points
+        function calculateInitialBearing(lat1, lon1, lat2, lon2) {
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+            const y = Math.sin(Δλ) * Math.cos(φ2);
+            const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+            const θ = Math.atan2(y, x);
+
+            return (θ * 180 / Math.PI + 360) % 360;
         }
 
         // Initialize map centered on CONUS
@@ -4727,6 +5790,20 @@
 
         // Add default base layer
         darkLayer.addTo(map);
+
+        // Invalidate map size multiple times to ensure proper rendering
+        // This is necessary because flexbox layout may not be fully calculated immediately
+        setTimeout(() => map.invalidateSize(), 100);
+        setTimeout(() => map.invalidateSize(), 300);
+        setTimeout(() => map.invalidateSize(), 500);
+        setTimeout(() => map.invalidateSize(), 1000);
+        window.addEventListener('load', () => {
+            map.invalidateSize();
+            setTimeout(() => map.invalidateSize(), 100);
+        });
+
+        // Also invalidate on resize
+        window.addEventListener('resize', () => map.invalidateSize());
 
         // Initialize ATC Radio Panel state from localStorage
         initATCPanel();
@@ -6322,12 +7399,17 @@
                 xplaneState.connected = true;
                 xplaneState.reconnectAttempts = 0;
                 updateXPlaneStatus();
+                updateAutomationButtons();
             };
 
             xplaneState.websocket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 if (data.type === 'ping') {
                     xplaneState.websocket.send(JSON.stringify({ type: 'pong' }));
+                    return;
+                }
+                if (data.type === 'automation_status') {
+                    handleAutomationStatus(data);
                     return;
                 }
                 if (data.lat !== undefined) {
@@ -6340,6 +7422,7 @@
                 xplaneState.connected = false;
                 xplaneState.receiving = false;
                 updateXPlaneStatus();
+                updateAutomationButtons();
                 // Auto-reconnect
                 if (xplaneState.enabled && xplaneState.reconnectAttempts < xplaneState.maxReconnectAttempts) {
                     xplaneState.reconnectAttempts++;
@@ -6361,9 +7444,15 @@
         }
 
         function handleXPlaneData(data) {
+            const wasReceiving = xplaneState.receiving;
             xplaneState.receiving = true;
             xplaneState.lastPacketTime = Date.now();
             xplaneState.packetsReceived = data.packets_received || 0;
+
+            // Update automation buttons when we first start receiving
+            if (!wasReceiving) {
+                updateAutomationButtons();
+            }
 
             // Store flight data
             xplaneState.flightData = {
@@ -6519,6 +7608,16 @@
                 nearRoute: minDist < 25  // Within 25nm of route
             };
 
+            // Update floating progress bar with current journey progress
+            if (currentRouteData && currentRouteData.estimatedTime) {
+                const totalMinutes = Math.round(currentRouteData.estimatedTime * 60);
+                const remainingMinutes = Math.round(totalMinutes * (1 - bestProgress));
+                const remHrs = Math.floor(remainingMinutes / 60);
+                const remMins = remainingMinutes % 60;
+                const timeText = remHrs > 0 ? `${remHrs}h ${remMins}m` : `${remMins}m`;
+                setTripProgress(timeText, Math.round(bestProgress * 100));
+            }
+
             // Throttle profile redraws to max 10Hz to prevent performance issues
             const now = Date.now();
             if (!xplaneState.lastProfileRedraw || now - xplaneState.lastProfileRedraw > 100) {
@@ -6585,6 +7684,468 @@
         }
 
         // ==================== END X-PLANE INTEGRATION ====================
+
+        // ==================== FLIGHT AUTOMATION ====================
+
+        const automationState = {
+            planUploaded: false,
+            isActive: false,
+            phase: 'IDLE',  // IDLE, POSITIONING, UPLOADING, TAKEOFF, CLIMBING, CRUISE, DESCENDING, APPROACH
+            statusInterval: null,
+            positioned: false,  // True once aircraft is at departure
+            inFlight: false     // True once airborne
+        };
+
+        // Update automation button states based on route and X-Plane connection
+        function updateAutomationButtons() {
+            const hasRoute = currentRoute.dep && currentRoute.dest;
+            const xplaneConnected = xplaneState.enabled && xplaneState.websocket?.readyState === WebSocket.OPEN;
+
+            console.log('updateAutomationButtons:', { hasRoute, xplaneConnected, phase: automationState.phase });
+
+            // Get all autopilot buttons (panel and floating)
+            const btn = document.getElementById('btnAutopilot');
+            const btnFloat = document.getElementById('btnAutopilotFloat');
+            const floatPhase = document.getElementById('autopilotFloatPhase');
+
+            // Enable buttons if we have route and X-Plane connected
+            if (btn) btn.disabled = !hasRoute || !xplaneConnected;
+            if (btnFloat) btnFloat.disabled = !hasRoute || !xplaneConnected;
+
+            // Update button appearance based on current state
+            const buttons = [btn, btnFloat].filter(b => b);
+            buttons.forEach(b => {
+                b.classList.remove('engaged', 'positioning', 'uploading', 'takeoff-active');
+            });
+
+            let phaseText = 'IDLE';
+            let phaseClass = 'idle';
+
+            if (automationState.isActive) {
+                phaseClass = 'active';
+                if (automationState.phase === 'POSITIONING') {
+                    buttons.forEach(b => b.classList.add('positioning'));
+                    phaseText = 'POSITIONING';
+                } else if (automationState.phase === 'UPLOADING') {
+                    buttons.forEach(b => b.classList.add('uploading'));
+                    phaseText = 'UPLOADING';
+                } else if (automationState.phase === 'TAKEOFF') {
+                    buttons.forEach(b => b.classList.add('takeoff-active'));
+                    phaseText = 'TAKEOFF';
+                } else if (['CLIMBING', 'CRUISE', 'DESCENDING', 'APPROACH'].includes(automationState.phase)) {
+                    buttons.forEach(b => b.classList.add('engaged'));
+                    phaseText = automationState.phase;
+                } else {
+                    buttons.forEach(b => b.classList.add('engaged'));
+                    phaseText = 'ACTIVE';
+                }
+            }
+
+            // Update floating status
+            if (floatPhase) {
+                floatPhase.textContent = phaseText;
+                floatPhase.classList.remove('idle', 'active');
+                floatPhase.classList.add(phaseClass);
+            }
+        }
+
+        // Disengage autopilot (combined disconnect/release function)
+        function disengageAutopilot() {
+            console.log('Disengaging autopilot...');
+
+            if (xplaneState.websocket) {
+                xplaneState.websocket.send(JSON.stringify({
+                    type: 'emergency_stop'
+                }));
+            }
+
+            automationState.isActive = false;
+            automationState.planUploaded = false;
+            automationState.positioned = false;
+            automationState.inFlight = false;
+            automationState.phase = 'IDLE';
+            stopAutomationStatusPolling();
+            resetAutomationDisplay();
+            updateAutomationButtons();
+        }
+
+        // Build waypoints from current route with proper altitude profile
+        function buildRouteWaypoints() {
+            const waypoints = [];
+
+            if (!currentRoute.dep || !currentRoute.dest) return waypoints;
+
+            const depElev = currentRoute.dep.elevation || 0;
+            const destElev = currentRoute.dest.elevation || 0;
+            const cruiseAlt = currentRoute.cruiseAltitude || 10000;
+
+            // Calculate total route distance
+            let totalDistance = haversineNM(
+                currentRoute.dep.lat, currentRoute.dep.lon,
+                currentRoute.dest.lat, currentRoute.dest.lon
+            );
+
+            // Flight profile parameters (same as profile canvas)
+            const climbRate = 800; // ft/min
+            const descentRate = 500; // ft/min
+            const avgClimbSpeed = 100; // knots during climb
+            const avgDescentSpeed = 120; // knots during descent
+
+            // Calculate TOC and TOD distances
+            const climbAltitude = cruiseAlt - depElev;
+            const descentAltitude = cruiseAlt - destElev;
+
+            // Time to climb/descend in hours
+            const climbTimeHours = (climbAltitude / climbRate) / 60;
+            const descentTimeHours = (descentAltitude / descentRate) / 60;
+
+            // Distance to TOC and from TOD
+            const tocDistance = climbTimeHours * avgClimbSpeed; // nm from departure to TOC
+            const todDistanceFromEnd = descentTimeHours * avgDescentSpeed; // nm from TOD to destination
+            const todDistance = totalDistance - todDistanceFromEnd; // nm from departure to TOD
+
+            console.log(`Flight profile: TOC at ${tocDistance.toFixed(1)}nm, TOD at ${todDistance.toFixed(1)}nm, total ${totalDistance.toFixed(1)}nm`);
+
+            // Departure airport
+            waypoints.push({
+                name: currentRoute.dep.icao || currentRoute.dep.id,
+                lat: currentRoute.dep.lat,
+                lon: currentRoute.dep.lon,
+                altitude_ft: depElev,
+                type: 'departure'
+            });
+
+            // Calculate route bearing for TOC/TOD position interpolation
+            const routeBearing = calculateBearing(
+                currentRoute.dep.lat, currentRoute.dep.lon,
+                currentRoute.dest.lat, currentRoute.dest.lon
+            );
+
+            // Add TOC waypoint (where we reach cruise altitude)
+            if (tocDistance > 5 && tocDistance < totalDistance - 10) {
+                const tocPos = destinationPoint(
+                    currentRoute.dep.lat, currentRoute.dep.lon,
+                    routeBearing, tocDistance
+                );
+                waypoints.push({
+                    name: 'TOC',
+                    lat: tocPos.lat,
+                    lon: tocPos.lon,
+                    altitude_ft: cruiseAlt,
+                    type: 'enroute'
+                });
+                console.log(`Added TOC waypoint at ${tocDistance.toFixed(1)}nm -> ${cruiseAlt}ft`);
+            }
+
+            // Enroute waypoints with altitude based on profile position
+            if (currentRoute.waypoints && currentRoute.waypoints.length > 0) {
+                for (const wpt of currentRoute.waypoints) {
+                    // Calculate distance from departure to this waypoint
+                    const distFromDep = haversineNM(
+                        currentRoute.dep.lat, currentRoute.dep.lon,
+                        wpt.lat, wpt.lon
+                    );
+
+                    // Calculate altitude based on profile phase
+                    let waypointAlt;
+                    if (distFromDep <= tocDistance) {
+                        // In climb phase - linear interpolation
+                        const climbProgress = distFromDep / tocDistance;
+                        waypointAlt = depElev + (climbAltitude * climbProgress);
+                    } else if (distFromDep >= todDistance) {
+                        // In descent phase - linear interpolation
+                        const descentProgress = (distFromDep - todDistance) / todDistanceFromEnd;
+                        waypointAlt = cruiseAlt - (descentAltitude * descentProgress);
+                    } else {
+                        // At cruise altitude
+                        waypointAlt = cruiseAlt;
+                    }
+
+                    waypoints.push({
+                        name: wpt.name || wpt.id || 'WPT',
+                        lat: wpt.lat,
+                        lon: wpt.lon,
+                        altitude_ft: Math.round(waypointAlt),
+                        type: 'enroute'
+                    });
+
+                    console.log(`Waypoint ${wpt.name}: ${distFromDep.toFixed(1)}nm from dep -> ${Math.round(waypointAlt)}ft`);
+                }
+            }
+
+            // Add TOD waypoint (where we start descent)
+            if (todDistance > tocDistance + 10 && todDistance < totalDistance - 5) {
+                const todPos = destinationPoint(
+                    currentRoute.dep.lat, currentRoute.dep.lon,
+                    routeBearing, todDistance
+                );
+                waypoints.push({
+                    name: 'TOD',
+                    lat: todPos.lat,
+                    lon: todPos.lon,
+                    altitude_ft: cruiseAlt, // Start descent from cruise
+                    type: 'enroute'
+                });
+                console.log(`Added TOD waypoint at ${todDistance.toFixed(1)}nm -> ${cruiseAlt}ft (start descent)`);
+            }
+
+            // Destination airport
+            waypoints.push({
+                name: currentRoute.dest.icao || currentRoute.dest.id,
+                lat: currentRoute.dest.lat,
+                lon: currentRoute.dest.lon,
+                altitude_ft: destElev,
+                type: 'destination'
+            });
+
+            return waypoints;
+        }
+
+        // Intelligent Autopilot - understands context and executes appropriate action
+        async function engageAutopilot() {
+            console.log('engageAutopilot called - current phase:', automationState.phase);
+
+            if (!currentRoute.dep || !currentRoute.dest || !xplaneState.websocket) {
+                console.error('Cannot engage autopilot: no route or not connected');
+                return;
+            }
+
+            // If already active, clicking again will disengage
+            if (automationState.isActive && automationState.inFlight) {
+                console.log('Autopilot already active and in flight - no action needed');
+                return;
+            }
+
+            automationState.isActive = true;
+
+            // Determine what action to take based on current state
+            if (!automationState.positioned) {
+                // Step 1: Position aircraft to departure
+                automationState.phase = 'POSITIONING';
+                updateAutomationButtons();
+                await positionToDeparture();
+
+                // Wait a moment for positioning to complete
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                automationState.positioned = true;
+            }
+
+            if (!automationState.planUploaded) {
+                // Step 2: Upload flight plan
+                automationState.phase = 'UPLOADING';
+                updateAutomationButtons();
+                await uploadFlightPlan();
+
+                // Wait a moment for upload to complete
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            if (!automationState.inFlight) {
+                // Step 3: Start takeoff sequence
+                automationState.phase = 'TAKEOFF';
+                updateAutomationButtons();
+                autoTakeoff();
+            }
+
+            // Status polling will update the phase as flight progresses
+            startAutomationStatusPolling();
+        }
+
+        // Position aircraft to departure airport
+        async function positionToDeparture() {
+            console.log('positionToDeparture called');
+            console.log('currentRoute.dep:', currentRoute.dep);
+            console.log('xplaneState.websocket:', xplaneState.websocket);
+
+            if (!currentRoute.dep || !xplaneState.websocket) {
+                console.error('No departure airport or WebSocket not connected');
+                return;
+            }
+
+            const dep = currentRoute.dep;
+            console.log('Positioning to departure:', dep.icao || dep.id);
+
+            // Send position command via WebSocket
+            xplaneState.websocket.send(JSON.stringify({
+                type: 'position_aircraft',
+                lat: dep.lat,
+                lon: dep.lon,
+                altitude_ft: (dep.elevation || 0) + 50,  // 50ft above ground
+                heading: 0  // Will need runway heading ideally
+            }));
+
+            // Update status
+            updateAutomationStatus('Positioning to ' + (dep.icao || dep.id) + '...');
+        }
+
+        // Upload flight plan to backend
+        async function uploadFlightPlan() {
+            if (!xplaneState.websocket) {
+                console.error('WebSocket not connected');
+                return;
+            }
+
+            const waypoints = buildRouteWaypoints();
+            if (waypoints.length < 2) {
+                console.error('Need at least departure and destination');
+                return;
+            }
+
+            console.log('Uploading flight plan with', waypoints.length, 'waypoints');
+
+            xplaneState.websocket.send(JSON.stringify({
+                type: 'upload_flight_plan',
+                waypoints: waypoints,
+                cruise_altitude: currentRoute.cruiseAltitude || 10000
+            }));
+
+            automationState.planUploaded = true;
+            updateAutomationButtons();
+            updateAutomationStatus('Flight plan uploaded');
+
+            // Start polling for automation status
+            startAutomationStatusPolling();
+        }
+
+        // Start auto-takeoff sequence
+        function autoTakeoff() {
+            if (!xplaneState.websocket || !automationState.planUploaded) {
+                console.error('Cannot start takeoff: plan not uploaded or not connected');
+                return;
+            }
+
+            console.log('Starting auto-takeoff sequence');
+
+            xplaneState.websocket.send(JSON.stringify({
+                type: 'auto_takeoff'
+            }));
+
+            automationState.isActive = true;
+            updateAutomationStatus('Starting takeoff sequence...');
+        }
+
+        // Emergency disconnect - stop all automation
+        // Alias for backwards compatibility
+        function emergencyDisconnect() {
+            disengageAutopilot();
+        }
+
+        // Alias for backwards compatibility
+        function releaseToPilot() {
+            disengageAutopilot();
+        }
+
+        // Poll for automation status updates
+        function startAutomationStatusPolling() {
+            if (automationState.statusInterval) return;
+
+            automationState.statusInterval = setInterval(() => {
+                if (xplaneState.websocket?.readyState === WebSocket.OPEN) {
+                    xplaneState.websocket.send(JSON.stringify({
+                        type: 'get_automation_status'
+                    }));
+                }
+            }, 1000);  // Poll every second
+        }
+
+        function stopAutomationStatusPolling() {
+            if (automationState.statusInterval) {
+                clearInterval(automationState.statusInterval);
+                automationState.statusInterval = null;
+            }
+        }
+
+        // Update automation status display
+        function updateAutomationStatus(message) {
+            const phaseEl = document.getElementById('automationPhase');
+            if (phaseEl && message) {
+                phaseEl.textContent = message;
+            }
+        }
+
+        // Handle automation status from WebSocket
+        function handleAutomationStatus(data) {
+            const statusEl = document.getElementById('automationStatus');
+            const phaseEl = document.getElementById('automationPhase');
+            const nextWptEl = document.getElementById('automationNextWpt');
+            const distanceEl = document.getElementById('automationDistance');
+            const targetHdgEl = document.getElementById('automationTargetHdg');
+            const targetAltEl = document.getElementById('automationTargetAlt');
+
+            if (!statusEl) return;
+
+            // Update phase display
+            automationState.phase = data.phase || 'IDLE';
+            phaseEl.textContent = automationState.phase;
+
+            // Update status box styling
+            statusEl.classList.remove('idle', 'active', 'takeoff');
+            if (automationState.phase === 'IDLE') {
+                statusEl.classList.add('idle');
+            } else if (['TAKEOFF_ROLL', 'ROTATION', 'INITIAL_CLIMB', 'CLIMB_OUT'].includes(automationState.phase)) {
+                statusEl.classList.add('takeoff');
+            } else {
+                statusEl.classList.add('active');
+            }
+
+            // Update stats
+            if (data.current_waypoint) {
+                nextWptEl.textContent = data.current_waypoint;
+            }
+            if (data.distance_nm !== undefined) {
+                distanceEl.textContent = data.distance_nm.toFixed(1) + ' NM';
+            }
+            if (data.target_heading !== undefined) {
+                targetHdgEl.textContent = Math.round(data.target_heading) + '°';
+            }
+            if (data.target_altitude !== undefined) {
+                targetAltEl.textContent = Math.round(data.target_altitude) + ' ft';
+            }
+
+            // Update active state
+            automationState.isActive = data.navigation_active || data.takeoff_active || false;
+
+            // Update flight status flags based on phase
+            const flightPhases = ['INITIAL_CLIMB', 'CLIMB_OUT', 'CLIMBING', 'CRUISE', 'DESCENDING', 'APPROACH', 'FINAL'];
+            if (flightPhases.includes(automationState.phase)) {
+                automationState.inFlight = true;
+            }
+
+            // Update the autopilot button appearance
+            updateAutomationButtons();
+
+            // If automation stopped, reset
+            if (!automationState.isActive && automationState.phase === 'IDLE') {
+                stopAutomationStatusPolling();
+            }
+        }
+
+        // Reset automation display to default
+        function resetAutomationDisplay() {
+            const statusEl = document.getElementById('automationStatus');
+            const phaseEl = document.getElementById('automationPhase');
+
+            if (statusEl) {
+                statusEl.classList.remove('active', 'takeoff');
+                statusEl.classList.add('idle');
+            }
+            if (phaseEl) {
+                phaseEl.textContent = 'IDLE';
+            }
+
+            document.getElementById('automationNextWpt').textContent = '--';
+            document.getElementById('automationDistance').textContent = '-- NM';
+            document.getElementById('automationTargetHdg').textContent = '---°';
+            document.getElementById('automationTargetAlt').textContent = '-----';
+
+            // Reset automation state
+            automationState.phase = 'IDLE';
+            automationState.positioned = false;
+            automationState.inFlight = false;
+            updateAutomationButtons();
+        }
+
+        // ==================== END FLIGHT AUTOMATION ====================
 
         // Helper function to parse CSV line with quoted fields
         function parseCSVLine(line) {
@@ -7782,6 +9343,7 @@
             panY: 0,  // Pan offset in pixels (vertical)
             isDragging: false,
             lastMouseX: 0,
+            minimized: true,  // Start minimized - user must click to expand
             lastMouseY: 0
         };
 
@@ -8634,19 +10196,91 @@
         function toggleTripSummary() {
             const panel = document.getElementById('tripSummary');
             panel.classList.toggle('expanded');
+            updateFloatingProgress();
         }
 
         function showTripSummary() {
             const panel = document.getElementById('tripSummary');
             panel.classList.add('visible');
-            // Auto-expand when a route is loaded
-            panel.classList.add('expanded');
+            // Keep minimized on route load - floating progress shows time
+            updateFloatingProgress();
         }
 
         function hideTripSummary() {
             const panel = document.getElementById('tripSummary');
             panel.classList.remove('visible');
             panel.classList.remove('expanded');
+            // Hide floating elements when panel hidden
+            document.getElementById('tripProgressFloat').classList.remove('visible');
+            document.getElementById('autopilotFloat').classList.remove('visible');
+        }
+
+        // Update floating progress bar visibility and content
+        function updateFloatingProgress() {
+            const panel = document.getElementById('tripSummary');
+            const floatProgress = document.getElementById('tripProgressFloat');
+            const floatAutopilot = document.getElementById('autopilotFloat');
+            const isMinimized = panel.classList.contains('visible') && !panel.classList.contains('expanded');
+
+            if (isMinimized) {
+                floatProgress.classList.add('visible');
+                floatAutopilot.classList.add('visible');
+            } else {
+                floatProgress.classList.remove('visible');
+                floatAutopilot.classList.remove('visible');
+            }
+        }
+
+        // Set floating progress bar values
+        function setTripProgress(timeText, progressPercent) {
+            document.getElementById('tripFloatTime').textContent = timeText;
+            document.getElementById('tripProgressBar').style.width = progressPercent + '%';
+        }
+
+        // Toggle profile canvas minimize/maximize
+        function toggleProfileCanvas() {
+            const profileSection = document.getElementById('profileSection');
+            const profileContent = document.getElementById('profileContent');
+            const toggleBtn = document.getElementById('profileToggleBtn');
+            const expandBtn = document.getElementById('profileExpandBtn');
+
+            if (profileView.minimized) {
+                // Maximize - show profile content area and redraw
+                profileView.minimized = false;
+                profileSection.classList.remove('minimized');
+                profileContent.style.display = 'flex';
+                if (toggleBtn) {
+                    toggleBtn.classList.remove('minimized');
+                    toggleBtn.title = 'Minimize Profile';
+                }
+                if (expandBtn) {
+                    expandBtn.classList.add('expanded');
+                    expandBtn.title = 'Minimize Profile';
+                    expandBtn.querySelector('.expand-label').textContent = 'Hide';
+                }
+                // Redraw profile with current route
+                if (currentRoute.dep && currentRoute.dest) {
+                    drawProfile(currentRoute.dep, currentRoute.dest);
+                }
+                // Invalidate map size after layout change
+                setTimeout(() => map.invalidateSize(), 350);
+            } else {
+                // Minimize - hide profile content area completely
+                profileView.minimized = true;
+                profileSection.classList.add('minimized');
+                profileContent.style.display = 'none';
+                if (toggleBtn) {
+                    toggleBtn.classList.add('minimized');
+                    toggleBtn.title = 'Maximize Profile';
+                }
+                if (expandBtn) {
+                    expandBtn.classList.remove('expanded');
+                    expandBtn.title = 'Expand Profile';
+                    expandBtn.querySelector('.expand-label').textContent = 'Profile';
+                }
+                // Invalidate map size after layout change
+                setTimeout(() => map.invalidateSize(), 350);
+            }
         }
 
         // Calculate avoidance waypoints around a restricted polygon
@@ -9139,6 +10773,55 @@
                 lon: depStation.lon,
                 distance: 0
             });
+
+            // Add departure procedure waypoints (SID-style)
+            const departureProcedure = getDepartureWaypoints(depStation.id, destStation.lat, destStation.lon, depStation.lat, depStation.lon);
+            const departureWaypoints = [];
+            if (departureProcedure && departureProcedure.waypoints) {
+                console.log(`Using departure procedure: ${departureProcedure.name} from ${depStation.id}`);
+                routeData.departureProcedure = departureProcedure.name;
+                let depCumulativeDist = 0;
+                let lastDepPoint = { lat: depStation.lat, lon: depStation.lon };
+                departureProcedure.waypoints.forEach((wp, idx) => {
+                    const distFromLast = haversineNM(lastDepPoint.lat, lastDepPoint.lon, wp.lat, wp.lon);
+                    depCumulativeDist += distFromLast;
+                    departureWaypoints.push({
+                        name: wp.name,
+                        type: 'sid',
+                        lat: wp.lat,
+                        lon: wp.lon,
+                        altitude: wp.alt,
+                        distance: Math.round(depCumulativeDist),
+                        description: wp.desc,
+                        procedureName: departureProcedure.name,
+                        isCustom: false,
+                        isStop: false
+                    });
+                    lastDepPoint = { lat: wp.lat, lon: wp.lon };
+                });
+            }
+
+            // Get arrival procedure waypoints (STAR-style) - we'll insert these later
+            const arrivalProcedure = getArrivalWaypoints(destStation.id, depStation.lat, depStation.lon, destStation.lat, destStation.lon);
+            const arrivalWaypoints = [];
+            if (arrivalProcedure && arrivalProcedure.waypoints) {
+                console.log(`Using arrival procedure: ${arrivalProcedure.name} to ${destStation.id}`);
+                routeData.arrivalProcedure = arrivalProcedure.name;
+                // Arrival waypoints will be processed after we know the route distance
+                arrivalProcedure.waypoints.forEach((wp, idx) => {
+                    arrivalWaypoints.push({
+                        name: wp.name,
+                        type: 'star',
+                        lat: wp.lat,
+                        lon: wp.lon,
+                        altitude: wp.alt,
+                        description: wp.desc,
+                        procedureName: arrivalProcedure.name,
+                        isCustom: false,
+                        isStop: false
+                    });
+                });
+            }
 
             // Find all restricted/prohibited airspace intersections first
             const restrictedIntersections = findRestrictedIntersections(depStation, destStation, routeData.cruiseAltitude);
@@ -9745,7 +11428,35 @@
                 });
             }
 
-            // Combine custom waypoints and stops, sort by route position, then calculate cumulative distances
+            // Build waypoint sequence: Departure -> SID -> Intermediate -> STAR -> Destination
+            // SID/STAR waypoints maintain their defined order (not projection-sorted)
+
+            // Step 1: Add SID (departure procedure) waypoints in sequence
+            let cumulativeDistance = 0;
+            let lastWaypointPos = { lat: depStation.lat, lon: depStation.lon };
+
+            if (departureWaypoints && departureWaypoints.length > 0) {
+                console.log('Adding departure procedure waypoints:', departureWaypoints.map(wp => wp.name));
+                departureWaypoints.forEach(wp => {
+                    const distFromLast = haversineNM(lastWaypointPos.lat, lastWaypointPos.lon, wp.lat, wp.lon);
+                    cumulativeDistance += distFromLast;
+                    routeData.waypoints.push({
+                        name: wp.name,
+                        type: 'sid',
+                        lat: wp.lat,
+                        lon: wp.lon,
+                        altitude: wp.altitude,
+                        distance: Math.round(cumulativeDistance),
+                        description: wp.description,
+                        procedureName: wp.procedureName,
+                        isCustom: false,
+                        isStop: false
+                    });
+                    lastWaypointPos = { lat: wp.lat, lon: wp.lon };
+                });
+            }
+
+            // Step 2: Combine custom waypoints, stops, and avoidance points for intermediate routing
             const allIntermediatePoints = [];
 
             // Add custom waypoints to the combined list
@@ -9795,79 +11506,90 @@
 
             console.log('allIntermediatePoints before sort:', allIntermediatePoints.map(p => ({ name: p.name, lat: p.lat, lon: p.lon, type: p.type })));
 
-            // Sort all intermediate points by their projection along the route from dep to dest
+            // Sort intermediate points by their projection along the route
+            // Use route from last SID waypoint (or departure) to first STAR waypoint (or destination)
+            const routeStartForSort = lastWaypointPos;
+            const routeEndForSort = arrivalWaypoints.length > 0
+                ? { lat: arrivalWaypoints[0].lat, lon: arrivalWaypoints[0].lon }
+                : { lat: destStation.lat, lon: destStation.lon };
+
             if (allIntermediatePoints.length > 0) {
-                const routeVecLat = destStation.lat - depStation.lat;
-                const routeVecLon = destStation.lon - depStation.lon;
+                const routeVecLat = routeEndForSort.lat - routeStartForSort.lat;
+                const routeVecLon = routeEndForSort.lon - routeStartForSort.lon;
                 const routeLenSq = routeVecLat * routeVecLat + routeVecLon * routeVecLon;
 
                 allIntermediatePoints.sort((a, b) => {
-                    const projA = routeLenSq > 0 ? ((a.lat - depStation.lat) * routeVecLat + (a.lon - depStation.lon) * routeVecLon) / routeLenSq : 0;
-                    const projB = routeLenSq > 0 ? ((b.lat - depStation.lat) * routeVecLat + (b.lon - depStation.lon) * routeVecLon) / routeLenSq : 0;
+                    const projA = routeLenSq > 0 ? ((a.lat - routeStartForSort.lat) * routeVecLat + (a.lon - routeStartForSort.lon) * routeVecLon) / routeLenSq : 0;
+                    const projB = routeLenSq > 0 ? ((b.lat - routeStartForSort.lat) * routeVecLat + (b.lon - routeStartForSort.lon) * routeVecLon) / routeLenSq : 0;
                     return projA - projB;
                 });
 
                 console.log('allIntermediatePoints AFTER sort:', allIntermediatePoints.map(p => ({ name: p.name, lat: p.lat, lon: p.lon })));
 
-                // Now calculate cumulative distances through the sorted points
-                const R = 3440.065;
-                let cumulativeDist = 0;
-                let lastPoint = { lat: depStation.lat, lon: depStation.lon };
-
+                // Add sorted intermediate waypoints with cumulative distances
                 allIntermediatePoints.forEach(point => {
-                    const lat1 = lastPoint.lat * Math.PI / 180;
-                    const lat2 = point.lat * Math.PI / 180;
-                    const dLat = (point.lat - lastPoint.lat) * Math.PI / 180;
-                    const dLon = (point.lon - lastPoint.lon) * Math.PI / 180;
-                    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                              Math.cos(lat1) * Math.cos(lat2) *
-                              Math.sin(dLon/2) * Math.sin(dLon/2);
-                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                    cumulativeDist += R * c;
+                    const distFromLast = haversineNM(lastWaypointPos.lat, lastWaypointPos.lon, point.lat, point.lon);
+                    cumulativeDistance += distFromLast;
 
                     routeData.waypoints.push({
                         name: point.name,
                         type: point.type,
                         lat: point.lat,
                         lon: point.lon,
-                        distance: Math.round(cumulativeDist),
+                        distance: Math.round(cumulativeDistance),
                         isCustom: point.isCustom,
                         isStop: point.isStop
                     });
 
-                    lastPoint = { lat: point.lat, lon: point.lon };
+                    lastWaypointPos = { lat: point.lat, lon: point.lon };
                 });
             }
 
             // Add fuel stops as waypoints (so route line goes through them)
             if (fuelStops.length > 0) {
                 fuelStops.forEach((stop, idx) => {
+                    const distFromLast = haversineNM(lastWaypointPos.lat, lastWaypointPos.lon, stop.station.lat, stop.station.lon);
+                    cumulativeDistance += distFromLast;
                     routeData.waypoints.push({
                         name: stop.station.id,
                         type: 'fuel',
                         lat: stop.station.lat,
                         lon: stop.station.lon,
-                        distance: stop.distanceFromDep,
+                        distance: Math.round(cumulativeDistance),
                         isFuelStop: true,
                         fuelStopNumber: idx + 1,
                         reason: `Fuel Stop ${idx + 1}`
                     });
+                    lastWaypointPos = { lat: stop.station.lat, lon: stop.station.lon };
                 });
             }
 
-            // Add destination - calculate distance from last waypoint to destination
-            // Get the last waypoint's position and distance for cumulative calculation
-            const existingWaypoints = routeData.waypoints;
-            let destDistance;
-            if (existingWaypoints.length > 1) {
-                // Get the last waypoint (not departure)
-                const lastWp = existingWaypoints[existingWaypoints.length - 1];
-                const distToDestFromLast = haversineNM(lastWp.lat, lastWp.lon, destStation.lat, destStation.lon);
-                destDistance = lastWp.distance + distToDestFromLast;
-            } else {
-                // No intermediate waypoints, use direct distance
-                destDistance = distance;
+            // Step 3: Add STAR (arrival procedure) waypoints in sequence before destination
+            if (arrivalWaypoints && arrivalWaypoints.length > 0) {
+                console.log('Adding arrival procedure waypoints:', arrivalWaypoints.map(wp => wp.name));
+                arrivalWaypoints.forEach(wp => {
+                    const distFromLast = haversineNM(lastWaypointPos.lat, lastWaypointPos.lon, wp.lat, wp.lon);
+                    cumulativeDistance += distFromLast;
+                    routeData.waypoints.push({
+                        name: wp.name,
+                        type: 'star',
+                        lat: wp.lat,
+                        lon: wp.lon,
+                        altitude: wp.altitude,
+                        distance: Math.round(cumulativeDistance),
+                        description: wp.description,
+                        procedureName: wp.procedureName,
+                        isCustom: false,
+                        isStop: false
+                    });
+                    lastWaypointPos = { lat: wp.lat, lon: wp.lon };
+                });
             }
+
+            // Step 4: Add destination as final waypoint
+            const distToDestFromLast = haversineNM(lastWaypointPos.lat, lastWaypointPos.lon, destStation.lat, destStation.lon);
+            cumulativeDistance += distToDestFromLast;
+            const destDistance = cumulativeDistance;
 
             // Update fuelPlan.actualRouteDistance to reflect the true route distance
             routeData.fuelPlan.actualRouteDistance = Math.round(destDistance);
@@ -10159,6 +11881,9 @@
             document.getElementById('tripMiniConditions').textContent = conditionsStatus.text;
             document.getElementById('tripMiniConditions').style.color = conditionsStatus.color;
 
+            // Update floating progress bar (0% at route load)
+            setTripProgress(`${hours}h ${mins}m`, 0);
+
             // Update overview
             document.getElementById('tripDepAirport').textContent = routeData.departure.id;
             document.getElementById('tripDestAirport').textContent = routeData.destination.id;
@@ -10400,11 +12125,24 @@
             // Auto-enable overlays disabled - user can enable via "Route Overlays" button
             // autoEnableHazardOverlays(routeData.hazards);
 
-            // Show the panel
+            // Show the trip panel (minimized)
             showTripSummary();
 
-            // Update ATC Radio Panel
+            // Update and OPEN ATC Radio Panel
             updateATCPanel(routeData);
+            openATCPanel();
+        }
+
+        // Open ATC panel (not toggle - explicitly open)
+        function openATCPanel() {
+            const panel = document.getElementById('atcRadioPanel');
+            const btn = document.getElementById('atcPanelBtn');
+            if (panel) {
+                panel.classList.remove('hidden');
+                document.body.classList.add('atc-panel-open');
+                if (btn) btn.classList.add('active');
+                localStorage.setItem('atcPanelVisible', true);
+            }
         }
 
         // ============================================
@@ -11521,6 +13259,9 @@
             currentRoute.dep = depStation;
             currentRoute.dest = destStation;
 
+            // Update flight automation buttons
+            updateAutomationButtons();
+
             // Refresh terrain overlay if active (now route-aware)
             if (overlayState.terrain) {
                 createTerrainOverlay();
@@ -11712,6 +13453,84 @@
                     </div>
                 `, { direction: 'top', offset: [0, -10] });
                 fuelStopMarkers.addLayer(marker); // Reuse fuel stop layer for cleanup
+            });
+
+            // Add SID (departure procedure) waypoint markers
+            const sidWaypoints = waypoints.filter(wp => wp.type === 'sid');
+            sidWaypoints.forEach((wp, idx) => {
+                const sidIcon = L.divIcon({
+                    html: `<div style="
+                        background: rgba(34, 197, 94, 0.9);
+                        color: white;
+                        width: 22px;
+                        height: 22px;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 8px;
+                        font-weight: bold;
+                        border: 2px solid rgba(134, 239, 172, 0.8);
+                        box-shadow: 0 2px 6px rgba(34, 197, 94, 0.5);
+                    ">${idx + 1}</div>`,
+                    className: 'sid-marker',
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                });
+
+                const marker = L.marker([wp.lat, wp.lon], { icon: sidIcon }).addTo(map);
+                marker.bindTooltip(`
+                    <div style="font-family: system-ui; font-size: 11px;">
+                        <div style="font-weight: 600; color: #22c55e; margin-bottom: 4px;">
+                            Departure Procedure
+                        </div>
+                        <div><b>${wp.name}</b></div>
+                        <div style="font-size: 10px; color: #9ca3af; margin-top: 2px;">
+                            ${wp.description || wp.procedureName || 'SID waypoint'}
+                        </div>
+                        ${wp.altitude ? `<div style="font-size: 10px; color: #86efac; margin-top: 2px;">ALT: ${wp.altitude.toLocaleString()} ft</div>` : ''}
+                    </div>
+                `, { direction: 'top', offset: [0, -10] });
+                fuelStopMarkers.addLayer(marker);
+            });
+
+            // Add STAR (arrival procedure) waypoint markers
+            const starWaypoints = waypoints.filter(wp => wp.type === 'star');
+            starWaypoints.forEach((wp, idx) => {
+                const starIcon = L.divIcon({
+                    html: `<div style="
+                        background: rgba(245, 158, 11, 0.9);
+                        color: white;
+                        width: 22px;
+                        height: 22px;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 8px;
+                        font-weight: bold;
+                        border: 2px solid rgba(253, 224, 71, 0.8);
+                        box-shadow: 0 2px 6px rgba(245, 158, 11, 0.5);
+                    ">${idx + 1}</div>`,
+                    className: 'star-marker',
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                });
+
+                const marker = L.marker([wp.lat, wp.lon], { icon: starIcon }).addTo(map);
+                marker.bindTooltip(`
+                    <div style="font-family: system-ui; font-size: 11px;">
+                        <div style="font-weight: 600; color: #f59e0b; margin-bottom: 4px;">
+                            Arrival Procedure
+                        </div>
+                        <div><b>${wp.name}</b></div>
+                        <div style="font-size: 10px; color: #9ca3af; margin-top: 2px;">
+                            ${wp.description || wp.procedureName || 'STAR waypoint'}
+                        </div>
+                        ${wp.altitude ? `<div style="font-size: 10px; color: #fde047; margin-top: 2px;">ALT: ${wp.altitude.toLocaleString()} ft</div>` : ''}
+                    </div>
+                `, { direction: 'top', offset: [0, -10] });
+                fuelStopMarkers.addLayer(marker);
             });
 
             // Add fuel stop markers (using calculated stops from fuelPlan)
@@ -12441,9 +14260,47 @@
             const waypoints = routeWaypoints !== null ? routeWaypoints : customWaypoints;
             const stops = routeStops !== null ? routeStops : customStops;
 
-            document.getElementById('profilePlaceholder').style.display = 'none';
-            document.getElementById('profileContainer').style.display = 'block';
+            // Always show zoom controls so toggle button is visible
             document.getElementById('headerZoomControls').style.display = 'flex';
+
+            // Show the expand button when a route is loaded
+            const expandBtn = document.getElementById('profileExpandBtn');
+            if (expandBtn) {
+                expandBtn.style.display = 'flex';
+            }
+
+            const profileSection = document.getElementById('profileSection');
+            const profileContent = document.getElementById('profileContent');
+            const profileBtn = document.getElementById('profileToggleBtn');
+
+            // If profile is minimized, don't draw - just ensure UI state is correct
+            if (profileView.minimized) {
+                profileSection.classList.add('minimized');
+                profileContent.style.display = 'none';
+                if (profileBtn) {
+                    profileBtn.classList.add('minimized');
+                    profileBtn.title = 'Maximize Profile';
+                }
+                if (expandBtn) {
+                    expandBtn.classList.remove('expanded');
+                    expandBtn.title = 'Expand Profile';
+                    expandBtn.querySelector('.expand-label').textContent = 'Profile';
+                }
+                return;
+            }
+
+            // Profile is expanded - show content area and draw
+            profileSection.classList.remove('minimized');
+            profileContent.style.display = 'flex';
+            document.getElementById('profilePlaceholder').style.display = 'none';
+            if (profileBtn) {
+                profileBtn.classList.remove('minimized');
+                profileBtn.title = 'Minimize Profile';
+            }
+            if (expandBtn) {
+                expandBtn.classList.add('expanded');
+                expandBtn.querySelector('.expand-label').textContent = 'Hide';
+            }
 
             const canvas = document.getElementById('profileCanvas');
             const ctx = canvas.getContext('2d');
@@ -15543,7 +17400,7 @@
 
         // Handle window resize for profile
         window.addEventListener('resize', () => {
-            if (document.getElementById('profileContainer').style.display !== 'none') {
+            if (!profileView.minimized) {
                 const dep = document.getElementById('departure').value.toUpperCase();
                 const dest = document.getElementById('destination').value.toUpperCase();
                 if (dep && dest) {
