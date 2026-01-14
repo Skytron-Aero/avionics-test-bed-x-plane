@@ -4930,6 +4930,9 @@ async def xplane_websocket(websocket: WebSocket):
     await websocket.accept()
     xplane_clients.add(websocket)
 
+    # Global declarations for variables we may modify
+    global auto_tuner, tuning_task
+
     try:
         # Send initial connection status
         if xplane_listener:
@@ -4953,6 +4956,11 @@ async def xplane_websocket(websocket: WebSocket):
                     websocket.receive_json(),
                     timeout=30.0
                 )
+
+                # Debug: Log all incoming message types
+                msg_type = message.get("type", "unknown")
+                if msg_type not in ["status_request", "ping"]:  # Skip noisy messages
+                    print(f"[WS MESSAGE] Received: {msg_type}")
 
                 # Handle client requests
                 if message.get("type") == "status_request":
@@ -5158,6 +5166,19 @@ async def xplane_websocket(websocket: WebSocket):
                         departure_runway = message.get("departure_runway")
                         departure_heading = message.get("departure_heading", 0)
 
+                        # Extract departure/destination from waypoints if not provided
+                        if not departure and waypoints:
+                            first_wp = waypoints[0]
+                            departure = first_wp.get("name", "DEP")
+                        if not destination and waypoints:
+                            last_wp = waypoints[-1]
+                            destination = last_wp.get("name", "DEST")
+
+                        print(f"[FLIGHT PLAN] Loading route: {departure} -> {destination}")
+                        print(f"[FLIGHT PLAN] {len(waypoints)} waypoints, cruise FL{cruise_alt//100}")
+                        for i, wp in enumerate(waypoints):
+                            print(f"  {i+1}. {wp.get('name', 'WPT')} @ {wp.get('altitude_ft', cruise_alt)}ft")
+
                         flight_manager.set_flight_plan(
                             waypoints=waypoints,
                             cruise_altitude=cruise_alt,
@@ -5254,7 +5275,6 @@ async def xplane_websocket(websocket: WebSocket):
 
                 elif message.get("type") == "start_auto_tuning":
                     # Start autonomous tuning session
-                    global auto_tuner, tuning_task
                     if flight_manager:
                         # Create tuner if needed
                         if auto_tuner is None:
@@ -5318,6 +5338,219 @@ async def xplane_websocket(websocket: WebSocket):
                             "type": "tuning_status",
                             "running": False,
                             "message": "Auto-tuner not initialized"
+                        })
+
+                elif message.get("type") == "test_flight_with_landing":
+                    # Run a complete test flight: takeoff, pattern, and landing
+                    # Initialize auto_tuner if needed (uses global from start_auto_tuning handler)
+                    if flight_manager and auto_tuner is None:
+                        auto_tuner = AutoTuner(flight_manager)
+
+                    if flight_manager and auto_tuner:
+                        runway_lat = message.get("runway_lat")
+                        runway_lon = message.get("runway_lon")
+                        runway_heading = message.get("runway_heading")
+                        runway_elevation = message.get("runway_elevation", 0)
+
+                        # Use current aircraft position if no runway specified
+                        if runway_lat is None and xplane_listener and xplane_listener.flight_data:
+                            runway_lat = xplane_listener.flight_data.lat
+                            runway_lon = xplane_listener.flight_data.lon
+                            runway_heading = xplane_listener.flight_data.heading_mag
+                            runway_elevation = xplane_listener.flight_data.alt_msl
+
+                        if runway_lat and runway_lon and runway_heading:
+                            auto_tuner.set_runway(runway_lat, runway_lon, runway_heading, runway_elevation)
+
+                            # Start test flight with landing in background
+                            async def run_test_flight_with_landing():
+                                try:
+                                    # Run the flight (takeoff + climb + cruise)
+                                    metrics = await auto_tuner.run_single_flight(flight_type="full")
+
+                                    if metrics.success:
+                                        print("[TEST FLIGHT] Cruise complete, starting approach...")
+                                        # Re-activate flight manager for landing
+                                        flight_manager.active = True
+                                        # Execute landing
+                                        await flight_manager.execute_autoland(runway_heading, runway_elevation)
+                                        print("[TEST FLIGHT] Landing sequence complete!")
+                                    else:
+                                        print(f"[TEST FLIGHT] Flight failed: {metrics.abort_reason}")
+                                except Exception as e:
+                                    import traceback
+                                    print(f"[TEST FLIGHT] Error: {e}")
+                                    traceback.print_exc()
+
+                            asyncio.create_task(run_test_flight_with_landing())
+
+                            await websocket.send_json({
+                                "type": "test_flight_started",
+                                "runway_lat": runway_lat,
+                                "runway_lon": runway_lon,
+                                "runway_heading": runway_heading,
+                                "includes_landing": True
+                            })
+                        else:
+                            await websocket.send_json({
+                                "type": "error",
+                                "message": "No runway position available"
+                            })
+                    else:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Flight manager or auto-tuner not initialized"
+                        })
+
+                elif message.get("type") == "test_landing_only":
+                    # Test landing by starting aircraft airborne at pattern altitude
+                    if flight_manager and xplane_commander:
+                        runway_lat = message.get("runway_lat")
+                        runway_lon = message.get("runway_lon")
+                        runway_heading = message.get("runway_heading")
+                        runway_elevation = message.get("runway_elevation", 0)
+
+                        # Use current aircraft position if no runway specified
+                        if runway_lat is None and xplane_listener and xplane_listener.flight_data:
+                            runway_lat = xplane_listener.flight_data.lat
+                            runway_lon = xplane_listener.flight_data.lon
+                            runway_heading = xplane_listener.flight_data.heading_mag
+                            runway_elevation = xplane_listener.flight_data.alt_msl
+
+                        if runway_lat and runway_lon and runway_heading:
+                            # Calculate position 2nm from runway on approach
+                            import math
+                            approach_distance_nm = 2.0
+                            approach_heading = (runway_heading + 180) % 360  # Opposite direction
+
+                            # Convert to lat/lon offset
+                            lat_offset = approach_distance_nm * math.cos(math.radians(approach_heading)) / 60.0
+                            lon_offset = approach_distance_nm * math.sin(math.radians(approach_heading)) / (60.0 * math.cos(math.radians(runway_lat)))
+
+                            start_lat = runway_lat + lat_offset
+                            start_lon = runway_lon + lon_offset
+                            pattern_altitude = runway_elevation + 1000  # 1000ft AGL
+
+                            print(f"[TEST LANDING] Positioning aircraft at {start_lat:.4f}, {start_lon:.4f}")
+                            print(f"[TEST LANDING] Altitude: {pattern_altitude:.0f}ft, Heading: {runway_heading:.0f}°")
+
+                            # Reposition aircraft airborne
+                            xplane_commander.reposition_aircraft(
+                                start_lat, start_lon,
+                                pattern_altitude, runway_heading,
+                                on_ground=False
+                            )
+
+                            # Start landing sequence in background
+                            async def run_landing_test():
+                                try:
+                                    await asyncio.sleep(3.0)  # Let aircraft stabilize
+                                    print("[TEST LANDING] Starting autoland sequence...")
+                                    flight_manager.active = True
+                                    await flight_manager.execute_autoland(runway_heading, runway_elevation)
+                                    print("[TEST LANDING] Landing sequence complete!")
+                                except Exception as e:
+                                    import traceback
+                                    print(f"[TEST LANDING] Error: {e}")
+                                    traceback.print_exc()
+
+                            asyncio.create_task(run_landing_test())
+
+                            await websocket.send_json({
+                                "type": "test_landing_started",
+                                "start_lat": start_lat,
+                                "start_lon": start_lon,
+                                "pattern_altitude": pattern_altitude,
+                                "runway_heading": runway_heading
+                            })
+                        else:
+                            await websocket.send_json({
+                                "type": "error",
+                                "message": "No runway position available"
+                            })
+                    else:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Flight manager not initialized"
+                        })
+
+                elif message.get("type") == "check_flight_plan":
+                    # Check if a flight plan is loaded and return its details
+                    if flight_manager:
+                        if flight_manager.flight_plan and len(flight_manager.flight_plan.waypoints) > 0:
+                            fp = flight_manager.flight_plan
+                            waypoints_info = []
+                            for wp in fp.waypoints:
+                                waypoints_info.append({
+                                    "name": wp.name,
+                                    "lat": wp.lat,
+                                    "lon": wp.lon,
+                                    "altitude_ft": wp.altitude_ft
+                                })
+                            await websocket.send_json({
+                                "type": "flight_plan_status",
+                                "loaded": True,
+                                "departure": fp.departure_icao,
+                                "destination": fp.destination_icao,
+                                "cruise_altitude": fp.cruise_altitude_ft,
+                                "waypoints_count": len(fp.waypoints),
+                                "waypoints": waypoints_info,
+                                "current_waypoint_index": fp.current_waypoint_index,
+                                "phase": fp.phase.value if fp.phase else "none"
+                            })
+                        else:
+                            await websocket.send_json({
+                                "type": "flight_plan_status",
+                                "loaded": False,
+                                "message": "No flight plan loaded"
+                            })
+                    else:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Flight manager not initialized"
+                        })
+
+                elif message.get("type") == "fly_route":
+                    # Fly the uploaded flight plan route from takeoff to landing
+                    # This uses the proper navigation system, not the auto-tuner
+                    if flight_manager:
+                        # Check if flight plan is loaded
+                        if flight_manager.flight_plan and len(flight_manager.flight_plan.waypoints) > 0:
+                            fp = flight_manager.flight_plan
+                            print(f"[FLY ROUTE] Starting flight with {len(fp.waypoints)} waypoints")
+                            print(f"[FLY ROUTE] Route: {fp.departure_icao} -> {fp.destination_icao}")
+                            print(f"[FLY ROUTE] Cruise altitude: {fp.cruise_altitude_ft} ft")
+                            for i, wp in enumerate(fp.waypoints):
+                                print(f"  {i+1}. {wp.name} ({wp.lat:.4f}, {wp.lon:.4f}) @ {wp.altitude_ft}ft")
+
+                            # Get current heading as runway heading
+                            runway_hdg = 0
+                            if xplane_listener and xplane_listener.flight_data:
+                                runway_hdg = xplane_listener.flight_data.heading_mag
+
+                            # Start auto-takeoff which will handle:
+                            # 1. Takeoff roll
+                            # 2. Initial climb
+                            # 3. Envelope protection with waypoint navigation
+                            # 4. Autoland when destination reached
+                            await flight_manager.start_auto_takeoff(runway_hdg)
+
+                            await websocket.send_json({
+                                "type": "fly_route_started",
+                                "waypoints": len(fp.waypoints),
+                                "departure": fp.departure_icao,
+                                "destination": fp.destination_icao,
+                                "cruise_altitude": fp.cruise_altitude_ft
+                            })
+                        else:
+                            await websocket.send_json({
+                                "type": "error",
+                                "message": "No flight plan loaded. Upload a route from the MFD first."
+                            })
+                    else:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Flight manager not initialized"
                         })
 
             except asyncio.TimeoutError:

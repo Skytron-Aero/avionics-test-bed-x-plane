@@ -425,11 +425,13 @@ class FlightManager:
         """
         wp_list = []
         for wp in waypoints:
+            # Accept both 'altitude_ft' and 'altitude' for compatibility
+            alt = wp.get('altitude_ft', wp.get('altitude', cruise_altitude))
             wp_list.append(Waypoint(
                 name=wp.get('name', 'WPT'),
                 lat=wp.get('lat', 0),
                 lon=wp.get('lon', 0),
-                altitude_ft=wp.get('altitude', cruise_altitude),
+                altitude_ft=alt,
                 waypoint_type=wp.get('type', 'enroute')
             ))
 
@@ -987,9 +989,53 @@ class FlightManager:
                         elif abs(xte) > self.nav_config.track_capture_nm:
                             print(f"  [LNAV] XTE: {xte:.2f}nm, Track: {bearing:.0f}°, Intercept HDG: {target_heading:.0f}°")
 
-                        # Update target altitude from waypoint (or field elevation for destination)
-                        if current_wp.altitude_ft > 0:
-                            target_altitude = current_wp.altitude_ft
+                        # === VNAV: Calculate proper descent/climb profile ===
+                        wp_altitude = current_wp.altitude_ft if current_wp.altitude_ft > 0 else 0
+                        altitude_diff = wp_altitude - current_alt
+
+                        # Calculate required vertical speed to reach waypoint altitude
+                        # Use ground speed for time estimate (or assume 120kts if not available)
+                        ground_speed_kts = getattr(flight_data, 'ground_speed', 120) or 120
+                        if ground_speed_kts < 50:
+                            ground_speed_kts = 120  # Default if too slow
+
+                        # Time to waypoint in minutes
+                        time_to_wp_min = (distance / ground_speed_kts) * 60
+
+                        if time_to_wp_min > 0.5:  # At least 30 seconds away
+                            # Required VS to reach waypoint altitude (ft/min)
+                            required_vs = altitude_diff / time_to_wp_min
+
+                            # VNAV logic: determine target altitude based on profile
+                            if altitude_diff < -500:  # Need to descend more than 500ft
+                                # Calculate descent profile - 3 degree glidepath = ~318 ft/nm
+                                # Or use 500-1000 fpm descent depending on distance
+
+                                # How far out should we start descent? (3° path = 318 ft/nm)
+                                descent_start_distance = abs(altitude_diff) / 318.0  # nm
+
+                                if distance <= descent_start_distance * 1.2:  # Within 120% of required distance
+                                    # Start/continue descent
+                                    # Target a comfortable descent rate (500-1500 fpm)
+                                    target_vs_vnav = max(-1500, min(-500, required_vs * 1.1))
+                                    target_altitude = wp_altitude  # Descend to waypoint altitude
+
+                                    # Log descent initiation
+                                    if abs(current_vs) < 300 and altitude_diff < -1000:
+                                        print(f"  [VNAV] Starting descent: {current_alt:.0f}ft -> {wp_altitude:.0f}ft ({distance:.1f}nm to {current_wp.name})")
+                                else:
+                                    # Not yet at descent point - hold current altitude
+                                    target_altitude = current_alt
+
+                            elif altitude_diff > 500:  # Need to climb more than 500ft
+                                # Climb to waypoint altitude
+                                target_altitude = wp_altitude
+                            else:
+                                # Within 500ft - track waypoint altitude
+                                target_altitude = wp_altitude
+                        else:
+                            # Very close to waypoint - use waypoint altitude
+                            target_altitude = wp_altitude
 
                         # Check for waypoint capture
                         if distance < WAYPOINT_CAPTURE_NM:
@@ -1064,19 +1110,30 @@ class FlightManager:
                         stall_correction = (5 - stall_margin) * -0.03
                         print(f"  !! STALL PROTECTION !! IAS:{current_ias:.0f}kts - pushing nose down")
 
-                # === PITCH/ALTITUDE PROTECTION ===
+                # === PITCH/ALTITUDE CONTROL WITH VNAV ===
                 alt_error = target_altitude - current_alt
 
-                # Desired VS based on altitude error
+                # Desired VS based on altitude error - improved for VNAV descent
                 if abs(alt_error) < 100:
                     target_vs_cmd = 0  # Level flight
                 elif alt_error > 0:
-                    target_vs_cmd = min(800, alt_error * 2)  # Max 800 fpm climb
+                    # Climb - limit to 800 fpm
+                    target_vs_cmd = min(800, alt_error * 2)
                 else:
-                    target_vs_cmd = max(-1200, alt_error * 2)  # Max 1200 fpm descent (faster)
+                    # Descent - allow up to 2000 fpm for VNAV descents
+                    # Scale descent rate based on altitude error magnitude
+                    if alt_error < -3000:
+                        # Major descent needed - aggressive
+                        target_vs_cmd = max(-2000, alt_error * 0.5)
+                    elif alt_error < -1000:
+                        # Moderate descent
+                        target_vs_cmd = max(-1500, alt_error * 0.8)
+                    else:
+                        # Small descent - gentle
+                        target_vs_cmd = max(-1000, alt_error * 2)
 
                 vs_error = target_vs_cmd - current_vs
-                pitch_correction = vs_error * 0.0001  # Lower gain
+                pitch_correction = vs_error * 0.00015  # Slightly higher gain for better response
 
                 # Base elevator for level flight + stall protection
                 elevator = 0.03 + pitch_correction + stall_correction
@@ -1087,9 +1144,33 @@ class FlightManager:
                 elif current_pitch < -PITCH_LIMIT:
                     elevator += (-PITCH_LIMIT - current_pitch) * 0.05
 
-                # More conservative limits
-                elevator = max(-0.2, min(0.2, elevator))
+                # Elevator limits - allow more nose down for descent
+                elevator = max(-0.3, min(0.2, elevator))
                 self.commander.set_elevator(elevator)
+
+                # === THROTTLE MANAGEMENT FOR DESCENT ===
+                # Reduce throttle during descent to help descend and control speed
+                if alt_error < -500 and current_vs < -300:
+                    # Descending - reduce throttle
+                    descent_throttle = 0.3  # Idle-ish for descent
+                    # Increase if speed is getting too low
+                    if current_ias < MIN_SAFE_SPEED + 15:
+                        descent_throttle = 0.5
+                    elif current_ias < MIN_SAFE_SPEED + 30:
+                        descent_throttle = 0.4
+                    self.commander.set_throttle(descent_throttle)
+                elif alt_error > 500:
+                    # Climbing - full throttle
+                    self.commander.set_throttle(1.0)
+                else:
+                    # Level flight - cruise throttle
+                    cruise_throttle = 0.7
+                    # Adjust for speed
+                    if current_ias > 160:
+                        cruise_throttle = 0.5
+                    elif current_ias < 100:
+                        cruise_throttle = 0.9
+                    self.commander.set_throttle(cruise_throttle)
 
                 # === RUDDER (coordinated flight) ===
                 rudder = hdg_error * 0.008  # Help with turns
@@ -1640,13 +1721,13 @@ class FlightManager:
 @dataclass
 class TuningParameters:
     """All tunable parameters for the flight controller"""
-    # Takeoff PID gains (OPTIMIZED from 100-flight tuning session)
-    takeoff_kp: float = 0.1208  # Was 0.08, increased 51% for better heading correction
-    takeoff_ki: float = 0.02
-    takeoff_kd: float = 0.0107  # Was 0.01, slight increase for damping
+    # Takeoff PID gains - tuned for smooth centerline tracking
+    takeoff_kp: float = 0.10   # Proportional - moderate response
+    takeoff_ki: float = 0.015  # Integral - reduced to prevent wind-up
+    takeoff_kd: float = 0.02   # Derivative - increased for damping oscillation
 
-    # P-factor compensation - balanced for straight tracking
-    p_factor_bias: float = 0.20  # Reduced - was overcorrecting to the right
+    # P-factor compensation - reduced to prevent right bump
+    p_factor_bias: float = 0.06  # Very light compensation for prop torque
 
     # Control limits
     rudder_limit: float = 1.0
@@ -1900,6 +1981,7 @@ class AutoTuner:
         # Run takeoff with metric collection
         try:
             self.fm.active = True
+            self.running = True  # Ensure running flag is set for standalone flights
             self.fm._current_throttle = 0.0
 
             # Set initial state
@@ -1927,12 +2009,12 @@ class AutoTuner:
             initial_lon = None
 
             # Rotation parameters - Cirrus SR22 Vr is ~65-70 KIAS
-            ROTATION_START_SPEED = 50   # Start applying back pressure
-            ROTATION_FULL_SPEED = 65    # Full rotation authority
-            ELEVATOR_AUTHORITY = 0.5    # Increased from 0.25
+            ROTATION_START_SPEED = 55   # Start applying back pressure
+            ROTATION_FULL_SPEED = 68    # Full rotation authority
+            ELEVATOR_AUTHORITY = 0.35   # Reduced from 0.5 to prevent over-rotation
 
             # Centerline tracking gain
-            CROSSTRACK_GAIN = 0.15      # Heading correction per foot of deviation
+            CROSSTRACK_GAIN = 0.08      # Reduced to prevent oscillation
 
             while self.fm.active and self.running:
                 flight_data = self.fm.get_flight_data()
@@ -2115,36 +2197,37 @@ class AutoTuner:
                     rudder = roll * self.params.flight_rudder_gain
                     rudder = max(-0.2, min(0.2, rudder))
 
-                    # ===== SMOOTH ALTITUDE CAPTURE =====
-                    # Gradually reduce pitch AND use VS to control level-off
+                    # ===== AGGRESSIVE ALTITUDE CAPTURE =====
+                    # Goal: VS should reach ~0 exactly as we reach target altitude
                     remaining_alt = PATTERN_ALTITUDE - alt_agl
 
                     if alt_agl < CAPTURE_START_ALT:
                         # Full climb - constant pitch
                         raw_target_pitch = INITIAL_CLIMB_PITCH
                     else:
-                        # Altitude capture - use both altitude AND vertical speed
-                        # Calculate desired VS based on remaining altitude (decelerate climb rate)
-                        # At 500ft remaining: VS ~1000, at 100ft remaining: VS ~200, at 0ft: VS ~0
-                        desired_vs = remaining_alt * 2.0  # Simple linear relationship
-                        desired_vs = max(0, min(1200, desired_vs))
+                        # Altitude capture - aggressively reduce pitch to achieve low VS
+                        # Target VS should linearly decrease to 0 as we approach target
+                        target_vs_for_remaining = remaining_alt * 1.5  # VS = 1.5 * remaining altitude
+                        target_vs_for_remaining = max(0, min(800, target_vs_for_remaining))
 
-                        # Calculate pitch needed to achieve desired VS
-                        # If VS is too high, reduce pitch; if VS is too low, increase pitch
-                        vs_error = desired_vs - vs
-                        vs_correction = vs_error * 0.003  # Convert VS error to pitch adjustment
+                        # Calculate how much we need to change pitch to match target VS
+                        vs_error = target_vs_for_remaining - vs
+
+                        # More aggressive VS correction - need to reduce VS faster
+                        vs_correction = vs_error * 0.008  # Increased from 0.003
 
                         # Base pitch decreases as we approach target
-                        capture_progress = 1.0 - (remaining_alt / (PATTERN_ALTITUDE - CAPTURE_START_ALT))
+                        capture_progress = (alt_agl - CAPTURE_START_ALT) / (PATTERN_ALTITUDE - CAPTURE_START_ALT)
                         capture_progress = max(0, min(1, capture_progress))
 
-                        # Smooth S-curve
-                        smooth_factor = capture_progress * capture_progress * (3 - 2 * capture_progress)
-                        base_pitch = INITIAL_CLIMB_PITCH * (1 - smooth_factor * 0.9)  # Don't go all the way to 0
+                        # Direct pitch reduction based on progress (simpler approach)
+                        # At start of capture: full climb pitch
+                        # At target altitude: near 0 pitch
+                        base_pitch = INITIAL_CLIMB_PITCH * (1 - capture_progress)
 
-                        # Combine base pitch with VS correction
+                        # Combine with aggressive VS correction
                         raw_target_pitch = base_pitch + vs_correction
-                        raw_target_pitch = max(-2, min(INITIAL_CLIMB_PITCH, raw_target_pitch))
+                        raw_target_pitch = max(-3, min(INITIAL_CLIMB_PITCH, raw_target_pitch))
 
                     # Rate-limit the pitch target for smooth transitions
                     pitch_change = raw_target_pitch - last_pitch_target
@@ -2214,6 +2297,10 @@ class AutoTuner:
                 last_alt_error = 0.0
                 last_hdg_error = 0.0
 
+                # Smooth transition from climb - track last elevator command
+                transition_duration = 5.0  # seconds to blend from climb to cruise control
+                last_elevator_cmd = 0.0  # Will be updated from initial state
+
                 while self.fm.active and self.running:
                     flight_data = self.fm.get_flight_data()
                     if not flight_data:
@@ -2264,27 +2351,47 @@ class AutoTuner:
                     rudder = aileron * 0.3 + roll * 0.005
                     rudder = max(-0.2, min(0.2, rudder))
 
-                    # ===== ALTITUDE HOLD WITH PID =====
+                    # ===== SMOOTH ALTITUDE HOLD WITH TRANSITION =====
                     alt_error = target_altitude - alt_agl
 
-                    # Altitude PID
-                    alt_integral += alt_error * dt
-                    alt_integral = max(-500, min(500, alt_integral))
-                    alt_derivative = (alt_error - last_alt_error) / dt
+                    # Calculate transition blend factor (0 = hold level, 1 = full PID)
+                    transition_blend = min(1.0, cruise_elapsed / transition_duration)
+
+                    # During transition, use simpler pitch-to-hold-altitude logic
+                    # Goal: smoothly reduce VS to 0 and hold altitude
+                    if transition_blend < 1.0:
+                        # Simple VS damping during transition
+                        # Target: reduce VS toward 0, with gentle altitude correction
+                        target_vs = -vs * 0.3 + alt_error * 1.0  # Damp VS + mild alt correction
+                        target_vs = max(-200, min(200, target_vs))
+
+                        # Very gentle target pitch
+                        target_pitch = target_vs * 0.003  # Gentler than PID
+                        target_pitch = max(-2, min(3, target_pitch))
+                    else:
+                        # Full PID control after transition
+                        # Altitude PID - very conservative to prevent oscillation
+                        alt_integral += alt_error * dt
+                        alt_integral = max(-100, min(100, alt_integral))  # Tighter integral limits
+                        alt_derivative = (alt_error - last_alt_error) / dt
+
+                        # Use vertical speed as primary feedback for smooth control
+                        target_vs = alt_error * 2.0  # Reduced from 3.0
+                        target_vs = max(-200, min(200, target_vs))
+
+                        vs_error = target_vs - vs
+
+                        # Pitch from VS error (primary) + small altitude correction
+                        target_pitch = (vs_error * 0.0015 +            # Reduced VS-based control
+                                        alt_error * 0.003 +            # Reduced altitude correction
+                                        alt_integral * 0.0001)         # Very small integral
+                        target_pitch = max(-2, min(4, target_pitch))
+
                     last_alt_error = alt_error
 
-                    # Also use vertical speed for damping
-                    vs_error = 0 - vs  # Target VS is 0 for level flight
-
-                    # Pitch from altitude error + VS damping
-                    target_pitch = (alt_error * 0.015 +            # P - altitude error
-                                    alt_integral * 0.001 +          # I - accumulated error
-                                    vs_error * 0.003)               # D - VS damping
-                    target_pitch = max(-5, min(8, target_pitch))
-
                     pitch_error = target_pitch - pitch
-                    elevator = pitch_error * 0.05
-                    elevator = max(-0.25, min(0.25, elevator))
+                    elevator = pitch_error * 0.04  # Reduced from 0.05
+                    elevator = max(-0.2, min(0.2, elevator))
 
                     # ===== THROTTLE FOR SPEED CONTROL =====
                     target_ias = 110  # knots (slightly higher for stability)
@@ -2314,9 +2421,20 @@ class AutoTuner:
                         print(f"[TUNER] Total flight time limit reached")
                         break
 
-                    # Log every 5 seconds
-                    if int(cruise_elapsed) % 5 == 0 and int(cruise_elapsed) != int(cruise_elapsed - 0.05):
-                        print(f"  ALT:{alt_agl:.0f}ft IAS:{ias:.0f}kts HDG:{current_heading:.0f}° BANK:{roll:.1f}° VS:{vs:+.0f} t={cruise_elapsed:.0f}s")
+                    # Log more frequently during transition, then every 5 seconds
+                    should_log = False
+                    if cruise_elapsed < transition_duration:
+                        # Log every second during transition
+                        if int(cruise_elapsed) != int(cruise_elapsed - 0.05):
+                            should_log = True
+                    else:
+                        # Log every 5 seconds after transition
+                        if int(cruise_elapsed) % 5 == 0 and int(cruise_elapsed) != int(cruise_elapsed - 0.05):
+                            should_log = True
+
+                    if should_log:
+                        trans_str = f"[TRANS {transition_blend*100:.0f}%]" if transition_blend < 1.0 else ""
+                        print(f"  ALT:{alt_agl:.0f}ft IAS:{ias:.0f}kts PITCH:{pitch:.1f}° VS:{vs:+.0f} {trans_str} t={cruise_elapsed:.0f}s")
 
                     last_time = current_time
                     await asyncio.sleep(0.05)

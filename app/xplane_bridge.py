@@ -978,41 +978,67 @@ class XPlaneCommandSender:
         """
         print(f"[REPOSITION] Moving aircraft to {lat:.6f}, {lon:.6f}, HDG {heading:.0f}°")
 
-        # Set position directly (no pausing - let X-Plane handle it)
+        import time
+
+        if not on_ground:
+            # For airborne: pause sim, set everything, unpause
+            print("[REPOSITION] Pausing sim for airborne reposition...")
+            self.send_dref("sim/time/sim_speed", 0)  # Pause
+            time.sleep(0.2)
+
+        # Set position
         self.send_dref("sim/flightmodel/position/latitude", lat)
         self.send_dref("sim/flightmodel/position/longitude", lon)
 
-        # Set AGL to put on ground, or elevation for in-air
+        # Set altitude
         if on_ground:
             self.send_dref("sim/flightmodel/position/y_agl", 2.0)  # Slightly above ground
         else:
-            alt_meters = alt_msl * 0.3048
-            self.send_dref("sim/flightmodel/position/elevation", alt_meters)
+            # For airborne, set AGL in meters
+            target_agl_ft = 1000.0
+            target_agl_m = target_agl_ft * 0.3048
+            # Set multiple position datarefs to ensure altitude sticks
+            self.send_dref("sim/flightmodel/position/y_agl", target_agl_m)
+            self.send_dref("sim/flightmodel/position/elevation", alt_msl * 0.3048)
+            print(f"[REPOSITION] Setting AGL to {target_agl_ft:.0f}ft")
 
         # Set orientation (psi=heading, theta=pitch, phi=roll)
         self.send_dref("sim/flightmodel/position/psi", heading)  # True heading
         self.send_dref("sim/flightmodel/position/theta", pitch)
         self.send_dref("sim/flightmodel/position/phi", roll)
 
-        # Zero out all velocities
-        self.send_dref("sim/flightmodel/position/local_vx", 0.0)
-        self.send_dref("sim/flightmodel/position/local_vy", 0.0)
-        self.send_dref("sim/flightmodel/position/local_vz", 0.0)
+        # Zero out rotation rates
         self.send_dref("sim/flightmodel/position/P", 0.0)  # Roll rate
         self.send_dref("sim/flightmodel/position/Q", 0.0)  # Pitch rate
         self.send_dref("sim/flightmodel/position/R", 0.0)  # Yaw rate
+
+        if on_ground:
+            # Ground: zero velocities, idle throttle, parking brake
+            self.send_dref("sim/flightmodel/position/local_vx", 0.0)
+            self.send_dref("sim/flightmodel/position/local_vy", 0.0)
+            self.send_dref("sim/flightmodel/position/local_vz", 0.0)
+            self.send_dref("sim/cockpit2/engine/actuators/throttle_ratio_all", 0.0)
+            self.send_dref("sim/flightmodel/controls/parkbrake", 1.0)
+        else:
+            # Airborne: set forward velocity for ~100kt flight, cruise throttle
+            import math
+            airspeed_mps = 50.0  # ~100 knots in m/s
+            heading_rad = math.radians(heading)
+            # X-Plane local coordinates: vx=east, vy=up, vz=south
+            vx = airspeed_mps * math.sin(heading_rad)  # East component
+            vz = -airspeed_mps * math.cos(heading_rad)  # South component (negative = north)
+            self.send_dref("sim/flightmodel/position/local_vx", vx)
+            self.send_dref("sim/flightmodel/position/local_vy", 0.0)  # No vertical
+            self.send_dref("sim/flightmodel/position/local_vz", vz)
+            self.send_dref("sim/cockpit2/engine/actuators/throttle_ratio_all", 0.6)  # Cruise power
+            self.send_dref("sim/flightmodel/controls/parkbrake", 0.0)
+            print(f"[REPOSITION] Airborne: velocity {airspeed_mps:.0f}m/s heading {heading:.0f}°")
 
         # Reset control surfaces to neutral
         self.send_dref("sim/cockpit2/controls/yoke_pitch_ratio", 0.0)
         self.send_dref("sim/cockpit2/controls/yoke_roll_ratio", 0.0)
         self.send_dref("sim/cockpit2/controls/yoke_heading_ratio", 0.0)
         self.send_dref("sim/flightmodel/controls/nwheel_steer", 0.0)
-
-        # Set throttle to idle
-        self.send_dref("sim/cockpit2/engine/actuators/throttle_ratio_all", 0.0)
-
-        # Engage parking brake
-        self.send_dref("sim/flightmodel/controls/parkbrake", 1.0)
 
         # Ensure engine is ready to run
         print(f"[REPOSITION] Setting up engine systems...")
@@ -1031,6 +1057,13 @@ class XPlaneCommandSender:
         self.send_dref("sim/flightmodel/engine/ENGN_running[0]", 1)
         self.send_dref("sim/flightmodel/engine/ENGN_N1_[0]", 1000.0)  # RPM
         self.send_dref("sim/flightmodel/engine/ENGN_N2_[0]", 1000.0)
+
+        if not on_ground:
+            # Unpause sim after airborne reposition
+            import time
+            time.sleep(0.1)
+            self.send_dref("sim/time/sim_speed", 1)  # Resume normal speed
+            print("[REPOSITION] Sim resumed")
 
         print(f"[REPOSITION] Aircraft repositioned successfully")
         return True
