@@ -13,7 +13,7 @@ import math
 import logging
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import List, Optional, Callable, Any
+from typing import List, Optional, Callable, Any, Tuple
 from datetime import datetime
 
 from .xplane_config import get_aircraft_profile, AircraftVSpeeds
@@ -96,6 +96,13 @@ class FlightPlan:
             return self.waypoints[next_idx]
         return None
 
+    def get_previous_waypoint(self) -> Optional[Waypoint]:
+        """Get the previous waypoint (start of current leg)"""
+        prev_idx = self.current_waypoint_index - 1
+        if prev_idx >= 0:
+            return self.waypoints[prev_idx]
+        return None
+
     def advance_waypoint(self) -> bool:
         """Advance to next waypoint. Returns False if at end."""
         if self.current_waypoint_index < len(self.waypoints) - 1:
@@ -149,6 +156,10 @@ class NavigationConfig:
     altitude_capture_threshold_ft: int = 200  # Consider altitude captured within this
     descent_rate_fpm: int = 500  # Standard descent rate
     climb_rate_fpm: int = 800    # Standard climb rate
+    # Track-following / LNAV parameters
+    max_intercept_angle_deg: float = 45.0  # Max angle to intercept track
+    xte_gain: float = 30.0  # Degrees of intercept per nm of XTE (capped by max_intercept_angle)
+    track_capture_nm: float = 0.1  # Consider on-track when XTE < this value
 
 
 class NavigationCalculator:
@@ -342,6 +353,56 @@ class FlightManager:
 
         return cross_track_nm
 
+    def calculate_track_intercept_heading(
+        self,
+        prev_wp: Waypoint,
+        current_wp: Waypoint,
+        current_lat: float,
+        current_lon: float
+    ) -> Tuple[float, float, float]:
+        """
+        Calculate the heading to intercept and follow the track between waypoints.
+
+        Uses cross-track error to compute an intercept angle that will guide
+        the aircraft back to the desired track line.
+
+        Args:
+            prev_wp: Previous waypoint (start of current leg)
+            current_wp: Current target waypoint (end of current leg)
+            current_lat, current_lon: Current aircraft position
+
+        Returns:
+            Tuple of (intercept_heading, track_bearing, cross_track_error_nm)
+            - intercept_heading: Heading to fly to intercept/follow track (0-360)
+            - track_bearing: Direct track bearing from prev to current waypoint
+            - cross_track_error_nm: Distance off track (positive = right, negative = left)
+        """
+        # Calculate the desired track (bearing from prev waypoint to current waypoint)
+        track_bearing = self.nav_calculator.calculate_bearing(
+            prev_wp.lat, prev_wp.lon,
+            current_wp.lat, current_wp.lon
+        )
+
+        # Calculate cross-track error from the track line
+        xte = self._calculate_cross_track_error(
+            prev_wp.lat, prev_wp.lon, track_bearing,
+            current_lat, current_lon
+        )
+
+        # Calculate intercept angle based on XTE
+        # xte > 0 means we're RIGHT of track, need to turn LEFT (subtract from track bearing)
+        # xte < 0 means we're LEFT of track, need to turn RIGHT (add to track bearing)
+        intercept_angle = -xte * self.nav_config.xte_gain
+
+        # Clamp intercept angle to max
+        intercept_angle = max(-self.nav_config.max_intercept_angle_deg,
+                              min(self.nav_config.max_intercept_angle_deg, intercept_angle))
+
+        # Calculate final intercept heading
+        intercept_heading = self.nav_calculator.normalize_heading(track_bearing + intercept_angle)
+
+        return intercept_heading, track_bearing, xte
+
     def set_flight_plan(
         self,
         waypoints: List[dict],
@@ -498,7 +559,7 @@ class FlightManager:
 
             # ========== STEP 3: TAKEOFF ROLL - CENTERLINE TRACKING ==========
             self.takeoff_state = TakeoffState.TAKEOFF_ROLL
-            print("Step 3: Takeoff roll - centerline tracking with rudder")
+            print("Step 3: Takeoff roll - PID centerline tracking")
             await self.broadcast_status({"type": "takeoff_status", "state": "TAKEOFF_ROLL"})
 
             if self.flight_plan:
@@ -506,109 +567,130 @@ class FlightManager:
 
             last_speed_print = -1  # Start at -1 so first print happens immediately
             elevator = 0.0
-            brake_release_counter = 0
             iteration = 0
+
+            # PID controller state for heading
+            heading_integral = 0.0
+            last_heading_error = 0.0
+            last_time = asyncio.get_event_loop().time()
+
+            # P-factor compensation: Single-engine props with clockwise rotation (from pilot view)
+            # create strong left-turning tendency. Apply RIGHT rudder bias to counteract.
+            # SR22 has IO-550 with clockwise prop - needs significant right rudder on takeoff
+            P_FACTOR_BIAS = 0.25  # Base right rudder to counteract P-factor/torque
+
             while self.active:
                 flight_data = self.get_flight_data()
                 if flight_data:
                     ias = flight_data.airspeed_ind
                     iteration += 1
+                    current_time = asyncio.get_event_loop().time()
+                    dt = current_time - last_time
+                    last_time = current_time
 
                     # Print first iteration to confirm data
                     if iteration == 1:
                         print(f"  [START] IAS:{ias:.0f} PITCH:{flight_data.pitch:.1f}° AGL:{flight_data.alt_agl:.0f}")
+                        print(f"  [PID] Using P-factor bias: +{P_FACTOR_BIAS:.2f} right rudder")
 
-                    # Keep brakes released during roll (every 10 iterations = 0.5s)
-                    brake_release_counter += 1
-                    if brake_release_counter >= 10:
+                    # Release brakes once at the start of roll (iteration 1), not repeatedly
+                    if iteration == 1:
                         self.commander.set_parking_brake(False)
-                        brake_release_counter = 0
                     current_heading = flight_data.heading_mag
                     current_roll = flight_data.roll
                     current_lat = flight_data.lat
                     current_lon = flight_data.lon
 
                     # === CROSS-TRACK ERROR (lateral deviation from runway centerline) ===
-                    # Calculate how far off the centerline we are (in meters, then convert to correction)
-                    # Use the perpendicular distance from current position to the runway line
                     cross_track_error = self._calculate_cross_track_error(
                         initial_lat, initial_lon, runway_heading,
                         current_lat, current_lon
                     )
-                    # cross_track_error: positive = right of centerline, negative = left
 
-                    # === HEADING ERROR ===
+                    # === HEADING ERROR with wraparound handling ===
                     heading_error = runway_heading - current_heading
                     if heading_error > 180:
                         heading_error -= 360
                     elif heading_error < -180:
                         heading_error += 360
 
-                    # === STEERING CONTROL ===
-                    # P-FACTOR COMPENSATION: Single-engine props yaw LEFT on takeoff
-                    # Need RIGHT rudder (positive) to counteract
-                    # Also apply heading correction to stay on runway heading
+                    # === PID STEERING CONTROL ===
+                    # heading_error > 0 means we're LEFT of target, need to turn RIGHT (positive rudder)
+                    # heading_error < 0 means we're RIGHT of target, need to turn LEFT (negative rudder)
 
-                    # Strong P-factor compensation - props really pull left hard
-                    if ias < 30:
-                        p_factor_rudder = 0.5  # Very strong right rudder at low speed
-                    elif ias < 50:
-                        p_factor_rudder = 0.4  # Strong
-                    elif ias < 70:
-                        p_factor_rudder = 0.25  # Moderate
+                    # PID gains - AGGRESSIVE for ground roll
+                    Kp = 0.08   # Proportional: strong response to error
+                    Ki = 0.02   # Integral: fight persistent drift
+                    Kd = 0.01   # Derivative: dampen oscillations
+
+                    # Update integral (with anti-windup)
+                    heading_integral += heading_error * dt
+                    heading_integral = max(-50.0, min(50.0, heading_integral))  # Anti-windup
+
+                    # Calculate derivative
+                    heading_derivative = (heading_error - last_heading_error) / max(dt, 0.001)
+                    last_heading_error = heading_error
+
+                    # PID output
+                    pid_output = (Kp * heading_error) + (Ki * heading_integral) + (Kd * heading_derivative)
+
+                    # Add P-factor bias (always push right to counteract left-turning tendency)
+                    # Scale bias with speed - more effect as prop wash increases
+                    speed_factor = min(1.0, ias / 60.0)  # Full bias by 60 kts
+                    p_factor_compensation = P_FACTOR_BIAS * speed_factor
+
+                    # Total rudder command
+                    rudder = pid_output + p_factor_compensation
+                    rudder = max(-1.0, min(1.0, rudder))  # FULL rudder authority
+
+                    # Nosewheel steering - stronger at low speed, same direction as rudder
+                    if ias < 40:
+                        nosewheel = rudder * 2.0  # Strong nosewheel at low speed
+                    elif ias < 60:
+                        nosewheel = rudder * 1.0  # Moderate
                     else:
-                        p_factor_rudder = 0.15  # Light at high speed
-
-                    # Heading correction to maintain runway heading
-                    # heading_error > 0 means we need to turn RIGHT
-                    # heading_error < 0 means we need to turn LEFT
-                    heading_correction = heading_error * 0.05  # Proportional correction
-                    heading_correction = max(-0.3, min(0.3, heading_correction))
-
-                    # Total rudder = P-factor compensation + heading correction
-                    rudder = p_factor_rudder + heading_correction
-                    rudder = max(-0.5, min(0.5, rudder))
-
-                    # Nosewheel - NOTE: may need opposite sign in X-Plane
-                    # Try NEGATIVE to see if nosewheel convention is inverted
-                    nosewheel = -rudder * 2.0  # Inverted and stronger
+                        nosewheel = rudder * 0.3  # Light as rudder takes over
                     nosewheel = max(-1.0, min(1.0, nosewheel))
 
                     self.commander.set_rudder(rudder)
                     self.commander.set_nosewheel_steering(nosewheel)
 
                     # === ROLL CONTROL (keep wings level) ===
-                    aileron = -current_roll * 0.02  # Gentle wing leveling
-                    aileron = max(-0.15, min(0.15, aileron))
+                    aileron = -current_roll * 0.03  # Wing leveling
+                    aileron = max(-0.3, min(0.3, aileron))
                     self.commander.set_aileron(aileron)
+
+                    # === THROTTLE - MAINTAIN FULL POWER ===
+                    self.commander.set_throttle(1.0)  # Keep throttle at full throughout takeoff roll
 
                     # === GRADUAL PITCH UP FOR ROTATION ===
                     if ias < 55:
                         elevator = 0.0  # No pitch input below 55kts
                     elif ias < self.takeoff_config.vr_speed_kts:
-                        # Build elevator gradually from 55kts to Vr (70kts)
                         progress = (ias - 55) / max(1, self.takeoff_config.vr_speed_kts - 55)
                         elevator = progress * 0.2  # Up to 20% elevator at Vr
                     else:
-                        # At or above Vr - apply rotation pitch (gentle)
                         elevator = 0.25  # Gentle pitch up for rotation
                     self.commander.set_elevator(elevator)
 
-                    # Print speed updates - every 5kts, plus first few iterations
-                    xte_ft = cross_track_error * 6076  # nm to feet
-                    raw_hdg_error = runway_heading - current_heading
-                    if raw_hdg_error > 180:
-                        raw_hdg_error -= 360
-                    elif raw_hdg_error < -180:
-                        raw_hdg_error += 360
+                    # Print speed updates with PID debug info
                     if iteration <= 5 or ias >= last_speed_print + 5:
-                        print(f"  IAS:{ias:.0f} HDG:{current_heading:.0f}°->TGT:{runway_heading:.0f}° ERR:{raw_hdg_error:.1f}° | Pfac:{p_factor_rudder:.2f} HdgCorr:{heading_correction:.2f} RUD:{rudder:.2f} NW:{nosewheel:.2f}")
+                        print(f"  IAS:{ias:.0f} HDG:{current_heading:.0f}°->TGT:{runway_heading:.0f}° ERR:{heading_error:.1f}° | PID:{pid_output:.2f} BIAS:{p_factor_compensation:.2f} RUD:{rudder:.2f} NW:{nosewheel:.2f}")
                         if ias >= last_speed_print + 5:
                             last_speed_print = int(ias)
 
                     # Check for liftoff
                     if flight_data.alt_agl > 20:
                         print(f"  LIFTOFF! AGL={flight_data.alt_agl:.0f} ft, IAS={ias:.0f} kts")
+                        break
+
+                    # Safety abort: if heading error exceeds 45°, we've lost control
+                    if abs(heading_error) > 45 and ias > 30:
+                        print(f"  [ABORT] Heading deviation too large: {heading_error:.1f}° - cutting throttle")
+                        self.commander.set_throttle(0.0)
+                        self.commander.set_rudder(0.0)
+                        self.commander.set_nosewheel_steering(0.0)
+                        await asyncio.sleep(0.5)
                         break
 
                 await asyncio.sleep(0.05)  # 20Hz control loop
@@ -853,19 +935,34 @@ class FlightManager:
 
                     current_wp = self.flight_plan.get_current_waypoint()
                     if current_wp:
-                        # Calculate bearing and distance to waypoint
-                        bearing = self.nav_calculator.calculate_bearing(
-                            current_lat, current_lon,
-                            current_wp.lat, current_wp.lon
-                        )
+                        # Get previous waypoint for track-following
+                        prev_wp = self.flight_plan.get_previous_waypoint()
+
+                        # Calculate distance to current waypoint
                         distance = self.nav_calculator.calculate_distance_nm(
                             current_lat, current_lon,
                             current_wp.lat, current_wp.lon
                         )
 
+                        # Calculate target heading using track-following (LNAV)
+                        if prev_wp:
+                            # We have a previous waypoint - use track-following with XTE correction
+                            desired_heading, track_bearing, xte = self.calculate_track_intercept_heading(
+                                prev_wp, current_wp, current_lat, current_lon
+                            )
+                            bearing = track_bearing  # For logging
+                        else:
+                            # First leg - no previous waypoint, use direct-to
+                            bearing = self.nav_calculator.calculate_bearing(
+                                current_lat, current_lon,
+                                current_wp.lat, current_wp.lon
+                            )
+                            desired_heading = bearing
+                            xte = 0.0
+
                         # Rate-limit heading changes (max 5° per second for smooth turns)
                         MAX_HDG_CHANGE_PER_SEC = 5.0
-                        hdg_diff = bearing - target_heading
+                        hdg_diff = desired_heading - target_heading
                         if hdg_diff > 180:
                             hdg_diff -= 360
                         elif hdg_diff < -180:
@@ -877,16 +974,18 @@ class FlightManager:
                                 target_heading = (target_heading + MAX_HDG_CHANGE_PER_SEC) % 360
                             else:
                                 target_heading = (target_heading - MAX_HDG_CHANGE_PER_SEC) % 360
-                            print(f"  [NAV] Heading rate-limited: {hdg_diff:.0f}° change, now targeting {target_heading:.0f}° (WPT bearing {bearing:.0f}°)")
+                            print(f"  [NAV] Heading rate-limited: {hdg_diff:.0f}° change, now targeting {target_heading:.0f}° (track {bearing:.0f}°, XTE {xte:.2f}nm)")
                         else:
-                            target_heading = bearing
+                            target_heading = desired_heading
 
                         current_waypoint_name = current_wp.name
 
                         # Log first navigation update
                         if first_nav_update:
-                            print(f"  [NAV] First waypoint: {current_wp.name} at {distance:.1f}nm, bearing {bearing:.0f}° (current HDG {current_hdg:.0f}°)")
+                            print(f"  [NAV] First waypoint: {current_wp.name} at {distance:.1f}nm, track {bearing:.0f}°, XTE {xte:.2f}nm (current HDG {current_hdg:.0f}°)")
                             first_nav_update = False
+                        elif abs(xte) > self.nav_config.track_capture_nm:
+                            print(f"  [LNAV] XTE: {xte:.2f}nm, Track: {bearing:.0f}°, Intercept HDG: {target_heading:.0f}°")
 
                         # Update target altitude from waypoint (or field elevation for destination)
                         if current_wp.altitude_ft > 0:
@@ -902,12 +1001,19 @@ class FlightManager:
                             })
 
                             if not self.flight_plan.advance_waypoint():
-                                print(f"  [NAV] *** DESTINATION REACHED - HOLDING HEADING {current_hdg:.0f}° ***")
+                                print(f"  [NAV] *** DESTINATION REACHED - INITIATING AUTOLAND ***")
                                 destination_reached = True
-                                current_waypoint_name = "HOLD"
-                                # Hold current heading, descend to field elevation
-                                target_heading = current_hdg
-                                target_altitude = 1000  # Descend to pattern altitude
+                                current_waypoint_name = "LAND"
+
+                                # Get destination info for landing
+                                dest_wp = self.flight_plan.waypoints[-1] if self.flight_plan.waypoints else None
+                                # Use current heading as runway heading (simplified - real impl would look up runway)
+                                runway_hdg = current_hdg
+                                field_elev = dest_wp.altitude_ft if dest_wp and dest_wp.altitude_ft > 0 else 0
+
+                                # Start autoland sequence (this will take over control)
+                                await self.execute_autoland(runway_hdg, field_elev)
+                                break  # Exit envelope protection loop after landing
                             else:
                                 next_wp = self.flight_plan.get_current_waypoint()
                                 if next_wp:
@@ -1072,15 +1178,31 @@ class FlightManager:
                 pos_alt = flight_data.alt_msl
                 pos_hdg = flight_data.heading_mag
 
-                # Calculate bearing and distance to waypoint
-                bearing = self.nav_calculator.calculate_bearing(
-                    pos_lat, pos_lon,
-                    current_wp.lat, current_wp.lon
-                )
+                # Get previous waypoint for track-following
+                prev_wp = self.flight_plan.get_previous_waypoint()
+
+                # Calculate distance to current waypoint
                 distance = self.nav_calculator.calculate_distance_nm(
                     pos_lat, pos_lon,
                     current_wp.lat, current_wp.lon
                 )
+
+                # Calculate target heading using track-following (LNAV)
+                if prev_wp:
+                    # We have a previous waypoint - use track-following with XTE correction
+                    target_heading, track_bearing, xte = self.calculate_track_intercept_heading(
+                        prev_wp, current_wp, pos_lat, pos_lon
+                    )
+                    bearing = track_bearing  # For status display
+                else:
+                    # First leg - no previous waypoint, use direct-to
+                    # Could use departure position if stored, but for now use direct-to
+                    bearing = self.nav_calculator.calculate_bearing(
+                        pos_lat, pos_lon,
+                        current_wp.lat, current_wp.lon
+                    )
+                    target_heading = bearing
+                    xte = 0.0
 
                 # Check for waypoint capture
                 if distance < self.nav_config.waypoint_capture_radius_nm:
@@ -1103,18 +1225,26 @@ class FlightManager:
                         # Hold current heading - don't update heading bug anymore
                         break
 
-                    # Recalculate for new waypoint
+                    # Recalculate for new waypoint with track-following
                     current_wp = self.flight_plan.get_current_waypoint()
+                    prev_wp = self.flight_plan.get_previous_waypoint()
                     if current_wp:
-                        bearing = self.nav_calculator.calculate_bearing(
-                            pos_lat, pos_lon,
-                            current_wp.lat, current_wp.lon
-                        )
                         distance = self.nav_calculator.calculate_distance_nm(
                             pos_lat, pos_lon,
                             current_wp.lat, current_wp.lon
                         )
-                        logger.info(f"Next waypoint: {current_wp.name} at {distance:.1f}nm, bearing {bearing:.0f}°")
+                        if prev_wp:
+                            target_heading, bearing, xte = self.calculate_track_intercept_heading(
+                                prev_wp, current_wp, pos_lat, pos_lon
+                            )
+                        else:
+                            bearing = self.nav_calculator.calculate_bearing(
+                                pos_lat, pos_lon,
+                                current_wp.lat, current_wp.lon
+                            )
+                            target_heading = bearing
+                            xte = 0.0
+                        logger.info(f"Next waypoint: {current_wp.name} at {distance:.1f}nm, track {bearing:.0f}°, XTE {xte:.2f}nm")
 
                 # Check for manual heading override from SVS compass click
                 if self.manual_heading_override:
@@ -1128,14 +1258,16 @@ class FlightManager:
                             "type": "heading_captured",
                             "message": "Manual heading captured, resuming route"
                         })
-                        # Now update to waypoint bearing
-                        self.commander.set_heading_bug(bearing)
+                        # Now update to track-following heading
+                        self.commander.set_heading_bug(target_heading)
                     # else: keep flying the override heading, skip waypoint heading update
                 else:
-                    # Normal navigation - update heading if needed
-                    heading_diff = abs(self.nav_calculator.heading_difference(pos_hdg, bearing))
+                    # Normal navigation - update heading if needed (using track-following heading)
+                    heading_diff = abs(self.nav_calculator.heading_difference(pos_hdg, target_heading))
                     if heading_diff > self.nav_config.heading_update_threshold_deg:
-                        self.commander.set_heading_bug(bearing)
+                        self.commander.set_heading_bug(target_heading)
+                        if abs(xte) > self.nav_config.track_capture_nm:
+                            print(f"  [LNAV] XTE: {xte:.2f}nm, Track: {bearing:.0f}°, Intercept HDG: {target_heading:.0f}°")
 
                 # Keep autopilot engaged (re-engage every loop iteration to be safe)
                 self.commander.engage_autopilot()
@@ -1165,6 +1297,8 @@ class FlightManager:
                     "total_waypoints": len(self.flight_plan.waypoints),
                     "distance_nm": round(distance, 1),
                     "bearing": round(bearing),
+                    "target_heading": round(target_heading),
+                    "xte_nm": round(xte, 2),
                     "current_heading": round(pos_hdg),
                     "altitude_ft": round(pos_alt),
                     "target_altitude": current_wp.altitude_ft
@@ -1292,3 +1426,1030 @@ class FlightManager:
             })
 
         return status
+
+    async def execute_autoland(self, runway_heading: float, field_elevation: float = 0):
+        """
+        Execute automated landing sequence.
+
+        Phases:
+        1. APPROACH - Descend to pattern altitude, align with runway
+        2. FINAL - Descend on glideslope (3°)
+        3. FLARE - Reduce descent rate near ground
+        4. ROLLOUT - Touchdown, brakes, decelerate
+
+        Args:
+            runway_heading: Runway heading in degrees (magnetic)
+            field_elevation: Airport elevation in feet MSL
+        """
+        print(f"\n=== AUTOLAND SEQUENCE STARTED ===")
+        print(f"Runway heading: {runway_heading:.0f}°, Field elevation: {field_elevation:.0f}ft")
+
+        if self.flight_plan:
+            self.flight_plan.phase = FlightPhase.APPROACH
+
+        await self.broadcast_status({
+            "type": "autoland_status",
+            "phase": "APPROACH",
+            "runway_heading": runway_heading
+        })
+
+        # Landing configuration
+        PATTERN_ALT_AGL = 1000  # Pattern altitude above field
+        GLIDESLOPE_DEG = 3.0    # Standard ILS glideslope
+        FLARE_HEIGHT_FT = 30    # Begin flare
+        TOUCHDOWN_PITCH = 5     # Nose-up attitude for touchdown
+
+        pattern_altitude = field_elevation + PATTERN_ALT_AGL
+
+        # Phase tracking
+        phase = "APPROACH"
+        last_log_time = 0
+        loop_start = asyncio.get_event_loop().time()
+
+        # Stabilization
+        aligned = False
+        on_glideslope = False
+
+        while self.active:
+            try:
+                flight_data = self.get_flight_data()
+                if not flight_data:
+                    await asyncio.sleep(0.1)
+                    continue
+
+                current_time = asyncio.get_event_loop().time()
+                elapsed = current_time - loop_start
+
+                current_alt = flight_data.alt_msl
+                current_agl = flight_data.alt_agl
+                current_hdg = flight_data.heading_mag
+                current_vs = flight_data.vertical_speed
+                current_ias = flight_data.airspeed_ind
+                current_pitch = flight_data.pitch
+                current_roll = flight_data.roll
+
+                # Calculate heading error to runway
+                hdg_error = runway_heading - current_hdg
+                if hdg_error > 180:
+                    hdg_error -= 360
+                elif hdg_error < -180:
+                    hdg_error += 360
+
+                # === PHASE: APPROACH ===
+                if phase == "APPROACH":
+                    # Descend to pattern altitude and align with runway
+                    target_alt = pattern_altitude
+
+                    # Check if aligned (within 10° of runway heading)
+                    if abs(hdg_error) < 10:
+                        aligned = True
+
+                    # Check if at pattern altitude
+                    if current_alt < pattern_altitude + 200 and aligned:
+                        phase = "FINAL"
+                        print(f"  [LAND] Transitioning to FINAL approach")
+                        if self.flight_plan:
+                            self.flight_plan.phase = FlightPhase.LANDING
+                        await self.broadcast_status({"type": "autoland_status", "phase": "FINAL"})
+
+                    # Altitude control - descend to pattern
+                    alt_error = target_alt - current_alt
+                    if alt_error < -100:
+                        target_vs = max(-800, alt_error * 2)  # Descend
+                    else:
+                        target_vs = 0
+
+                # === PHASE: FINAL APPROACH ===
+                elif phase == "FINAL":
+                    # Calculate glideslope descent rate
+                    # 3° glideslope at ~120kts groundspeed ≈ 600 fpm descent
+                    gs_kts = flight_data.groundspeed if hasattr(flight_data, 'groundspeed') else current_ias
+                    target_vs = -gs_kts * math.tan(math.radians(GLIDESLOPE_DEG)) * 101.3  # Convert to fpm
+                    target_vs = max(-800, min(-400, target_vs))  # Clamp between 400-800 fpm descent
+
+                    # Reduce speed for landing
+                    if current_ias > 90:
+                        self.commander.set_throttle(0.3)  # Reduce power
+                    elif current_ias > 75:
+                        self.commander.set_throttle(0.4)
+                    else:
+                        self.commander.set_throttle(0.5)  # Maintain approach speed
+
+                    # Transition to flare when close to ground
+                    if current_agl < FLARE_HEIGHT_FT:
+                        phase = "FLARE"
+                        print(f"  [LAND] FLARE at {current_agl:.0f}ft AGL")
+                        await self.broadcast_status({"type": "autoland_status", "phase": "FLARE"})
+
+                # === PHASE: FLARE ===
+                elif phase == "FLARE":
+                    # Reduce descent rate, pitch up for touchdown
+                    target_vs = -100  # Very gentle descent
+
+                    # Reduce throttle to idle
+                    self.commander.set_throttle(0.0)
+
+                    # Pitch up for flare
+                    target_pitch = TOUCHDOWN_PITCH
+                    pitch_error = target_pitch - current_pitch
+                    elevator = pitch_error * 0.05
+                    elevator = max(-0.3, min(0.5, elevator))
+                    self.commander.set_elevator(elevator)
+
+                    # Check for touchdown (very low AGL and low vertical speed)
+                    if current_agl < 5 or (current_agl < 15 and abs(current_vs) < 50):
+                        phase = "ROLLOUT"
+                        print(f"  [LAND] TOUCHDOWN! AGL:{current_agl:.0f}ft VS:{current_vs:.0f}fpm")
+                        await self.broadcast_status({"type": "autoland_status", "phase": "ROLLOUT"})
+
+                # === PHASE: ROLLOUT ===
+                elif phase == "ROLLOUT":
+                    # On the ground - apply brakes, maintain centerline
+                    self.commander.set_throttle(0.0)  # Idle
+                    self.commander.set_elevator(-0.3)  # Nose down to keep weight on wheels
+
+                    # Apply brakes
+                    self.commander.set_parking_brake(False)  # Make sure parking brake is off
+                    # Use differential braking for steering if available, otherwise symmetric braking
+
+                    # Rudder/nosewheel to maintain runway heading
+                    rudder = hdg_error * 0.05
+                    rudder = max(-0.5, min(0.5, rudder))
+                    self.commander.set_rudder(rudder)
+                    self.commander.set_nosewheel_steering(rudder * 2)
+
+                    # Check if stopped
+                    if current_ias < 10:
+                        print(f"  [LAND] *** LANDING COMPLETE ***")
+                        self.commander.set_parking_brake(True)
+                        if self.flight_plan:
+                            self.flight_plan.phase = FlightPhase.COMPLETE
+                        await self.broadcast_status({
+                            "type": "autoland_status",
+                            "phase": "COMPLETE",
+                            "message": "Landing complete"
+                        })
+                        break
+
+                    # Skip normal control loop for rollout
+                    await asyncio.sleep(0.05)
+                    continue
+
+                # === CONTROL INPUTS (for APPROACH and FINAL phases) ===
+                if phase in ["APPROACH", "FINAL"]:
+                    # Heading control - align with runway
+                    desired_bank = hdg_error * 0.5
+                    desired_bank = max(-20, min(20, desired_bank))
+
+                    bank_error = desired_bank - current_roll
+                    aileron = bank_error * 0.06
+                    aileron = max(-0.5, min(0.5, aileron))
+                    self.commander.set_aileron(aileron)
+
+                    # Pitch/VS control
+                    vs_error = target_vs - current_vs
+                    pitch_correction = vs_error * 0.0002
+                    elevator = 0.02 + pitch_correction  # Base nose-up trim
+                    elevator = max(-0.3, min(0.3, elevator))
+                    self.commander.set_elevator(elevator)
+
+                    # Rudder for coordination
+                    rudder = hdg_error * 0.01
+                    rudder = max(-0.3, min(0.3, rudder))
+                    self.commander.set_rudder(rudder)
+
+                # Logging
+                if elapsed - last_log_time >= 3:
+                    print(f"  [{phase}] ALT:{current_alt:.0f}(AGL:{current_agl:.0f}) HDG:{current_hdg:.0f}°->{runway_heading:.0f}° VS:{current_vs:.0f} IAS:{current_ias:.0f}")
+                    last_log_time = elapsed
+
+                await asyncio.sleep(0.05)  # 20Hz
+
+            except Exception as e:
+                logger.error(f"Autoland error: {e}")
+                await asyncio.sleep(0.1)
+
+        print("=== AUTOLAND SEQUENCE ENDED ===")
+
+
+# ============================================================================
+# AUTO-TUNING SYSTEM
+# Runs multiple flights autonomously to optimize controller parameters
+# ============================================================================
+
+@dataclass
+class TuningParameters:
+    """All tunable parameters for the flight controller"""
+    # Takeoff PID gains (OPTIMIZED from 100-flight tuning session)
+    takeoff_kp: float = 0.1208  # Was 0.08, increased 51% for better heading correction
+    takeoff_ki: float = 0.02
+    takeoff_kd: float = 0.0107  # Was 0.01, slight increase for damping
+
+    # P-factor compensation - balanced for straight tracking
+    p_factor_bias: float = 0.20  # Reduced - was overcorrecting to the right
+
+    # Control limits
+    rudder_limit: float = 1.0
+    nosewheel_multiplier_low: float = 2.0
+    nosewheel_multiplier_high: float = 0.3
+
+    # Heading abort threshold
+    heading_abort_deg: float = 45.0
+
+    # In-flight gains
+    flight_bank_gain: float = 0.25
+    flight_aileron_gain: float = 0.08
+    flight_rudder_gain: float = 0.008
+
+    def to_dict(self) -> dict:
+        return {
+            'takeoff_kp': self.takeoff_kp,
+            'takeoff_ki': self.takeoff_ki,
+            'takeoff_kd': self.takeoff_kd,
+            'p_factor_bias': self.p_factor_bias,
+            'rudder_limit': self.rudder_limit,
+            'nosewheel_multiplier_low': self.nosewheel_multiplier_low,
+            'nosewheel_multiplier_high': self.nosewheel_multiplier_high,
+            'heading_abort_deg': self.heading_abort_deg,
+            'flight_bank_gain': self.flight_bank_gain,
+            'flight_aileron_gain': self.flight_aileron_gain,
+            'flight_rudder_gain': self.flight_rudder_gain,
+        }
+
+
+@dataclass
+class FlightMetrics:
+    """Metrics collected from a single flight"""
+    flight_number: int = 0
+    success: bool = False
+    aborted: bool = False
+    abort_reason: str = ""
+
+    # Takeoff metrics
+    max_heading_deviation: float = 0.0
+    avg_heading_deviation: float = 0.0
+    time_to_liftoff: float = 0.0
+    liftoff_speed: float = 0.0
+    heading_oscillations: int = 0
+
+    # Flight metrics
+    max_bank_angle: float = 0.0
+    max_pitch_deviation: float = 0.0
+    track_following_error_avg: float = 0.0
+
+    # Landing metrics
+    touchdown_vs: float = 0.0
+    landing_success: bool = False
+
+    # Overall score (higher is better)
+    score: float = 0.0
+
+    def calculate_score(self) -> float:
+        """Calculate overall flight score (0-100)"""
+        score = 100.0
+
+        # Penalize for abort
+        if self.aborted:
+            return 0.0
+
+        # Takeoff scoring (40 points max)
+        # Heading deviation penalty
+        score -= min(20, self.max_heading_deviation * 0.5)
+        score -= min(10, self.avg_heading_deviation * 1.0)
+        # Oscillation penalty
+        score -= min(10, self.heading_oscillations * 2)
+
+        # Flight scoring (30 points max)
+        score -= min(15, self.max_bank_angle / 3)
+        score -= min(15, self.track_following_error_avg * 10)
+
+        # Landing scoring (30 points max)
+        if self.landing_success:
+            score += 10
+            # Soft landing bonus
+            if abs(self.touchdown_vs) < 200:
+                score += 10
+            elif abs(self.touchdown_vs) < 400:
+                score += 5
+
+        self.score = max(0, score)
+        return self.score
+
+
+class AutoTuner:
+    """
+    Autonomous flight tuning system.
+    Runs multiple flights, collects metrics, and optimizes parameters.
+    """
+
+    def __init__(self, flight_manager: 'FlightManager'):
+        self.fm = flight_manager
+        self.params = TuningParameters()
+        self.best_params = TuningParameters()
+        self.best_score = 0.0
+        self.flight_history: List[FlightMetrics] = []
+        self.running = False
+
+        # Runway configuration (will be set when starting)
+        self.runway_lat = 33.9425  # KLAX default
+        self.runway_lon = -118.4081
+        self.runway_heading = 250.0
+        self.runway_elevation = 125.0  # feet
+
+        # Tuning configuration
+        self.total_flights = 0
+        self.successful_flights = 0
+        self.parameter_history: List[dict] = []
+
+    def set_runway(self, lat: float, lon: float, heading: float, elevation: float = 0):
+        """Configure the runway for tuning flights"""
+        self.runway_lat = lat
+        self.runway_lon = lon
+        self.runway_heading = heading
+        self.runway_elevation = elevation
+        print(f"[TUNER] Runway set: {lat:.6f}, {lon:.6f}, HDG {heading:.0f}°, ELEV {elevation:.0f}ft")
+
+    def apply_parameters(self):
+        """Apply current tuning parameters to the flight manager"""
+        # These will be read by the takeoff sequence
+        # Store in flight manager for access during flight
+        self.fm._tuning_params = self.params
+
+    def collect_takeoff_metrics(self, heading_errors: List[float], liftoff_time: float,
+                                 liftoff_speed: float) -> FlightMetrics:
+        """Analyze takeoff data and create metrics"""
+        metrics = FlightMetrics(flight_number=self.total_flights)
+
+        if heading_errors:
+            metrics.max_heading_deviation = max(abs(e) for e in heading_errors)
+            metrics.avg_heading_deviation = sum(abs(e) for e in heading_errors) / len(heading_errors)
+
+            # Count oscillations (sign changes in error)
+            oscillations = 0
+            for i in range(1, len(heading_errors)):
+                if heading_errors[i] * heading_errors[i-1] < 0:
+                    oscillations += 1
+            metrics.heading_oscillations = oscillations
+
+        metrics.time_to_liftoff = liftoff_time
+        metrics.liftoff_speed = liftoff_speed
+
+        return metrics
+
+    def adjust_parameters(self, metrics: FlightMetrics):
+        """
+        Adjust parameters based on flight results.
+        Uses a simple hill-climbing approach with random perturbations.
+        """
+        import random
+
+        # If this was a good flight, small adjustments
+        # If this was a bad flight, larger adjustments
+        if metrics.score > self.best_score:
+            # New best! Save these parameters
+            self.best_score = metrics.score
+            self.best_params = TuningParameters(**self.params.to_dict())
+            print(f"[TUNER] NEW BEST SCORE: {metrics.score:.1f}")
+            adjustment_scale = 0.05  # Small tweaks
+        elif metrics.aborted:
+            # Flight failed - make bigger changes
+            adjustment_scale = 0.2
+            # Revert to best known parameters with perturbation
+            self.params = TuningParameters(**self.best_params.to_dict())
+        else:
+            adjustment_scale = 0.1
+
+        # Analyze specific issues and adjust accordingly
+        if metrics.max_heading_deviation > 30:
+            # Too much deviation - increase gains
+            self.params.takeoff_kp *= (1 + random.uniform(0, adjustment_scale))
+            self.params.p_factor_bias *= (1 + random.uniform(0, adjustment_scale))
+            print(f"[TUNER] Increasing Kp to {self.params.takeoff_kp:.4f}, P-factor to {self.params.p_factor_bias:.3f}")
+
+        elif metrics.heading_oscillations > 5:
+            # Too much oscillation - decrease Kp, increase Kd
+            self.params.takeoff_kp *= (1 - random.uniform(0, adjustment_scale))
+            self.params.takeoff_kd *= (1 + random.uniform(0, adjustment_scale))
+            print(f"[TUNER] Reducing oscillation: Kp={self.params.takeoff_kp:.4f}, Kd={self.params.takeoff_kd:.4f}")
+
+        elif metrics.avg_heading_deviation > 10:
+            # Persistent drift - increase Ki
+            self.params.takeoff_ki *= (1 + random.uniform(0, adjustment_scale))
+            print(f"[TUNER] Increasing Ki to {self.params.takeoff_ki:.4f}")
+
+        # Random exploration with small probability
+        if random.random() < 0.2:
+            param_to_adjust = random.choice(['takeoff_kp', 'takeoff_ki', 'takeoff_kd', 'p_factor_bias'])
+            current_val = getattr(self.params, param_to_adjust)
+            new_val = current_val * (1 + random.uniform(-0.15, 0.15))
+            setattr(self.params, param_to_adjust, new_val)
+            print(f"[TUNER] Random exploration: {param_to_adjust} = {new_val:.4f}")
+
+        # Clamp parameters to reasonable ranges
+        self.params.takeoff_kp = max(0.01, min(0.5, self.params.takeoff_kp))
+        self.params.takeoff_ki = max(0.001, min(0.2, self.params.takeoff_ki))
+        self.params.takeoff_kd = max(0.001, min(0.1, self.params.takeoff_kd))
+        self.params.p_factor_bias = max(0.0, min(0.8, self.params.p_factor_bias))
+
+        # Save parameter history
+        self.parameter_history.append({
+            'flight': self.total_flights,
+            'score': metrics.score,
+            **self.params.to_dict()
+        })
+
+    async def run_single_flight(self, flight_type: str = "full") -> FlightMetrics:
+        """
+        Run a single tuning flight and collect metrics.
+
+        Args:
+            flight_type: "takeoff_only", "pattern", or "full"
+        """
+        self.total_flights += 1
+        print(f"\n{'='*60}")
+        print(f"[TUNER] FLIGHT #{self.total_flights} (Mode: {flight_type})")
+        print(f"{'='*60}")
+        print(f"Parameters: Kp={self.params.takeoff_kp:.4f} Ki={self.params.takeoff_ki:.4f} Kd={self.params.takeoff_kd:.4f} P-factor={self.params.p_factor_bias:.3f}")
+
+        # Reset aircraft to runway
+        self.fm.commander.reposition_aircraft(
+            self.runway_lat, self.runway_lon,
+            self.runway_elevation, self.runway_heading,
+            on_ground=True
+        )
+        await asyncio.sleep(2.0)  # Wait for position to settle
+
+        # Apply current parameters
+        self.apply_parameters()
+
+        # Collect metrics during flight
+        heading_errors = []
+        bank_angles = []
+        track_errors = []
+        start_time = asyncio.get_event_loop().time()
+        liftoff_time = 0
+        liftoff_speed = 0
+        aborted = False
+        abort_reason = ""
+
+        # Flight phase configuration
+        PATTERN_ALTITUDE = 1000  # feet AGL
+        CRUISE_DURATION = 60.0   # seconds of cruise flight (1 minute)
+        TOTAL_FLIGHT_TIME = 180.0  # max 3 minutes per flight
+
+        # Run takeoff with metric collection
+        try:
+            self.fm.active = True
+            self.fm._current_throttle = 0.0
+
+            # Set initial state
+            self.fm.commander.set_parking_brake(True)
+            self.fm.commander.set_throttle(0.0)
+            await asyncio.sleep(0.5)
+
+            # Release brakes and throttle up
+            self.fm.commander.set_parking_brake(False)
+            for _ in range(10):
+                self.fm._current_throttle = min(1.0, self.fm._current_throttle + 0.15)
+                self.fm.commander.set_throttle(self.fm._current_throttle)
+                await asyncio.sleep(0.1)
+
+            # ============ PHASE 1: TAKEOFF ROLL ============
+            # With centerline tracking and proper rotation timing
+            print("[TUNER] Phase: TAKEOFF ROLL (Centerline Tracking)")
+            iteration = 0
+            heading_integral = 0.0
+            last_heading_error = 0.0
+            last_time = asyncio.get_event_loop().time()
+
+            # Store initial position for centerline tracking
+            initial_lat = None
+            initial_lon = None
+
+            # Rotation parameters - Cirrus SR22 Vr is ~65-70 KIAS
+            ROTATION_START_SPEED = 50   # Start applying back pressure
+            ROTATION_FULL_SPEED = 65    # Full rotation authority
+            ELEVATOR_AUTHORITY = 0.5    # Increased from 0.25
+
+            # Centerline tracking gain
+            CROSSTRACK_GAIN = 0.15      # Heading correction per foot of deviation
+
+            while self.fm.active and self.running:
+                flight_data = self.fm.get_flight_data()
+                if not flight_data:
+                    await asyncio.sleep(0.05)
+                    continue
+
+                iteration += 1
+                current_time = asyncio.get_event_loop().time()
+                dt = current_time - last_time
+                last_time = current_time
+                elapsed = current_time - start_time
+
+                ias = flight_data.airspeed_ind
+                current_heading = flight_data.heading_mag
+                current_lat = flight_data.lat
+                current_lon = flight_data.lon
+
+                # Initialize reference position on first iteration
+                if initial_lat is None:
+                    initial_lat = current_lat
+                    initial_lon = current_lon
+
+                # ===== CENTERLINE TRACKING =====
+                # Calculate cross-track error (perpendicular distance from runway centerline)
+                import math
+
+                # Convert position difference to meters
+                lat_diff_m = (current_lat - initial_lat) * 111320  # North is positive
+                lon_diff_m = (current_lon - initial_lon) * 111320 * math.cos(math.radians(initial_lat))  # East is positive
+
+                # Runway direction (unit vector pointing down runway)
+                rwy_rad = math.radians(self.runway_heading)
+
+                # Cross-track error using 2D cross product
+                # XTE = position × runway_direction (perpendicular component)
+                # Positive XTE = right of centerline, Negative XTE = left of centerline
+                crosstrack_m = lat_diff_m * math.sin(rwy_rad) - lon_diff_m * math.cos(rwy_rad)
+                crosstrack_ft = crosstrack_m * 3.28084
+
+                # ===== HEADING CONTROL WITH CENTERLINE CORRECTION =====
+                # Base heading error (positive = need to turn right)
+                heading_error = self.runway_heading - current_heading
+                if heading_error > 180:
+                    heading_error -= 360
+                elif heading_error < -180:
+                    heading_error += 360
+
+                # Centerline correction: steer toward centerline
+                # If right of centerline (positive XTE), steer left (negative heading adjustment)
+                # Use proportional + rate-based correction
+                centerline_correction = -crosstrack_ft * CROSSTRACK_GAIN
+                centerline_correction = max(-8, min(8, centerline_correction))  # Limit to 8°
+
+                # Only apply centerline correction at higher speeds when rudder is effective
+                if ias < 30:
+                    centerline_correction *= 0.3  # Reduce at low speed
+
+                # Combined heading error
+                total_heading_error = heading_error + centerline_correction
+
+                heading_errors.append(heading_error)
+
+                # PID control with current parameters
+                heading_integral += total_heading_error * dt
+                heading_integral = max(-50.0, min(50.0, heading_integral))
+                heading_derivative = (total_heading_error - last_heading_error) / max(dt, 0.001)
+                last_heading_error = total_heading_error
+
+                pid_output = (self.params.takeoff_kp * total_heading_error +
+                             self.params.takeoff_ki * heading_integral +
+                             self.params.takeoff_kd * heading_derivative)
+
+                speed_factor = min(1.0, ias / 60.0)
+                p_factor_compensation = self.params.p_factor_bias * speed_factor
+
+                rudder = pid_output + p_factor_compensation
+                rudder = max(-self.params.rudder_limit, min(self.params.rudder_limit, rudder))
+
+                if ias < 40:
+                    nosewheel = rudder * self.params.nosewheel_multiplier_low
+                else:
+                    nosewheel = rudder * self.params.nosewheel_multiplier_high
+                nosewheel = max(-1.0, min(1.0, nosewheel))
+
+                # Apply controls
+                self.fm.commander.set_throttle(1.0)
+                self.fm.commander.set_rudder(rudder)
+                self.fm.commander.set_nosewheel_steering(nosewheel)
+                self.fm.commander.set_aileron(-flight_data.roll * 0.03)
+
+                # ===== IMPROVED ROTATION =====
+                # Start rotation earlier with more authority
+                if ias >= ROTATION_START_SPEED:
+                    # Progressive rotation from start speed to full speed
+                    progress = min(1.0, (ias - ROTATION_START_SPEED) / (ROTATION_FULL_SPEED - ROTATION_START_SPEED))
+                    elevator = progress * ELEVATOR_AUTHORITY
+                    self.fm.commander.set_elevator(elevator)
+
+                # Check for liftoff
+                if flight_data.alt_agl > 20:
+                    liftoff_time = elapsed
+                    liftoff_speed = ias
+                    print(f"[TUNER] LIFTOFF at {liftoff_time:.1f}s, {liftoff_speed:.0f}kts, XTE:{crosstrack_ft:.1f}ft")
+                    self.successful_flights += 1
+                    break
+
+                # Check for abort conditions
+                if abs(heading_error) > self.params.heading_abort_deg and ias > 30:
+                    aborted = True
+                    abort_reason = f"Heading deviation {heading_error:.0f}°"
+                    print(f"[TUNER] ABORT: {abort_reason}")
+                    self.fm.commander.set_throttle(0.0)
+                    break
+
+                if elapsed > 60:  # Timeout
+                    aborted = True
+                    abort_reason = "Timeout - no liftoff in 60s"
+                    print(f"[TUNER] ABORT: {abort_reason}")
+                    self.fm.commander.set_throttle(0.0)
+                    break
+
+                # Log every 20 iterations (with cross-track error)
+                if iteration % 20 == 0:
+                    print(f"  IAS:{ias:.0f} HDG:{current_heading:.0f}° ERR:{heading_error:.1f}° XTE:{crosstrack_ft:+.0f}ft RUD:{rudder:.2f}")
+
+                await asyncio.sleep(0.05)
+
+            # ============ PHASE 2: CLIMB WITH SMOOTH ALTITUDE CAPTURE ============
+            if not aborted and self.running and flight_type in ["pattern", "full"]:
+                print(f"[TUNER] Phase: CLIMB to {PATTERN_ALTITUDE}ft AGL (Smooth Capture)")
+                target_heading = self.runway_heading
+                climb_start = asyncio.get_event_loop().time()
+
+                # Smooth altitude capture parameters
+                CAPTURE_START_ALT = PATTERN_ALTITUDE * 0.5  # Start smoothing at 50% of target (earlier!)
+                INITIAL_CLIMB_PITCH = 8.0   # Gentler initial climb pitch
+                last_pitch_target = INITIAL_CLIMB_PITCH
+                pitch_rate_limit = 1.5  # Slower pitch changes for smoother transitions
+                last_vs = 0
+
+                while self.fm.active and self.running:
+                    flight_data = self.fm.get_flight_data()
+                    if not flight_data:
+                        await asyncio.sleep(0.05)
+                        continue
+
+                    current_time = asyncio.get_event_loop().time()
+                    elapsed = current_time - start_time
+                    dt = max(0.01, current_time - last_time)
+
+                    alt_agl = flight_data.alt_agl
+                    ias = flight_data.airspeed_ind
+                    current_heading = flight_data.heading_mag
+                    roll = flight_data.roll
+                    pitch = flight_data.pitch
+                    vs = flight_data.vertical_speed
+
+                    # Collect bank angle data
+                    bank_angles.append(abs(roll))
+
+                    # Heading control
+                    heading_error = target_heading - current_heading
+                    if heading_error > 180:
+                        heading_error -= 360
+                    elif heading_error < -180:
+                        heading_error += 360
+                    track_errors.append(abs(heading_error))
+
+                    # Bank angle to correct heading - gentler during climb
+                    target_bank = heading_error * self.params.flight_bank_gain * 0.5  # Reduced during climb
+                    target_bank = max(-15, min(15, target_bank))  # Limit bank to 15° during climb
+
+                    # Aileron to achieve target bank
+                    bank_error = target_bank - roll
+                    aileron = bank_error * self.params.flight_aileron_gain
+                    aileron = max(-0.3, min(0.3, aileron))
+
+                    # Rudder to coordinate turn
+                    rudder = roll * self.params.flight_rudder_gain
+                    rudder = max(-0.2, min(0.2, rudder))
+
+                    # ===== SMOOTH ALTITUDE CAPTURE =====
+                    # Gradually reduce pitch AND use VS to control level-off
+                    remaining_alt = PATTERN_ALTITUDE - alt_agl
+
+                    if alt_agl < CAPTURE_START_ALT:
+                        # Full climb - constant pitch
+                        raw_target_pitch = INITIAL_CLIMB_PITCH
+                    else:
+                        # Altitude capture - use both altitude AND vertical speed
+                        # Calculate desired VS based on remaining altitude (decelerate climb rate)
+                        # At 500ft remaining: VS ~1000, at 100ft remaining: VS ~200, at 0ft: VS ~0
+                        desired_vs = remaining_alt * 2.0  # Simple linear relationship
+                        desired_vs = max(0, min(1200, desired_vs))
+
+                        # Calculate pitch needed to achieve desired VS
+                        # If VS is too high, reduce pitch; if VS is too low, increase pitch
+                        vs_error = desired_vs - vs
+                        vs_correction = vs_error * 0.003  # Convert VS error to pitch adjustment
+
+                        # Base pitch decreases as we approach target
+                        capture_progress = 1.0 - (remaining_alt / (PATTERN_ALTITUDE - CAPTURE_START_ALT))
+                        capture_progress = max(0, min(1, capture_progress))
+
+                        # Smooth S-curve
+                        smooth_factor = capture_progress * capture_progress * (3 - 2 * capture_progress)
+                        base_pitch = INITIAL_CLIMB_PITCH * (1 - smooth_factor * 0.9)  # Don't go all the way to 0
+
+                        # Combine base pitch with VS correction
+                        raw_target_pitch = base_pitch + vs_correction
+                        raw_target_pitch = max(-2, min(INITIAL_CLIMB_PITCH, raw_target_pitch))
+
+                    # Rate-limit the pitch target for smooth transitions
+                    pitch_change = raw_target_pitch - last_pitch_target
+                    max_change = pitch_rate_limit * dt
+                    if abs(pitch_change) > max_change:
+                        pitch_change = max_change if pitch_change > 0 else -max_change
+                    target_pitch = last_pitch_target + pitch_change
+                    last_pitch_target = target_pitch
+
+                    # Pitch control with integral for steady-state accuracy
+                    pitch_error = target_pitch - pitch
+                    elevator = pitch_error * 0.07
+                    elevator = max(-0.4, min(0.4, elevator))
+
+                    # Throttle management - gradual reduction during capture
+                    if alt_agl > CAPTURE_START_ALT:
+                        # Reduce throttle progressively as we level off
+                        capture_pct = (alt_agl - CAPTURE_START_ALT) / (PATTERN_ALTITUDE - CAPTURE_START_ALT)
+                        throttle = 1.0 - (capture_pct * 0.25)  # 1.0 -> 0.75 as we level
+                    else:
+                        throttle = 1.0  # Full power for climb
+
+                    # Apply controls
+                    self.fm.commander.set_throttle(throttle)
+                    self.fm.commander.set_aileron(aileron)
+                    self.fm.commander.set_rudder(rudder)
+                    self.fm.commander.set_elevator(elevator)
+
+                    # Check if we reached pattern altitude with low VS (stabilized)
+                    # Need both altitude AND low vertical speed for smooth handoff
+                    if alt_agl >= PATTERN_ALTITUDE * 0.95 and abs(vs) < 200:
+                        print(f"[TUNER] Level at {alt_agl:.0f}ft AGL, VS:{vs:.0f}fpm (stabilized)")
+                        break
+                    # Alternative: if above altitude and descending slightly, we've captured
+                    if alt_agl >= PATTERN_ALTITUDE and vs < 100:
+                        print(f"[TUNER] Altitude captured at {alt_agl:.0f}ft AGL, VS:{vs:.0f}fpm")
+                        break
+
+                    # Safety checks
+                    if alt_agl < 10 and (current_time - climb_start) > 10:
+                        aborted = True
+                        abort_reason = "Failed to climb - crashed"
+                        print(f"[TUNER] ABORT: {abort_reason}")
+                        break
+
+                    if elapsed > TOTAL_FLIGHT_TIME:
+                        print(f"[TUNER] Time limit reached during climb")
+                        break
+
+                    # Log every second
+                    if int(current_time) != int(last_time):
+                        print(f"  ALT:{alt_agl:.0f}ft IAS:{ias:.0f}kts PITCH:{pitch:.1f}° (tgt:{target_pitch:.1f}°) VS:{vs:+.0f}fpm")
+
+                    last_time = current_time
+                    await asyncio.sleep(0.05)
+
+            # ============ PHASE 3: CRUISE/LEVEL FLIGHT ============
+            if not aborted and self.running and flight_type in ["pattern", "full"]:
+                print(f"[TUNER] Phase: CRUISE for {CRUISE_DURATION:.0f}s (Stabilized)")
+                cruise_start = asyncio.get_event_loop().time()
+                target_heading = self.runway_heading
+                target_altitude = PATTERN_ALTITUDE
+
+                # Cruise PID state
+                alt_integral = 0.0
+                hdg_integral = 0.0
+                last_alt_error = 0.0
+                last_hdg_error = 0.0
+
+                while self.fm.active and self.running:
+                    flight_data = self.fm.get_flight_data()
+                    if not flight_data:
+                        await asyncio.sleep(0.05)
+                        continue
+
+                    current_time = asyncio.get_event_loop().time()
+                    cruise_elapsed = current_time - cruise_start
+                    total_elapsed = current_time - start_time
+                    dt = max(0.01, current_time - last_time)
+
+                    alt_agl = flight_data.alt_agl
+                    ias = flight_data.airspeed_ind
+                    current_heading = flight_data.heading_mag
+                    roll = flight_data.roll
+                    pitch = flight_data.pitch
+                    vs = flight_data.vertical_speed
+
+                    # Collect metrics
+                    bank_angles.append(abs(roll))
+
+                    # ===== HEADING CONTROL WITH PID =====
+                    heading_error = target_heading - current_heading
+                    if heading_error > 180:
+                        heading_error -= 360
+                    elif heading_error < -180:
+                        heading_error += 360
+                    track_errors.append(abs(heading_error))
+
+                    # Heading PID
+                    hdg_integral += heading_error * dt
+                    hdg_integral = max(-30, min(30, hdg_integral))
+                    hdg_derivative = (heading_error - last_hdg_error) / dt
+                    last_hdg_error = heading_error
+
+                    # Target bank from heading error (gentler gains for stability)
+                    target_bank = (heading_error * 0.8 +          # P
+                                   hdg_integral * 0.05 +           # I
+                                   hdg_derivative * 0.1)           # D
+                    target_bank = max(-15, min(15, target_bank))   # Limit bank to 15°
+
+                    # Aileron to achieve target bank
+                    bank_error = target_bank - roll
+                    aileron = bank_error * 0.06
+                    aileron = max(-0.3, min(0.3, aileron))
+
+                    # Rudder to coordinate (adverse yaw compensation)
+                    rudder = aileron * 0.3 + roll * 0.005
+                    rudder = max(-0.2, min(0.2, rudder))
+
+                    # ===== ALTITUDE HOLD WITH PID =====
+                    alt_error = target_altitude - alt_agl
+
+                    # Altitude PID
+                    alt_integral += alt_error * dt
+                    alt_integral = max(-500, min(500, alt_integral))
+                    alt_derivative = (alt_error - last_alt_error) / dt
+                    last_alt_error = alt_error
+
+                    # Also use vertical speed for damping
+                    vs_error = 0 - vs  # Target VS is 0 for level flight
+
+                    # Pitch from altitude error + VS damping
+                    target_pitch = (alt_error * 0.015 +            # P - altitude error
+                                    alt_integral * 0.001 +          # I - accumulated error
+                                    vs_error * 0.003)               # D - VS damping
+                    target_pitch = max(-5, min(8, target_pitch))
+
+                    pitch_error = target_pitch - pitch
+                    elevator = pitch_error * 0.05
+                    elevator = max(-0.25, min(0.25, elevator))
+
+                    # ===== THROTTLE FOR SPEED CONTROL =====
+                    target_ias = 110  # knots (slightly higher for stability)
+                    speed_error = target_ias - ias
+                    throttle = 0.65 + (speed_error * 0.008)
+                    throttle = max(0.4, min(0.9, throttle))
+
+                    # Apply controls
+                    self.fm.commander.set_throttle(throttle)
+                    self.fm.commander.set_aileron(aileron)
+                    self.fm.commander.set_rudder(rudder)
+                    self.fm.commander.set_elevator(elevator)
+
+                    # Check if cruise duration completed
+                    if cruise_elapsed >= CRUISE_DURATION:
+                        print(f"[TUNER] Cruise phase complete - Final ALT:{alt_agl:.0f}ft HDG:{current_heading:.0f}°")
+                        break
+
+                    # Safety checks
+                    if alt_agl < 200:
+                        aborted = True
+                        abort_reason = f"Altitude too low during cruise ({alt_agl:.0f}ft)"
+                        print(f"[TUNER] ABORT: {abort_reason}")
+                        break
+
+                    if total_elapsed > TOTAL_FLIGHT_TIME:
+                        print(f"[TUNER] Total flight time limit reached")
+                        break
+
+                    # Log every 5 seconds
+                    if int(cruise_elapsed) % 5 == 0 and int(cruise_elapsed) != int(cruise_elapsed - 0.05):
+                        print(f"  ALT:{alt_agl:.0f}ft IAS:{ias:.0f}kts HDG:{current_heading:.0f}° BANK:{roll:.1f}° VS:{vs:+.0f} t={cruise_elapsed:.0f}s")
+
+                    last_time = current_time
+                    await asyncio.sleep(0.05)
+
+        except Exception as e:
+            aborted = True
+            abort_reason = str(e)
+            print(f"[TUNER] ERROR: {e}")
+
+        finally:
+            # Stop the aircraft
+            self.fm.commander.set_throttle(0.0)
+            self.fm.active = False
+
+        # Create metrics with extended data
+        metrics = self.collect_takeoff_metrics(heading_errors, liftoff_time, liftoff_speed)
+        metrics.aborted = aborted
+        metrics.abort_reason = abort_reason
+        metrics.success = not aborted and liftoff_time > 0
+
+        # Add flight metrics
+        if bank_angles:
+            metrics.max_bank_angle = max(bank_angles)
+        if track_errors:
+            metrics.track_following_error_avg = sum(track_errors) / len(track_errors)
+
+        metrics.calculate_score()
+
+        total_flight_time = asyncio.get_event_loop().time() - start_time
+        print(f"[TUNER] Flight #{self.total_flights} Score: {metrics.score:.1f} Duration: {total_flight_time:.1f}s")
+        self.flight_history.append(metrics)
+
+        return metrics
+
+    async def run_tuning_session(self, num_flights: int = 100, duration_hours: float = 5.0):
+        """
+        Run an extended tuning session.
+
+        Args:
+            num_flights: Maximum number of flights to run
+            duration_hours: Maximum duration in hours
+        """
+        print(f"\n{'='*60}")
+        print(f"[TUNER] STARTING {duration_hours}-HOUR TUNING SESSION")
+        print(f"[TUNER] Max flights: {num_flights}")
+        print(f"{'='*60}\n")
+
+        self.running = True
+        start_time = asyncio.get_event_loop().time()
+        max_duration = duration_hours * 3600  # Convert to seconds
+
+        try:
+            flight_num = 0
+            while self.running and flight_num < num_flights:
+                elapsed = asyncio.get_event_loop().time() - start_time
+
+                # Check time limit
+                if elapsed > max_duration:
+                    print(f"[TUNER] Time limit reached ({duration_hours} hours)")
+                    break
+
+                # Run a flight
+                metrics = await self.run_single_flight()
+
+                # Adjust parameters based on results
+                self.adjust_parameters(metrics)
+
+                flight_num += 1
+
+                # Print progress every 10 flights
+                if flight_num % 10 == 0:
+                    hours_elapsed = elapsed / 3600
+                    success_rate = (self.successful_flights / self.total_flights * 100) if self.total_flights > 0 else 0
+                    print(f"\n[TUNER] === PROGRESS: {flight_num} flights, {hours_elapsed:.1f}h elapsed ===")
+                    print(f"[TUNER] Success rate: {success_rate:.1f}%")
+                    print(f"[TUNER] Best score: {self.best_score:.1f}")
+                    print(f"[TUNER] Best params: Kp={self.best_params.takeoff_kp:.4f} Ki={self.best_params.takeoff_ki:.4f} Kd={self.best_params.takeoff_kd:.4f} P-factor={self.best_params.p_factor_bias:.3f}")
+                    print()
+
+                # Brief pause between flights
+                await asyncio.sleep(3.0)
+
+        except asyncio.CancelledError:
+            print("[TUNER] Session cancelled")
+        except Exception as e:
+            print(f"[TUNER] Session error: {e}")
+        finally:
+            self.running = False
+
+        # Final report
+        self.print_final_report()
+
+    def stop(self):
+        """Stop the tuning session"""
+        self.running = False
+        print("[TUNER] Stopping tuning session...")
+
+    def print_final_report(self):
+        """Print comprehensive tuning results"""
+        print(f"\n{'='*60}")
+        print(f"[TUNER] FINAL TUNING REPORT")
+        print(f"{'='*60}")
+        print(f"Total flights: {self.total_flights}")
+        print(f"Successful flights: {self.successful_flights}")
+        success_rate = (self.successful_flights / self.total_flights * 100) if self.total_flights > 0 else 0
+        print(f"Success rate: {success_rate:.1f}%")
+        print(f"\nBest score: {self.best_score:.1f}")
+        print(f"\nOptimal Parameters:")
+        print(f"  takeoff_kp = {self.best_params.takeoff_kp:.6f}")
+        print(f"  takeoff_ki = {self.best_params.takeoff_ki:.6f}")
+        print(f"  takeoff_kd = {self.best_params.takeoff_kd:.6f}")
+        print(f"  p_factor_bias = {self.best_params.p_factor_bias:.6f}")
+        print(f"  rudder_limit = {self.best_params.rudder_limit:.2f}")
+        print(f"  nosewheel_multiplier_low = {self.best_params.nosewheel_multiplier_low:.2f}")
+        print(f"  nosewheel_multiplier_high = {self.best_params.nosewheel_multiplier_high:.2f}")
+
+        # Score distribution
+        if self.flight_history:
+            scores = [m.score for m in self.flight_history]
+            print(f"\nScore distribution:")
+            print(f"  Min: {min(scores):.1f}")
+            print(f"  Max: {max(scores):.1f}")
+            print(f"  Avg: {sum(scores)/len(scores):.1f}")
+
+        print(f"{'='*60}\n")
+
+    def get_status(self) -> dict:
+        """Get current tuning status"""
+        return {
+            'running': self.running,
+            'total_flights': self.total_flights,
+            'successful_flights': self.successful_flights,
+            'best_score': self.best_score,
+            'current_params': self.params.to_dict(),
+            'best_params': self.best_params.to_dict(),
+        }

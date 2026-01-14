@@ -875,7 +875,9 @@ class XPlaneCommandSender:
         value = max(-1.0, min(1.0, value))
         # Override joystick to take control
         self.send_dref("sim/operation/override/override_joystick", 1)
-        # Use yoke_heading_ratio only (simpler, avoids conflicts)
+        # X-Plane convention: positive yoke_heading_ratio = right rudder pedal = yaw RIGHT
+        # Our convention: positive value = turn right
+        # So signs should match directly (no negation needed)
         self.send_dref("sim/cockpit2/controls/yoke_heading_ratio", value)
         return True
 
@@ -957,6 +959,80 @@ class XPlaneCommandSender:
         self.send_command("sim/autopilot/altitude_hold")
         # Engage heading hold
         self.send_command("sim/autopilot/heading")
+        return True
+
+    def reposition_aircraft(self, lat: float, lon: float, alt_msl: float, heading: float,
+                             pitch: float = 0.0, roll: float = 0.0, on_ground: bool = True) -> bool:
+        """
+        Reposition the aircraft to a specific location.
+        Used for auto-tuning to reset aircraft to runway.
+
+        Args:
+            lat: Latitude in degrees
+            lon: Longitude in degrees
+            alt_msl: Altitude MSL in feet
+            heading: Magnetic heading in degrees
+            pitch: Pitch angle in degrees (default 0)
+            roll: Roll angle in degrees (default 0)
+            on_ground: If True, place on ground (default True)
+        """
+        print(f"[REPOSITION] Moving aircraft to {lat:.6f}, {lon:.6f}, HDG {heading:.0f}°")
+
+        # Set position directly (no pausing - let X-Plane handle it)
+        self.send_dref("sim/flightmodel/position/latitude", lat)
+        self.send_dref("sim/flightmodel/position/longitude", lon)
+
+        # Set AGL to put on ground, or elevation for in-air
+        if on_ground:
+            self.send_dref("sim/flightmodel/position/y_agl", 2.0)  # Slightly above ground
+        else:
+            alt_meters = alt_msl * 0.3048
+            self.send_dref("sim/flightmodel/position/elevation", alt_meters)
+
+        # Set orientation (psi=heading, theta=pitch, phi=roll)
+        self.send_dref("sim/flightmodel/position/psi", heading)  # True heading
+        self.send_dref("sim/flightmodel/position/theta", pitch)
+        self.send_dref("sim/flightmodel/position/phi", roll)
+
+        # Zero out all velocities
+        self.send_dref("sim/flightmodel/position/local_vx", 0.0)
+        self.send_dref("sim/flightmodel/position/local_vy", 0.0)
+        self.send_dref("sim/flightmodel/position/local_vz", 0.0)
+        self.send_dref("sim/flightmodel/position/P", 0.0)  # Roll rate
+        self.send_dref("sim/flightmodel/position/Q", 0.0)  # Pitch rate
+        self.send_dref("sim/flightmodel/position/R", 0.0)  # Yaw rate
+
+        # Reset control surfaces to neutral
+        self.send_dref("sim/cockpit2/controls/yoke_pitch_ratio", 0.0)
+        self.send_dref("sim/cockpit2/controls/yoke_roll_ratio", 0.0)
+        self.send_dref("sim/cockpit2/controls/yoke_heading_ratio", 0.0)
+        self.send_dref("sim/flightmodel/controls/nwheel_steer", 0.0)
+
+        # Set throttle to idle
+        self.send_dref("sim/cockpit2/engine/actuators/throttle_ratio_all", 0.0)
+
+        # Engage parking brake
+        self.send_dref("sim/flightmodel/controls/parkbrake", 1.0)
+
+        # Ensure engine is ready to run
+        print(f"[REPOSITION] Setting up engine systems...")
+        # Battery and alternator
+        self.send_dref("sim/cockpit/electrical/battery_on", 1)
+        self.send_dref("sim/cockpit/electrical/generator_on[0]", 1)
+        # Fuel system - full rich mixture
+        self.send_dref("sim/cockpit2/engine/actuators/mixture_ratio_all", 1.0)
+        self.send_dref("sim/cockpit2/engine/actuators/mixture_ratio[0]", 1.0)
+        self.send_dref("sim/cockpit/engine/fuel_pump_on", 1)
+        self.send_dref("sim/cockpit2/fuel/fuel_tank_selector[0]", 1)  # Right tank
+        # Magnetos to BOTH
+        self.send_dref("sim/cockpit2/engine/actuators/ignition_key[0]", 3)
+        self.send_dref("sim/cockpit/engine/ignition_on", 1)
+        # Force engine running
+        self.send_dref("sim/flightmodel/engine/ENGN_running[0]", 1)
+        self.send_dref("sim/flightmodel/engine/ENGN_N1_[0]", 1000.0)  # RPM
+        self.send_dref("sim/flightmodel/engine/ENGN_N2_[0]", 1000.0)
+
+        print(f"[REPOSITION] Aircraft repositioned successfully")
         return True
 
     def close(self):

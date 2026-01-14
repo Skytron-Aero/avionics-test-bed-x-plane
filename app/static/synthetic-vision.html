@@ -532,18 +532,204 @@
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             color: #7dd3fc;
             margin-top: 5px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
         }
 
         .tape-secondary.positive {
             color: #4ade80;
+            opacity: 1;
+            text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
         }
 
         .tape-secondary.negative {
             color: #f87171;
+            opacity: 1;
+            text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .tape-target {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 8px;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.2s ease;
+        }
+
+        .tape-target:hover .target-value,
+        .tape-target:hover .target-label {
+            text-shadow: 0 0 20px #00d4ff, 0 0 40px #00d4ff, 0 2px 8px rgba(0,0,0,0.8);
+        }
+
+        .tape-target:active {
+            transform: scale(0.98);
+        }
+
+        .target-label {
+            font-size: 18px;
+            font-weight: 500;
+            color: #00d4ff;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5), 0 2px 8px rgba(0,0,0,0.8);
+        }
+
+        .target-value {
+            font-size: 32px;
+            font-weight: 600;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #00d4ff;
+            text-shadow: 0 0 15px rgba(0, 212, 255, 0.6), 0 2px 8px rgba(0,0,0,0.8);
         }
 
         .tape-trend {
             display: none;
+        }
+
+        /* Numpad Overlay */
+        .numpad-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2000;
+            pointer-events: none;
+        }
+
+        .numpad-backdrop {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            pointer-events: auto;
+        }
+
+        .numpad-container {
+            position: fixed;
+            width: 280px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 212, 255, 0.15);
+            pointer-events: auto;
+        }
+
+        .numpad-container.position-left {
+            top: 35%;
+            left: 100px;
+        }
+
+        .numpad-container.position-right {
+            top: 35%;
+            right: 100px;
+        }
+
+        .numpad-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .numpad-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #00d4ff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .numpad-display {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+
+        .numpad-value {
+            font-size: 28px;
+            font-weight: 600;
+            font-family: 'Inter', 'Helvetica Neue', sans-serif;
+            color: #ffffff;
+            min-width: 90px;
+            text-align: right;
+        }
+
+        .numpad-unit {
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .numpad-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .numpad-btn {
+            width: 76px;
+            height: 70px;
+            background: #000000;
+            border: 2px solid #ffffff;
+            border-radius: 14px;
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 600;
+            font-family: 'Inter', 'Helvetica Neue', sans-serif;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .numpad-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .numpad-btn:active {
+            background: #ffffff;
+            color: #000000;
+        }
+
+        .numpad-ok {
+            width: 70px;
+            height: 48px;
+            font-size: 20px;
+            background: #00d4ff;
+            border-color: #00d4ff;
+            color: #000000;
+        }
+
+        .numpad-ok:hover {
+            background: #00ffff;
+        }
+
+        .numpad-ok:active {
+            background: #ffffff;
+        }
+
+        .numpad-del {
+            font-size: 16px;
+            color: #ff6b6b;
+            border-color: #ff6b6b;
+        }
+
+        .numpad-del:active {
+            background: #ff6b6b;
+            color: #000000;
+        }
+
+        .numpad-zero {
+            grid-column: span 2;
+            width: 100%;
         }
 
         /* Speed Tape - Left */
@@ -1520,6 +1706,16 @@
             color: #0369a1;
         }
 
+        .light-mode .tape-secondary.positive {
+            color: #15803d;
+            text-shadow: 0 0 4px rgba(255, 255, 255, 0.9);
+        }
+
+        .light-mode .tape-secondary.negative {
+            color: #dc2626;
+            text-shadow: 0 0 4px rgba(255, 255, 255, 0.9);
+        }
+
         .fuel-bar-container {
             margin-top: 4px;
             height: 4px;
@@ -2013,12 +2209,18 @@
         <div class="altitude-tape">
             <div class="tape-current" id="altitudeCurrent">5000</div>
             <div class="tape-secondary" id="vsiValue">+0 fpm</div>
+            <div class="tape-target" id="altitudeTarget" onclick="showNumpad('altitude')">
+                <span class="target-value" id="altitudeTargetValue">---</span>
+            </div>
         </div>
 
         <!-- Speed Tape -->
         <div class="speed-tape">
             <div class="tape-current" id="speedCurrent">120</div>
             <div class="tape-secondary" id="accelValue">0 kt/m</div>
+            <div class="tape-target" id="speedTarget" onclick="showNumpad('speed')">
+                <span class="target-value" id="speedTargetValue">---</span>
+            </div>
         </div>
     </div>
 
@@ -2330,13 +2532,13 @@
                 terrain: true,      // 3D terrain mesh enabled
                 traffic: false,     // Live ADS-B traffic - off by default
                 weather: false,     // Weather hazards - off by default
-                airspace: true,     // Airspace boundaries enabled
+                airspace: false,    // Airspace boundaries - DISABLED for performance
                 towers: false,      // Towers/obstacles - off by default
                 tfr: false,         // TFRs - off by default
-                buildings: false,   // Buildings - off by default
-                clouds: false,      // Cloud layers - off by default
+                buildings: false,   // Buildings - DISABLED for performance
+                clouds: false,      // Cloud layers - DISABLED for performance
                 icing: false,       // Icing overlay - off by default
-                visibility: false   // Visibility overlay - off by default
+                visibility: false   // Visibility/VFR overlay - DISABLED for performance
             },
             buildingData: null, // Cached building data from OSM
             simulation: {
@@ -2395,16 +2597,16 @@
 
         // Last terrain position for reload checking
         let lastTerrainPosition = { lat: 0, lon: 0 };
-        const TERRAIN_RELOAD_THRESHOLD_NM = 5;
+        const TERRAIN_RELOAD_THRESHOLD_NM = 15; // Increased for performance (reload less often)
 
         // ==================== AIRSPACE DATA STATE ====================
         const airspaceState = {
             data: null,           // GeoJSON FeatureCollection from FAA
             lastFetchPosition: { lat: 0, lon: 0 },
             lastFetchTime: 0,
-            fetchIntervalMs: 15000,  // Refresh every 15 seconds for better tracking
+            fetchIntervalMs: 60000,  // Refresh every 60 seconds for performance
             fetchRadiusNm: 50,       // Look-ahead radius
-            distanceThresholdNm: 3,  // Refetch if moved more than 3nm
+            distanceThresholdNm: 10, // Refetch if moved more than 10nm (reduced frequency)
             isLoading: false
         };
 
@@ -2459,7 +2661,7 @@
         // Convert lat/lon to scene coordinates (meters from terrain center)
         // Terrain is centered at terrainData.centerLat/centerLon (already includes 20nm forward offset)
         // Scene space: terrain center is at (0, 0, -FORWARD_OFFSET_METERS)
-        const FORWARD_OFFSET_METERS = 20 * 1852; // 20nm forward offset to match terrain
+        const FORWARD_OFFSET_METERS = 30 * 1852; // 30nm forward offset to match terrain
 
         function latLonToSceneCoords(lat, lon, refLat, refLon) {
             // Use terrain data center as reference if available (it includes the 20nm forward offset)
@@ -2972,6 +3174,97 @@
             if (panel) {
                 panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
             }
+        }
+
+        // ==================== NUMPAD FUNCTIONS ====================
+        let numpadState = {
+            active: false,
+            mode: null,  // 'altitude' or 'speed'
+            value: '',
+            targetAltitude: null,
+            targetSpeed: null
+        };
+
+        function showNumpad(mode) {
+            numpadState.active = true;
+            numpadState.mode = mode;
+            numpadState.value = '';
+
+            const overlay = document.getElementById('numpadOverlay');
+            const container = overlay.querySelector('.numpad-container');
+            const unit = document.getElementById('numpadUnit');
+            const valueDisplay = document.getElementById('numpadValue');
+
+            // Position numpad based on mode
+            container.classList.remove('position-left', 'position-right');
+            if (mode === 'altitude') {
+                unit.textContent = 'ft';
+                container.classList.add('position-right');
+                // Pre-fill with current target
+                if (numpadState.targetAltitude !== null) {
+                    numpadState.value = String(numpadState.targetAltitude);
+                }
+            } else if (mode === 'speed') {
+                unit.textContent = 'kts';
+                container.classList.add('position-left');
+                // Pre-fill with current target
+                if (numpadState.targetSpeed !== null) {
+                    numpadState.value = String(numpadState.targetSpeed);
+                }
+            }
+
+            valueDisplay.textContent = numpadState.value || '---';
+            overlay.style.display = 'block';
+        }
+
+        function hideNumpad() {
+            numpadState.active = false;
+            const overlay = document.getElementById('numpadOverlay');
+            overlay.style.display = 'none';
+        }
+
+        function numpadInput(digit) {
+            // Limit input length (5 digits max for altitude like 12500)
+            if (numpadState.value.length >= 5) return;
+
+            numpadState.value += digit;
+            document.getElementById('numpadValue').textContent = numpadState.value;
+        }
+
+        function numpadDelete() {
+            if (numpadState.value.length > 0) {
+                numpadState.value = numpadState.value.slice(0, -1);
+                document.getElementById('numpadValue').textContent = numpadState.value || '---';
+            }
+        }
+
+        function numpadOk() {
+            let value = parseFloat(numpadState.value);
+
+            if (!isNaN(value) && value > 0) {
+                if (numpadState.mode === 'altitude') {
+                    // Cap altitude at 12,500 ft
+                    value = Math.min(Math.round(value), 12500);
+                    numpadState.targetAltitude = value;
+                    document.getElementById('altitudeTargetValue').textContent = numpadState.targetAltitude.toLocaleString();
+
+                    // Update autopilot assist target if enabled
+                    if (xplaneState.autopilotAssist) {
+                        xplaneState.autopilotAssist.targetAltitude = numpadState.targetAltitude;
+                    }
+
+                    console.log(`Target altitude set: ${numpadState.targetAltitude} ft`);
+                } else if (numpadState.mode === 'speed') {
+                    // Cap speed at 200 kts
+                    value = Math.min(Math.round(value), 200);
+                    numpadState.targetSpeed = value;
+                    document.getElementById('speedTargetValue').textContent = numpadState.targetSpeed;
+
+                    console.log(`Target speed set: ${numpadState.targetSpeed} kts`);
+                }
+            }
+
+            hideNumpad();
         }
 
         // Comprehensive US & International Airport Database with Runway Data
@@ -3922,7 +4215,7 @@
         // ============================================
 
         let lastTerrainLoadTime = 0;
-        const TERRAIN_LOAD_COOLDOWN = 15000; // Minimum 15 seconds between terrain loads for performance
+        const TERRAIN_LOAD_COOLDOWN = 30000; // Minimum 30 seconds between terrain loads for performance
 
         async function loadTerrainData(lat, lon) {
             if (PERFORMANCE_MODE) return; // Disable all external fetching
@@ -3939,15 +4232,15 @@
                 // Reset world offset when loading new terrain
                 worldOffset = { x: 0, z: 0 };
 
-                const gridSize = 50; // Smaller grid for faster rendering
-                const radiusNM = 35; // Original radius
+                const gridSize = 50; // Grid size for terrain resolution
+                const radiusNM = 50; // Extended radius for longer caching (~100nm total span)
                 const degreesPerNM = 1 / 60;
                 const span = radiusNM * 2 * degreesPerNM;
                 const step = span / gridSize;
 
                 // Offset center forward in direction of heading - more terrain ahead
                 const headingRad = state.heading * Math.PI / 180;
-                const forwardOffsetNM = 20; // Forward offset (~45nm visible ahead)
+                const forwardOffsetNM = 30; // Forward offset (~80nm visible ahead, 20nm behind)
                 const forwardOffsetDeg = forwardOffsetNM * degreesPerNM;
                 const offsetLat = lat + Math.cos(headingRad) * forwardOffsetDeg;
                 const offsetLon = lon + Math.sin(headingRad) * forwardOffsetDeg / Math.cos(lat * Math.PI / 180);
@@ -4121,7 +4414,7 @@
             const aircraftAltMeters = state.altitude * ftToMeters;
 
             // Calculate forward offset in meters (terrain is generated ahead)
-            const forwardOffsetMeters = 20 * 1852; // 20nm in meters (matches terrain forward offset)
+            const forwardOffsetMeters = 30 * 1852; // 30nm in meters (matches terrain forward offset)
 
             // Get reference ground elevation at ACTUAL aircraft position
             // Grid center is forwardOffsetNM AHEAD of the aircraft.
@@ -4193,8 +4486,9 @@
                     const rawZ = -gridZ * denseStepMeters; // North-south (negated: north = positive)
 
                     // Rotate by heading to align terrain with camera view direction
-                    const x = rawX * cosH + rawZ * sinH;
-                    const z = -rawX * sinH + rawZ * cosH - forwardOffsetMeters;
+                    // For North=+rawZ convention: x = rawX*cos - rawZ*sin, z = -(rawX*sin + rawZ*cos)
+                    const x = rawX * cosH - rawZ * sinH;
+                    const z = -rawX * sinH - rawZ * cosH - forwardOffsetMeters;
                     // Position Y relative to reference ground level, with additional lowering offset
                     // Add 75m vertical offset to float point cloud above terrain mesh for TAWS visibility
                     const pointCloudOffset = 10; // meters above terrain surface (just enough to float above mesh)
@@ -4526,8 +4820,9 @@
                     const origY = positions[vertexIdx + 1]; // -spanMeters/2 to +spanMeters/2
 
                     // Rotate by heading
-                    const rotX = origX * cosH + origY * sinH;
-                    const rotZ = -origX * sinH + origY * cosH - forwardOffsetMeters;
+                    // For North=+origY convention: x = origX*cos - origY*sin, z = -(origX*sin + origY*cos)
+                    const rotX = origX * cosH - origY * sinH;
+                    const rotZ = -origX * sinH - origY * cosH - forwardOffsetMeters;
 
                     // Set position (XYZ where Y is up)
                     positions[vertexIdx] = rotX;
@@ -5808,7 +6103,7 @@
             }
 
             const ftToMeters = 0.3048;
-            const forwardOffset = 18 * 1852; // Match terrain offset
+            const forwardOffset = 30 * 1852; // Match terrain offset
 
             // Use position-based seed for consistent cloud placement
             const baseSeed = Math.floor(state.position.lat * 1000 + state.position.lon * 100);
@@ -7551,14 +7846,16 @@
             // Minimize controls panel
             document.getElementById('svsControls').classList.add('minimized');
 
-            // Auto-enable overlays for flight (except traffic/ADS-B to reduce external fetching)
+            // Auto-enable overlays for flight - minimal overlays for performance
             state.overlays.terrain = true;
             state.overlays.traffic = false;  // Disabled - ADS-B fetching not needed
-            state.overlays.weather = false;  // Disabled for now
-            state.overlays.airspace = true;
-            state.overlays.towers = false;
+            state.overlays.weather = false;  // Disabled for performance
+            state.overlays.airspace = false; // Disabled for performance
+            state.overlays.towers = false;   // Disabled for performance
             state.overlays.tfr = false;
             state.overlays.visibility = false;
+            state.overlays.clouds = false;   // Disabled for performance
+            state.overlays.buildings = false; // Disabled for performance
 
             // Update button states to match enabled overlays
             document.querySelectorAll('.overlay-btn').forEach(btn => {
@@ -8320,7 +8617,7 @@
                 headingChangedSignificantly = headingDiff > 25; // Regenerate if turned more than 25°
             }
 
-            if (totalOffset > 15000 || headingChangedSignificantly) { // Reset after ~15km OR significant heading change
+            if (totalOffset > 40000 || headingChangedSignificantly) { // Reset after ~40km (~21nm) OR significant heading change
                 if (headingChangedSignificantly) {
                     console.log(`Terrain reload: heading changed from ${state.terrainHeading?.toFixed(0)}° to ${state.heading.toFixed(0)}°`);
                 }
@@ -8400,5 +8697,32 @@
             }
         });
     </script>
+
+    <!-- Numpad Overlay -->
+    <div id="numpadOverlay" class="numpad-overlay" style="display: none;">
+        <div class="numpad-backdrop" onclick="hideNumpad()"></div>
+        <div class="numpad-container">
+            <div class="numpad-header">
+                <div class="numpad-display">
+                    <span class="numpad-value" id="numpadValue"></span>
+                    <span class="numpad-unit" id="numpadUnit">ft</span>
+                </div>
+                <button class="numpad-btn numpad-ok" onclick="numpadOk()">OK</button>
+            </div>
+            <div class="numpad-grid">
+                <button class="numpad-btn" onclick="numpadInput('1')">1</button>
+                <button class="numpad-btn" onclick="numpadInput('2')">2</button>
+                <button class="numpad-btn" onclick="numpadInput('3')">3</button>
+                <button class="numpad-btn" onclick="numpadInput('4')">4</button>
+                <button class="numpad-btn" onclick="numpadInput('5')">5</button>
+                <button class="numpad-btn" onclick="numpadInput('6')">6</button>
+                <button class="numpad-btn" onclick="numpadInput('7')">7</button>
+                <button class="numpad-btn" onclick="numpadInput('8')">8</button>
+                <button class="numpad-btn" onclick="numpadInput('9')">9</button>
+                <button class="numpad-btn numpad-zero" onclick="numpadInput('0')">0</button>
+                <button class="numpad-btn numpad-del" onclick="numpadDelete()">DEL</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

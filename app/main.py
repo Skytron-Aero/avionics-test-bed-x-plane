@@ -23,7 +23,7 @@ from enum import Enum
 # X-Plane 12 UDP Bridge
 from .xplane_bridge import XPlaneUDPListener, XPlaneFlightData, XPlaneCommandSender
 from .xplane_config import xplane_settings
-from .flight_manager import FlightManager, FlightPhase, TakeoffState
+from .flight_manager import FlightManager, FlightPhase, TakeoffState, AutoTuner
 
 
 # ==================== DATA SOURCE CONFIGURATION ====================
@@ -55,6 +55,8 @@ xplane_listener: Optional[XPlaneUDPListener] = None
 xplane_commander: Optional[XPlaneCommandSender] = None
 xplane_clients: Set[WebSocket] = set()
 flight_manager: Optional[FlightManager] = None
+auto_tuner: Optional[AutoTuner] = None
+tuning_task: Optional[asyncio.Task] = None
 
 
 # ==================== COMPLIANCE & QUALITY FEATURES ====================
@@ -1428,7 +1430,7 @@ async def broadcast_xplane_data(data: XPlaneFlightData):
     message = data.to_dict()
     disconnected = set()
 
-    for client in xplane_clients:
+    for client in list(xplane_clients):
         try:
             await client.send_json(message)
         except Exception:
@@ -5248,6 +5250,74 @@ async def xplane_websocket(websocket: WebSocket):
                         await websocket.send_json({
                             "type": "automation_status",
                             **status
+                        })
+
+                elif message.get("type") == "start_auto_tuning":
+                    # Start autonomous tuning session
+                    global auto_tuner, tuning_task
+                    if flight_manager:
+                        # Create tuner if needed
+                        if auto_tuner is None:
+                            auto_tuner = AutoTuner(flight_manager)
+
+                        # Configure runway from current position or message
+                        runway_lat = message.get("runway_lat")
+                        runway_lon = message.get("runway_lon")
+                        runway_heading = message.get("runway_heading")
+                        runway_elevation = message.get("runway_elevation", 0)
+
+                        # If no runway specified, use current aircraft position
+                        if runway_lat is None and xplane_listener and xplane_listener.flight_data:
+                            runway_lat = xplane_listener.flight_data.lat
+                            runway_lon = xplane_listener.flight_data.lon
+                            runway_heading = xplane_listener.flight_data.heading_mag
+                            runway_elevation = xplane_listener.flight_data.alt_msl
+
+                        if runway_lat and runway_lon and runway_heading:
+                            auto_tuner.set_runway(runway_lat, runway_lon, runway_heading, runway_elevation)
+
+                        # Get tuning parameters
+                        num_flights = message.get("num_flights", 500)
+                        duration_hours = message.get("duration_hours", 5.0)
+
+                        # Start tuning in background task
+                        if tuning_task and not tuning_task.done():
+                            tuning_task.cancel()
+
+                        tuning_task = asyncio.create_task(
+                            auto_tuner.run_tuning_session(num_flights, duration_hours)
+                        )
+
+                        await websocket.send_json({
+                            "type": "auto_tuning_started",
+                            "num_flights": num_flights,
+                            "duration_hours": duration_hours,
+                            "runway_lat": runway_lat,
+                            "runway_lon": runway_lon,
+                            "runway_heading": runway_heading
+                        })
+
+                elif message.get("type") == "stop_auto_tuning":
+                    # Stop tuning session
+                    if auto_tuner:
+                        auto_tuner.stop()
+                        await websocket.send_json({
+                            "type": "auto_tuning_stopped"
+                        })
+
+                elif message.get("type") == "get_tuning_status":
+                    # Get tuning status
+                    if auto_tuner:
+                        status = auto_tuner.get_status()
+                        await websocket.send_json({
+                            "type": "tuning_status",
+                            **status
+                        })
+                    else:
+                        await websocket.send_json({
+                            "type": "tuning_status",
+                            "running": False,
+                            "message": "Auto-tuner not initialized"
                         })
 
             except asyncio.TimeoutError:
