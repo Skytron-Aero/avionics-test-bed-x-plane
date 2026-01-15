@@ -5017,6 +5017,33 @@ async def xplane_websocket(websocket: WebSocket):
                             "success": success,
                             "value": altitude
                         })
+                        print(f"[PFD] Altitude bug set: {altitude} ft")
+
+                elif message.get("type") == "set_speed":
+                    # Set autopilot speed bug
+                    speed = message.get("speed", 0)
+                    if xplane_commander:
+                        success = xplane_commander.set_speed_bug(speed)
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "set_speed",
+                            "success": success,
+                            "value": speed
+                        })
+                        print(f"[PFD] Speed bug set: {speed} kts")
+
+                elif message.get("type") == "set_heading":
+                    # Set autopilot heading bug (without override behavior)
+                    heading = message.get("heading", 0)
+                    if xplane_commander:
+                        success = xplane_commander.set_heading_bug(heading)
+                        await websocket.send_json({
+                            "type": "command_result",
+                            "command": "set_heading",
+                            "success": success,
+                            "value": heading
+                        })
+                        print(f"[PFD] Heading bug set: {heading}°")
 
                 elif message.get("type") == "engage_heading":
                     # Engage heading hold mode

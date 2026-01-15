@@ -629,6 +629,20 @@
             right: 100px;
         }
 
+        .numpad-container.position-center {
+            top: 35%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .numpad-title {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
         .numpad-header {
             display: flex;
             align-items: center;
@@ -3179,10 +3193,11 @@
         // ==================== NUMPAD FUNCTIONS ====================
         let numpadState = {
             active: false,
-            mode: null,  // 'altitude' or 'speed'
+            mode: null,  // 'altitude', 'speed', or 'heading'
             value: '',
             targetAltitude: null,
-            targetSpeed: null
+            targetSpeed: null,
+            targetHeading: null
         };
 
         function showNumpad(mode) {
@@ -3194,10 +3209,12 @@
             const container = overlay.querySelector('.numpad-container');
             const unit = document.getElementById('numpadUnit');
             const valueDisplay = document.getElementById('numpadValue');
+            const title = document.getElementById('numpadTitle');
 
             // Position numpad based on mode
-            container.classList.remove('position-left', 'position-right');
+            container.classList.remove('position-left', 'position-right', 'position-center');
             if (mode === 'altitude') {
+                if (title) title.textContent = 'ALTITUDE BUG';
                 unit.textContent = 'ft';
                 container.classList.add('position-right');
                 // Pre-fill with current target
@@ -3205,11 +3222,22 @@
                     numpadState.value = String(numpadState.targetAltitude);
                 }
             } else if (mode === 'speed') {
+                if (title) title.textContent = 'SPEED BUG';
                 unit.textContent = 'kts';
                 container.classList.add('position-left');
                 // Pre-fill with current target
                 if (numpadState.targetSpeed !== null) {
                     numpadState.value = String(numpadState.targetSpeed);
+                }
+            } else if (mode === 'heading') {
+                if (title) title.textContent = 'HEADING BUG';
+                unit.textContent = '°';
+                container.classList.add('position-center');
+                // Pre-fill with current target or current heading
+                if (numpadState.targetHeading !== null) {
+                    numpadState.value = String(numpadState.targetHeading);
+                } else if (autopilotState.targetHeading !== null) {
+                    numpadState.value = String(Math.round(autopilotState.targetHeading));
                 }
             }
 
@@ -3241,10 +3269,10 @@
         function numpadOk() {
             let value = parseFloat(numpadState.value);
 
-            if (!isNaN(value) && value > 0) {
+            if (!isNaN(value) && value >= 0) {
                 if (numpadState.mode === 'altitude') {
-                    // Cap altitude at 12,500 ft
-                    value = Math.min(Math.round(value), 12500);
+                    // Cap altitude at 45,000 ft (FL450)
+                    value = Math.min(Math.round(value), 45000);
                     numpadState.targetAltitude = value;
                     document.getElementById('altitudeTargetValue').textContent = numpadState.targetAltitude.toLocaleString();
 
@@ -3253,14 +3281,42 @@
                         xplaneState.autopilotAssist.targetAltitude = numpadState.targetAltitude;
                     }
 
-                    console.log(`Target altitude set: ${numpadState.targetAltitude} ft`);
+                    // Send altitude bug to X-Plane autopilot
+                    sendAutopilotCommand('set_altitude', { altitude: value });
+                    console.log(`Altitude bug set: ${value} ft -> X-Plane`);
+
                 } else if (numpadState.mode === 'speed') {
-                    // Cap speed at 200 kts
-                    value = Math.min(Math.round(value), 200);
+                    // Cap speed at 350 kts
+                    value = Math.min(Math.round(value), 350);
                     numpadState.targetSpeed = value;
                     document.getElementById('speedTargetValue').textContent = numpadState.targetSpeed;
 
-                    console.log(`Target speed set: ${numpadState.targetSpeed} kts`);
+                    // Send speed bug to X-Plane autopilot
+                    sendAutopilotCommand('set_speed', { speed: value });
+                    console.log(`Speed bug set: ${value} kts -> X-Plane`);
+
+                } else if (numpadState.mode === 'heading') {
+                    // Normalize heading to 0-360 (treat 0 as 360)
+                    value = Math.round(value) % 360;
+                    if (value === 0) value = 360;
+                    numpadState.targetHeading = value;
+
+                    // Update autopilot state
+                    autopilotState.targetHeading = value;
+                    autopilotState.manualHeadingOverride = true;
+                    autopilotState.overrideTargetHeading = value;
+                    state.targetHeading = value;
+
+                    // Update heading bug visual
+                    updateHeadingBug();
+
+                    // Send heading bug to X-Plane autopilot
+                    sendAutopilotCommand('set_heading', { heading: value });
+                    sendAutopilotCommand('set_heading_override', {
+                        heading: value,
+                        override: true
+                    });
+                    console.log(`Heading bug set: ${value}° -> X-Plane`);
                 }
             }
 
@@ -7132,51 +7188,72 @@
         }
 
         // Compass click handler - set heading bug where user clicks
+        // Single click: set heading directly based on click position
+        // Double click: open numpad for precise heading entry
+        let compassClickTimeout = null;
+
         function initCompassClickHandler() {
             const compass = document.getElementById('compassContainer');
             if (!compass) return;
 
             compass.addEventListener('click', function(e) {
-                // Get compass center
-                const rect = compass.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
-
-                // Calculate angle from center to click point
-                const dx = e.clientX - centerX;
-                const dy = e.clientY - centerY;
-
-                // Calculate angle in degrees (0 at top, clockwise positive)
-                // atan2 gives angle from positive x-axis, so we adjust
-                let angle = Math.atan2(dx, -dy) * (180 / Math.PI);
-
-                // Convert to 0-360 range
-                if (angle < 0) angle += 360;
-
-                // This gives us the angle relative to screen top
-                // Add current heading to get absolute heading
-                let targetHeading = (angle + state.heading) % 360;
-                targetHeading = Math.round(targetHeading);
-
-                // Set manual heading override - flight manager will respect this
-                autopilotState.manualHeadingOverride = true;
-                autopilotState.overrideTargetHeading = targetHeading;
-                autopilotState.targetHeading = targetHeading;
-                state.targetHeading = targetHeading;
-
-                // Update the heading bug visual
-                updateHeadingBug();
-
-                // Send heading override command to backend
-                // This tells flight_manager to hold this heading until captured
-                sendAutopilotCommand('set_heading_override', {
-                    heading: targetHeading,
-                    override: true
-                });
-
-                // Visual feedback
-                console.log(`Manual heading override: ${targetHeading}° (will resume route after capture)`);
+                if (compassClickTimeout) {
+                    // Double-click detected - show numpad for precise heading entry
+                    clearTimeout(compassClickTimeout);
+                    compassClickTimeout = null;
+                    showNumpad('heading');
+                } else {
+                    // Single click - wait to see if it's a double-click
+                    compassClickTimeout = setTimeout(() => {
+                        compassClickTimeout = null;
+                        // Process single click - direct heading from click position
+                        handleDirectHeadingClick(e, compass);
+                    }, 250);
+                }
             });
+        }
+
+        function handleDirectHeadingClick(e, compass) {
+            // Get compass center
+            const rect = compass.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            // Calculate angle from center to click point
+            const dx = e.clientX - centerX;
+            const dy = e.clientY - centerY;
+
+            // Calculate angle in degrees (0 at top, clockwise positive)
+            // atan2 gives angle from positive x-axis, so we adjust
+            let angle = Math.atan2(dx, -dy) * (180 / Math.PI);
+
+            // Convert to 0-360 range
+            if (angle < 0) angle += 360;
+
+            // This gives us the angle relative to screen top
+            // Add current heading to get absolute heading
+            let targetHeading = (angle + state.heading) % 360;
+            targetHeading = Math.round(targetHeading);
+
+            // Set manual heading override - flight manager will respect this
+            autopilotState.manualHeadingOverride = true;
+            autopilotState.overrideTargetHeading = targetHeading;
+            autopilotState.targetHeading = targetHeading;
+            state.targetHeading = targetHeading;
+            numpadState.targetHeading = targetHeading;
+
+            // Update the heading bug visual
+            updateHeadingBug();
+
+            // Send heading override command to backend
+            // This tells flight_manager to hold this heading until captured
+            sendAutopilotCommand('set_heading_override', {
+                heading: targetHeading,
+                override: true
+            });
+
+            // Visual feedback
+            console.log(`Manual heading override: ${targetHeading}° (will resume route after capture)`);
         }
 
         // Send autopilot command via WebSocket
@@ -8703,9 +8780,12 @@
         <div class="numpad-backdrop" onclick="hideNumpad()"></div>
         <div class="numpad-container">
             <div class="numpad-header">
-                <div class="numpad-display">
-                    <span class="numpad-value" id="numpadValue"></span>
-                    <span class="numpad-unit" id="numpadUnit">ft</span>
+                <div class="numpad-info">
+                    <span class="numpad-title" id="numpadTitle">ALTITUDE BUG</span>
+                    <div class="numpad-display">
+                        <span class="numpad-value" id="numpadValue"></span>
+                        <span class="numpad-unit" id="numpadUnit">ft</span>
+                    </div>
                 </div>
                 <button class="numpad-btn numpad-ok" onclick="numpadOk()">OK</button>
             </div>

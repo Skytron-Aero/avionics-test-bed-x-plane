@@ -4205,7 +4205,6 @@
         }
 
         .overlay-btn.active {
-            background: linear-gradient(180deg, #1a1a1a 0%, #141414 100%);
             border: none;
             color: var(--accent);
             box-shadow:
@@ -4812,27 +4811,27 @@
 
         /* Light mode overlay buttons - must come after default dark styles */
         .light-mode .overlay-btn {
-            background: #f5f5f5 !important;
-            color: #374151 !important;
-            border: 1px solid #e5e7eb !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+            background: #f5f5f5;
+            color: #374151;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
         .light-mode .overlay-btn:hover {
-            background: #e5e7eb !important;
-            color: #111827 !important;
+            background: #e5e7eb;
+            color: #111827;
         }
 
         .light-mode .overlay-btn svg {
-            stroke: #374151 !important;
+            stroke: #374151;
         }
 
         .light-mode .overlay-btn:hover svg {
-            stroke: #111827 !important;
+            stroke: #111827;
         }
 
         .light-mode .overlay-btn.active svg {
-            stroke: currentColor !important;
+            stroke: currentColor;
         }
 
         .light-mode .overlay-toolbar {
@@ -7804,6 +7803,11 @@
                     handleAutomationStatus(data);
                     return;
                 }
+                if (data.type === 'flight_plan_verified') {
+                    // Handle verified flight plan from backend for route sync debugging
+                    handleFlightPlanVerified(data);
+                    return;
+                }
                 if (data.lat !== undefined) {
                     handleXPlaneData(data);
                 }
@@ -7877,7 +7881,142 @@
 
             // Check if ready for next test flight
             checkTestFlightReady();
+
+            // Record actual track for route sync debugging
+            recordActualTrack(data.lat, data.lon);
         }
+
+        // === ROUTE SYNCHRONIZATION DEBUG FEATURES ===
+        // These help diagnose mismatches between MFD route and actual flight path
+
+        // Debug route layer - shows backend's loaded waypoints (magenta dashed)
+        let debugRouteLayer = null;
+        // Actual track layer - shows where aircraft actually flew (green)
+        let actualTrackLayer = null;
+        let actualTrackPoints = [];
+        const MAX_TRACK_POINTS = 2000;
+        // Track recording state
+        let trackRecordingEnabled = true;
+
+        function handleFlightPlanVerified(data) {
+            console.log('[DEBUG] Backend loaded waypoints:', data.waypoints);
+
+            // Compare with MFD displayed route
+            const mfdWaypoints = getRouteWaypoints();
+            console.log('[DEBUG] MFD displayed waypoints:', mfdWaypoints.map(wp => ({
+                name: wp.name,
+                lat: wp.lat?.toFixed(4),
+                lon: wp.lon?.toFixed(4)
+            })));
+
+            // Draw debug route
+            if (data.waypoints && data.waypoints.length > 0) {
+                drawDebugRoute(data.waypoints);
+
+                // Log any coordinate mismatches
+                const backendWps = data.waypoints;
+                for (let i = 0; i < Math.min(backendWps.length, mfdWaypoints.length); i++) {
+                    const backend = backendWps[i];
+                    const mfd = mfdWaypoints[i];
+                    const latDiff = Math.abs(backend.lat - mfd.lat);
+                    const lonDiff = Math.abs(backend.lon - mfd.lon);
+                    if (latDiff > 0.001 || lonDiff > 0.001) {
+                        console.warn(`[ROUTE MISMATCH] WP ${i} "${backend.name}": ` +
+                            `Backend (${backend.lat.toFixed(4)}, ${backend.lon.toFixed(4)}) vs ` +
+                            `MFD (${mfd.lat.toFixed(4)}, ${mfd.lon.toFixed(4)})`);
+                    }
+                }
+            }
+        }
+
+        function drawDebugRoute(waypoints) {
+            // Remove existing debug route
+            if (debugRouteLayer) {
+                map.removeLayer(debugRouteLayer);
+                debugRouteLayer = null;
+            }
+
+            if (!waypoints || waypoints.length < 2) return;
+
+            // Create array of lat/lons
+            const latLngs = waypoints.map(wp => [wp.lat, wp.lon]);
+
+            // Draw magenta dashed line for backend route
+            debugRouteLayer = L.polyline(latLngs, {
+                color: '#ff00ff',
+                weight: 3,
+                dashArray: '10, 10',
+                opacity: 0.7
+            }).addTo(map);
+
+            // Add markers at each waypoint with backend data
+            waypoints.forEach((wp, i) => {
+                L.circleMarker([wp.lat, wp.lon], {
+                    radius: 4,
+                    color: '#ff00ff',
+                    fillColor: '#ff00ff',
+                    fillOpacity: 0.8,
+                    weight: 2
+                }).bindTooltip(`Backend WP ${i}: ${wp.name}`, {
+                    permanent: false,
+                    direction: 'top'
+                }).addTo(map);
+            });
+
+            console.log(`[DEBUG] Drew backend route with ${waypoints.length} waypoints`);
+        }
+
+        function recordActualTrack(lat, lon) {
+            if (!trackRecordingEnabled) return;
+            if (lat === undefined || lon === undefined) return;
+            if (lat === 0 && lon === 0) return;  // Skip invalid positions
+
+            // Only record if position changed significantly (> ~50m)
+            const lastPoint = actualTrackPoints[actualTrackPoints.length - 1];
+            if (lastPoint) {
+                const dlat = Math.abs(lat - lastPoint[0]);
+                const dlon = Math.abs(lon - lastPoint[1]);
+                if (dlat < 0.0005 && dlon < 0.0005) return;  // Skip if barely moved
+            }
+
+            actualTrackPoints.push([lat, lon]);
+
+            // Limit track length
+            if (actualTrackPoints.length > MAX_TRACK_POINTS) {
+                actualTrackPoints.shift();
+            }
+
+            updateActualTrackLine();
+        }
+
+        function updateActualTrackLine() {
+            if (!actualTrackLayer) {
+                actualTrackLayer = L.polyline([], {
+                    color: '#00ff00',
+                    weight: 2,
+                    opacity: 0.6
+                }).addTo(map);
+            }
+            actualTrackLayer.setLatLngs(actualTrackPoints);
+        }
+
+        function clearActualTrack() {
+            actualTrackPoints = [];
+            if (actualTrackLayer) {
+                actualTrackLayer.setLatLngs([]);
+            }
+            console.log('[DEBUG] Actual track cleared');
+        }
+
+        function clearDebugRoute() {
+            if (debugRouteLayer) {
+                map.removeLayer(debugRouteLayer);
+                debugRouteLayer = null;
+            }
+            console.log('[DEBUG] Debug route cleared');
+        }
+
+        // === END ROUTE SYNC DEBUG FEATURES ===
 
         function initXPlaneMapMarker() {
             const icon = L.divIcon({
