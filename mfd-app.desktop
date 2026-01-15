@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Avionics MFD
+Comment=Multi-Function Display - Live Map
+Exec=/home/skytron-pc/Documents/avionics-test-bed-x-plane/mfd_viewer.sh
+Icon=applications-science
+Terminal=false
+Type=Application
+Categories=Utility;
+StartupWMClass=Firefox

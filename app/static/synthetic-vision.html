@@ -3236,7 +3236,7 @@
                 // Pre-fill with current target or current heading
                 if (numpadState.targetHeading !== null) {
                     numpadState.value = String(numpadState.targetHeading);
-                } else if (autopilotState.targetHeading !== null) {
+                } else if (typeof autopilotState !== 'undefined' && autopilotState.targetHeading !== null) {
                     numpadState.value = String(Math.round(autopilotState.targetHeading));
                 }
             }
