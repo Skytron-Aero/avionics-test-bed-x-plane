@@ -1443,11 +1443,10 @@ async def broadcast_xplane_data(data: XPlaneFlightData):
 def xplane_data_callback(data: XPlaneFlightData):
     """Callback for X-Plane UDP listener - schedules async broadcast"""
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.create_task(broadcast_xplane_data(data))
+        loop = asyncio.get_running_loop()
+        loop.create_task(broadcast_xplane_data(data))
     except RuntimeError:
-        pass  # No event loop available
+        pass  # No event loop running
 
 
 @asynccontextmanager
@@ -5176,8 +5175,17 @@ async def xplane_websocket(websocket: WebSocket):
 
                         print(f"[FLIGHT PLAN] Loading route: {departure} -> {destination}")
                         print(f"[FLIGHT PLAN] {len(waypoints)} waypoints, cruise FL{cruise_alt//100}")
+                        print(f"[FLIGHT PLAN] Raw MFD data: departure_runway={departure_runway}, departure_heading={departure_heading}")
                         for i, wp in enumerate(waypoints):
-                            print(f"  {i+1}. {wp.get('name', 'WPT')} @ {wp.get('altitude_ft', cruise_alt)}ft")
+                            is_last = (i == len(waypoints) - 1)
+                            wp_type = wp.get('type', 'enroute')
+                            wp_alt = wp.get('altitude_ft') or wp.get('altitude') or cruise_alt
+                            # Show corrected altitude for destination waypoints
+                            if (is_last or wp_type == 'destination') and wp_alt >= cruise_alt:
+                                wp_alt = 2000  # Pattern altitude
+                            wp_lat = wp.get('lat', 0)
+                            wp_lon = wp.get('lon', 0)
+                            print(f"  {i+1}. {wp.get('name', 'WPT')} @ {wp_alt}ft ({wp_lat:.4f}, {wp_lon:.4f}) type={wp_type}")
 
                         flight_manager.set_flight_plan(
                             waypoints=waypoints,
@@ -5203,6 +5211,26 @@ async def xplane_websocket(websocket: WebSocket):
                             "departure": departure,
                             "destination": destination
                         })
+
+                        # Send verified waypoints back to MFD for route synchronization debugging
+                        # This allows MFD to compare displayed route with backend's actual route
+                        if flight_manager.flight_plan and flight_manager.flight_plan.waypoints:
+                            verified_waypoints = [
+                                {
+                                    "name": wp.name,
+                                    "lat": wp.lat,
+                                    "lon": wp.lon,
+                                    "altitude_ft": wp.altitude_ft,
+                                    "type": wp.waypoint_type
+                                }
+                                for wp in flight_manager.flight_plan.waypoints
+                            ]
+                            await websocket.send_json({
+                                "type": "flight_plan_verified",
+                                "waypoints": verified_waypoints,
+                                "current_index": 0
+                            })
+                            print(f"[FLIGHT PLAN] Sent verified route with {len(verified_waypoints)} waypoints to MFD")
 
                 elif message.get("type") == "position_aircraft":
                     # Reposition aircraft to departure airport

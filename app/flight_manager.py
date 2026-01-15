@@ -160,6 +160,10 @@ class NavigationConfig:
     max_intercept_angle_deg: float = 45.0  # Max angle to intercept track
     xte_gain: float = 30.0  # Degrees of intercept per nm of XTE (capped by max_intercept_angle)
     track_capture_nm: float = 0.1  # Consider on-track when XTE < this value
+    # Turn anticipation parameters
+    turn_anticipation_bank_deg: float = 20.0  # Bank angle for turn anticipation calculation
+    min_lead_distance_nm: float = 0.5  # Minimum lead distance for turn initiation
+    max_lead_distance_nm: float = 5.0  # Maximum lead distance for turn initiation
 
 
 class NavigationCalculator:
@@ -403,6 +407,71 @@ class FlightManager:
 
         return intercept_heading, track_bearing, xte
 
+    def calculate_turn_anticipation_distance(
+        self,
+        groundspeed_kts: float,
+        current_leg_bearing: float,
+        next_leg_bearing: float,
+        bank_angle_deg: Optional[float] = None
+    ) -> Tuple[float, float]:
+        """
+        Calculate the turn initiation distance based on groundspeed and turn angle.
+
+        This determines how far before a waypoint the aircraft should begin turning
+        to smoothly intercept the next leg without overshooting.
+
+        Args:
+            groundspeed_kts: Aircraft groundspeed in knots
+            current_leg_bearing: Bearing of current leg (prev_wp to current_wp)
+            next_leg_bearing: Bearing of next leg (current_wp to next_wp)
+            bank_angle_deg: Desired bank angle for turn (default from nav_config)
+
+        Returns:
+            Tuple of (lead_distance_nm, turn_radius_nm)
+        """
+        if bank_angle_deg is None:
+            bank_angle_deg = self.nav_config.turn_anticipation_bank_deg
+
+        # Ensure minimum groundspeed for calculation
+        groundspeed_kts = max(60, groundspeed_kts)
+
+        # Convert groundspeed to ft/sec
+        v_fps = groundspeed_kts * 1.687809857
+
+        # Convert bank angle to radians
+        bank_rad = math.radians(bank_angle_deg)
+
+        # Gravitational acceleration (ft/s²)
+        g = 32.174
+
+        # Calculate turn radius in feet
+        # R = V² / (g × tan(bank))
+        # Protect against very small bank angles
+        if abs(math.tan(bank_rad)) < 0.1:
+            turn_radius_ft = (v_fps ** 2) / (g * 0.1)
+        else:
+            turn_radius_ft = (v_fps ** 2) / (g * math.tan(bank_rad))
+
+        # Convert to nautical miles
+        turn_radius_nm = turn_radius_ft / 6076.12
+
+        # Calculate turn angle (heading change required)
+        turn_angle = self.nav_calculator.heading_difference(current_leg_bearing, next_leg_bearing)
+        turn_angle_rad = math.radians(abs(turn_angle))
+
+        # Lead distance = R × tan(θ/2)
+        # This is the distance before the waypoint where turn should begin
+        if turn_angle_rad > 0.01:  # At least ~0.6 degrees
+            lead_distance_nm = turn_radius_nm * math.tan(turn_angle_rad / 2)
+        else:
+            lead_distance_nm = 0.0
+
+        # Clamp lead distance to configured limits
+        lead_distance_nm = max(self.nav_config.min_lead_distance_nm,
+                               min(self.nav_config.max_lead_distance_nm, lead_distance_nm))
+
+        return lead_distance_nm, turn_radius_nm
+
     def set_flight_plan(
         self,
         waypoints: List[dict],
@@ -424,15 +493,31 @@ class FlightManager:
             departure_heading: Runway heading in degrees
         """
         wp_list = []
-        for wp in waypoints:
+        for i, wp in enumerate(waypoints):
+            wp_type = wp.get('type', 'enroute')
+            is_last_waypoint = (i == len(waypoints) - 1)
+
             # Accept both 'altitude_ft' and 'altitude' for compatibility
-            alt = wp.get('altitude_ft', wp.get('altitude', cruise_altitude))
+            raw_alt = wp.get('altitude_ft') or wp.get('altitude')
+
+            # For destination waypoints, use pattern altitude (1000ft MSL) for VNAV descent planning
+            # This ensures the aircraft descends from cruise to a reasonable approach altitude
+            if is_last_waypoint or wp_type == 'destination':
+                # Use 1000ft MSL as default pattern altitude for sea-level airports
+                # Most GA airports are near sea level, 1000ft gives good pattern altitude
+                alt = 1000  # Pattern altitude for approach
+                logger.info(f"  Setting destination {wp.get('name', 'WPT')} to pattern altitude: {alt}ft MSL")
+            elif raw_alt and raw_alt > 0:
+                alt = raw_alt
+            else:
+                alt = cruise_altitude
+
             wp_list.append(Waypoint(
                 name=wp.get('name', 'WPT'),
                 lat=wp.get('lat', 0),
                 lon=wp.get('lon', 0),
                 altitude_ft=alt,
-                waypoint_type=wp.get('type', 'enroute')
+                waypoint_type=wp_type
             ))
 
         self.flight_plan = FlightPlan(
@@ -519,14 +604,18 @@ class FlightManager:
         try:
             print(f"=== TAKEOFF SEQUENCE STARTED ===")
 
-            # Get the ACTUAL aircraft heading and position - this defines the runway centerline
+            # Get the aircraft position for centerline reference
             flight_data = self.get_flight_data()
-            if flight_data and flight_data.heading_mag > 0:
-                actual_heading = flight_data.heading_mag
-                print(f"Using ACTUAL aircraft heading as runway heading: {actual_heading:.0f}°")
-                runway_heading = actual_heading
+
+            # Use provided runway heading if valid (from runway data), otherwise use aircraft heading
+            if runway_heading > 0:
+                print(f"Using runway heading from runway data: {runway_heading:.0f}°")
+            elif flight_data and flight_data.heading_mag > 0:
+                runway_heading = flight_data.heading_mag
+                print(f"No runway data - using current aircraft heading: {runway_heading:.0f}°")
             else:
-                print(f"Using provided runway heading: {runway_heading}°")
+                runway_heading = 0
+                print(f"WARNING: No valid heading available, defaulting to 0°")
 
             # Capture initial position as runway centerline reference
             initial_lat = flight_data.lat if flight_data else 0
@@ -841,6 +930,16 @@ class FlightManager:
             if self.flight_plan:
                 self.flight_plan.phase = FlightPhase.CRUISE
 
+                # Skip the departure waypoint if it's the first waypoint
+                # (we just took off from there, no need to navigate back)
+                first_wp = self.flight_plan.get_current_waypoint()
+                if first_wp and first_wp.waypoint_type == 'departure':
+                    print(f"  [NAV] Skipping departure waypoint: {first_wp.name}")
+                    self.flight_plan.advance_waypoint()
+                    next_wp = self.flight_plan.get_current_waypoint()
+                    if next_wp:
+                        print(f"  [NAV] Navigating directly to: {next_wp.name}")
+
             # Set cruise altitude bug for reference
             cruise_alt = self.flight_plan.cruise_altitude_ft if self.flight_plan else 8000
             self.commander.set_altitude_bug(cruise_alt)
@@ -913,6 +1012,13 @@ class FlightManager:
 
         current_waypoint_name = "DIRECT"
         first_nav_update = True
+        distance = 0.0  # Distance to waypoint (set in nav update)
+        xte = 0.0  # Cross-track error (set in nav update)
+
+        # Smoothed control variables for gentle cabin motion
+        smoothed_target_vs = 0.0  # Gradually approaches target VS
+        smoothed_desired_bank = 0.0  # Gradually approaches desired bank
+        last_elevator = 0.0  # For rate limiting elevator changes
 
         while self.active:
             try:
@@ -1009,23 +1115,25 @@ class FlightManager:
                             # VNAV logic: determine target altitude based on profile
                             if altitude_diff < -500:  # Need to descend more than 500ft
                                 # Calculate descent profile - 3 degree glidepath = ~318 ft/nm
-                                # Or use 500-1000 fpm descent depending on distance
-
-                                # How far out should we start descent? (3° path = 318 ft/nm)
+                                # How far out should we start descent?
                                 descent_start_distance = abs(altitude_diff) / 318.0  # nm
 
-                                if distance <= descent_start_distance * 1.2:  # Within 120% of required distance
+                                # Log VNAV status periodically
+                                if int(distance * 10) % 10 == 0:  # Every ~1nm
+                                    print(f"  [VNAV] Distance: {distance:.1f}nm, Descent starts: {descent_start_distance:.1f}nm, Alt diff: {altitude_diff:.0f}ft")
+
+                                if distance <= descent_start_distance * 1.5:  # Within 150% of required distance (earlier start)
                                     # Start/continue descent
-                                    # Target a comfortable descent rate (500-1500 fpm)
-                                    target_vs_vnav = max(-1500, min(-500, required_vs * 1.1))
+                                    # Use more aggressive descent rate (up to 2000 fpm) if needed
+                                    target_vs_vnav = max(-2000, min(-500, required_vs * 1.2))
                                     target_altitude = wp_altitude  # Descend to waypoint altitude
 
                                     # Log descent initiation
                                     if abs(current_vs) < 300 and altitude_diff < -1000:
-                                        print(f"  [VNAV] Starting descent: {current_alt:.0f}ft -> {wp_altitude:.0f}ft ({distance:.1f}nm to {current_wp.name})")
+                                        print(f"  [VNAV] DESCENDING: {current_alt:.0f}ft -> {wp_altitude:.0f}ft, required VS:{required_vs:.0f}fpm ({distance:.1f}nm to {current_wp.name})")
                                 else:
-                                    # Not yet at descent point - hold current altitude
-                                    target_altitude = current_alt
+                                    # Not yet at descent point - maintain cruise altitude
+                                    target_altitude = self.flight_plan.cruise_altitude_ft if self.flight_plan else current_alt
 
                             elif altitude_diff > 500:  # Need to climb more than 500ft
                                 # Climb to waypoint altitude
@@ -1037,9 +1145,48 @@ class FlightManager:
                             # Very close to waypoint - use waypoint altitude
                             target_altitude = wp_altitude
 
-                        # Check for waypoint capture
-                        if distance < WAYPOINT_CAPTURE_NM:
-                            print(f"  [NAV] CAPTURED: {current_wp.name} (dist: {distance:.1f}nm)")
+                        # Check for waypoint capture with turn anticipation
+                        # For destination: require BOTH close distance AND aligned with course (low XTE)
+                        # This prevents triggering autoland while still far off-course
+                        is_last_waypoint = self.flight_plan.current_waypoint_index == len(self.flight_plan.waypoints) - 1
+                        xte_aligned = abs(xte) < 1.0  # Within 1.0nm of course
+
+                        # Calculate turn anticipation for intermediate waypoints
+                        lead_distance_nm = WAYPOINT_CAPTURE_NM  # Default for destination
+                        next_wp = self.flight_plan.get_next_waypoint()
+
+                        if not is_last_waypoint and next_wp and prev_wp:
+                            # Calculate next leg bearing
+                            next_leg_bearing = self.nav_calculator.calculate_bearing(
+                                current_wp.lat, current_wp.lon,
+                                next_wp.lat, next_wp.lon
+                            )
+                            # Calculate current leg bearing
+                            current_leg_bearing = self.nav_calculator.calculate_bearing(
+                                prev_wp.lat, prev_wp.lon,
+                                current_wp.lat, current_wp.lon
+                            )
+                            # Get current groundspeed
+                            gs = flight_data.groundspeed if hasattr(flight_data, 'groundspeed') and flight_data.groundspeed else 120
+
+                            # Calculate turn anticipation lead distance
+                            lead_distance_nm, turn_radius = self.calculate_turn_anticipation_distance(
+                                gs, current_leg_bearing, next_leg_bearing
+                            )
+
+                            # Calculate turn angle for logging
+                            turn_angle = abs(self.nav_calculator.heading_difference(current_leg_bearing, next_leg_bearing))
+
+                            # Log turn anticipation when approaching waypoint
+                            if distance < lead_distance_nm * 1.5 and distance > lead_distance_nm * 0.5:
+                                print(f"  [TURN] Approaching {current_wp.name}: dist={distance:.2f}nm, lead={lead_distance_nm:.2f}nm, turn={turn_angle:.0f}°, gs={gs:.0f}kts")
+
+                        # Destination capture requires alignment; intermediate waypoints use turn anticipation
+                        effective_capture_distance = WAYPOINT_CAPTURE_NM if is_last_waypoint else lead_distance_nm
+                        can_capture = distance < effective_capture_distance and (xte_aligned or not is_last_waypoint)
+
+                        if can_capture:
+                            print(f"  [NAV] CAPTURED: {current_wp.name} (dist: {distance:.1f}nm, XTE: {xte:.2f}nm)")
                             await self.broadcast_status({
                                 "type": "waypoint_captured",
                                 "waypoint": current_wp.name,
@@ -1053,12 +1200,26 @@ class FlightManager:
 
                                 # Get destination info for landing
                                 dest_wp = self.flight_plan.waypoints[-1] if self.flight_plan.waypoints else None
-                                # Use current heading as runway heading (simplified - real impl would look up runway)
-                                runway_hdg = current_hdg
-                                field_elev = dest_wp.altitude_ft if dest_wp and dest_wp.altitude_ft > 0 else 0
 
-                                # Start autoland sequence (this will take over control)
-                                await self.execute_autoland(runway_hdg, field_elev)
+                                # Calculate runway heading as bearing TO the destination
+                                # This points us toward the airport, not just our current heading
+                                if dest_wp:
+                                    runway_hdg = self.nav_calculator.calculate_bearing(
+                                        current_lat, current_lon,
+                                        dest_wp.lat, dest_wp.lon
+                                    )
+                                else:
+                                    runway_hdg = current_hdg
+
+                                # IMPORTANT: Use actual ground elevation, NOT waypoint altitude
+                                # Waypoint altitude is the descent target, not the airport elevation
+                                # For now, use 0 as most airports are near sea level - could query terrain API
+                                field_elev = 0  # TODO: Look up actual airport elevation from database
+
+                                # Start autoland sequence with destination coordinates for lateral guidance
+                                dest_lat = dest_wp.lat if dest_wp else current_lat
+                                dest_lon = dest_wp.lon if dest_wp else current_lon
+                                await self.execute_autoland(runway_hdg, field_elev, dest_lat, dest_lon)
                                 break  # Exit envelope protection loop after landing
                             else:
                                 next_wp = self.flight_plan.get_current_waypoint()
@@ -1089,9 +1250,21 @@ class FlightManager:
                     desired_bank = 0  # Command wings level when exceeding limits
                     print(f"  !! BANK LIMIT EXCEEDED: {current_roll:.1f}° - commanding wings level")
 
-                # Calculate aileron to achieve desired bank
-                bank_error = desired_bank - current_roll
-                aileron = bank_error * 0.08  # Strong gain to overcome existing bank
+                # SMOOTH TRANSITION: Gradually approach desired bank (rate limited)
+                # Max bank change rate: 1 degree per control cycle (20 deg/sec at 20Hz)
+                MAX_BANK_RATE = 1.0  # Reduced for smoother roll transitions
+                bank_diff = desired_bank - smoothed_desired_bank
+                if abs(bank_diff) > MAX_BANK_RATE:
+                    if bank_diff > 0:
+                        smoothed_desired_bank += MAX_BANK_RATE
+                    else:
+                        smoothed_desired_bank -= MAX_BANK_RATE
+                else:
+                    smoothed_desired_bank = desired_bank
+
+                # Calculate aileron to achieve smoothed desired bank
+                bank_error = smoothed_desired_bank - current_roll
+                aileron = bank_error * 0.05  # Reduced gain for smoother roll
 
                 aileron = max(-0.6, min(0.6, aileron))  # Full aileron authority when needed
                 self.commander.set_aileron(aileron)
@@ -1132,8 +1305,20 @@ class FlightManager:
                         # Small descent - gentle
                         target_vs_cmd = max(-1000, alt_error * 2)
 
-                vs_error = target_vs_cmd - current_vs
-                pitch_correction = vs_error * 0.00015  # Slightly higher gain for better response
+                # SMOOTH TRANSITION: Gradually approach target VS (rate limited)
+                # Max VS change rate: 50 fpm per control cycle (1000 fpm/sec at 20Hz)
+                MAX_VS_RATE = 50.0  # Reduced for smoother pitch transitions
+                vs_diff = target_vs_cmd - smoothed_target_vs
+                if abs(vs_diff) > MAX_VS_RATE:
+                    if vs_diff > 0:
+                        smoothed_target_vs += MAX_VS_RATE
+                    else:
+                        smoothed_target_vs -= MAX_VS_RATE
+                else:
+                    smoothed_target_vs = target_vs_cmd
+
+                vs_error = smoothed_target_vs - current_vs
+                pitch_correction = vs_error * 0.00012  # Reduced gain for smoother response
 
                 # Base elevator for level flight + stall protection
                 elevator = 0.03 + pitch_correction + stall_correction
@@ -1146,6 +1331,17 @@ class FlightManager:
 
                 # Elevator limits - allow more nose down for descent
                 elevator = max(-0.3, min(0.2, elevator))
+
+                # SMOOTH ELEVATOR: Rate limit elevator changes for gentle motion
+                MAX_ELEV_RATE = 0.01  # Max elevator change per cycle (reduced for smoother pitch)
+                elev_diff = elevator - last_elevator
+                if abs(elev_diff) > MAX_ELEV_RATE:
+                    if elev_diff > 0:
+                        elevator = last_elevator + MAX_ELEV_RATE
+                    else:
+                        elevator = last_elevator - MAX_ELEV_RATE
+                last_elevator = elevator
+
                 self.commander.set_elevator(elevator)
 
                 # === THROTTLE MANAGEMENT FOR DESCENT ===
@@ -1199,8 +1395,8 @@ class FlightManager:
 
                 # Broadcast status periodically
                 if int(elapsed) % 2 == 0:
-                    await self.broadcast_status({
-                        "type": "envelope_protection_status",
+                    nav_status = {
+                        "type": "nav_status",
                         "active": True,
                         "roll": round(current_roll, 1),
                         "pitch": round(current_pitch, 1),
@@ -1208,10 +1404,24 @@ class FlightManager:
                         "target_heading": round(target_heading),
                         "altitude": round(current_alt),
                         "target_altitude": round(target_altitude),
+                        "ias": round(current_ias),
+                        "vs": round(current_vs),
                         "waypoint": current_waypoint_name,
                         "bank_limit": BANK_LIMIT,
                         "pitch_limit": PITCH_LIMIT
-                    })
+                    }
+                    # Add flight plan details if available
+                    if self.flight_plan:
+                        current_wp = self.flight_plan.get_current_waypoint()
+                        if current_wp:
+                            nav_status["waypoint_index"] = self.flight_plan.current_waypoint_index
+                            nav_status["waypoint_lat"] = current_wp.lat
+                            nav_status["waypoint_lon"] = current_wp.lon
+                            nav_status["waypoint_alt"] = current_wp.altitude_ft
+                            nav_status["distance_nm"] = round(distance, 1)
+                            nav_status["xte_nm"] = round(xte, 2)
+                        nav_status["phase"] = self.flight_plan.phase.value if self.flight_plan.phase else "unknown"
+                    await self.broadcast_status(nav_status)
 
                 await asyncio.sleep(0.05)  # 20Hz control loop
 
@@ -1508,7 +1718,8 @@ class FlightManager:
 
         return status
 
-    async def execute_autoland(self, runway_heading: float, field_elevation: float = 0):
+    async def execute_autoland(self, runway_heading: float, field_elevation: float = 0,
+                                dest_lat: float = None, dest_lon: float = None):
         """
         Execute automated landing sequence.
 
@@ -1521,9 +1732,13 @@ class FlightManager:
         Args:
             runway_heading: Runway heading in degrees (magnetic)
             field_elevation: Airport elevation in feet MSL
+            dest_lat: Destination latitude for lateral guidance
+            dest_lon: Destination longitude for lateral guidance
         """
         print(f"\n=== AUTOLAND SEQUENCE STARTED ===")
         print(f"Runway heading: {runway_heading:.0f}°, Field elevation: {field_elevation:.0f}ft")
+        if dest_lat and dest_lon:
+            print(f"Destination: {dest_lat:.4f}, {dest_lon:.4f}")
 
         if self.flight_plan:
             self.flight_plan.phase = FlightPhase.APPROACH
@@ -1550,6 +1765,7 @@ class FlightManager:
         # Stabilization
         aligned = False
         on_glideslope = False
+        target_heading = runway_heading  # Initialize with runway heading at capture
 
         while self.active:
             try:
@@ -1568,9 +1784,64 @@ class FlightManager:
                 current_ias = flight_data.airspeed_ind
                 current_pitch = flight_data.pitch
                 current_roll = flight_data.roll
+                current_lat = flight_data.lat
+                current_lon = flight_data.lon
 
-                # Calculate heading error to runway
-                hdg_error = runway_heading - current_hdg
+                # Calculate heading to destination for lateral guidance
+                if dest_lat is not None and dest_lon is not None:
+                    # Calculate distance to destination
+                    dist_to_dest = self.nav_calculator.calculate_distance_nm(
+                        current_lat, current_lon,
+                        dest_lat, dest_lon
+                    )
+
+                    # Calculate cross-track error from the extended runway centerline
+                    # The centerline extends FROM the runway (opposite of landing direction)
+                    # We need to calculate how far off the centerline we are
+
+                    # Bearing from destination to aircraft
+                    bearing_to_aircraft = self.nav_calculator.calculate_bearing(
+                        dest_lat, dest_lon,
+                        current_lat, current_lon
+                    )
+
+                    # Inbound course (opposite of runway heading - the approach course)
+                    inbound_course = (runway_heading + 180) % 360
+
+                    # Angular difference between where aircraft is and the approach course
+                    angle_diff = bearing_to_aircraft - inbound_course
+                    if angle_diff > 180:
+                        angle_diff -= 360
+                    elif angle_diff < -180:
+                        angle_diff += 360
+
+                    # Cross-track error (perpendicular distance from centerline)
+                    xte_nm = dist_to_dest * math.sin(math.radians(angle_diff))
+
+                    # FINAL/FLARE phases: ALWAYS use runway heading for stable approach
+                    if phase in ["FINAL", "FLARE"]:
+                        target_heading = runway_heading
+                    else:
+                        # APPROACH phase: intercept the runway centerline
+                        # If we're off the centerline, fly an intercept heading
+                        if abs(xte_nm) > 0.1:  # More than 0.1nm off centerline
+                            # Calculate intercept angle based on XTE (max 45°)
+                            intercept_angle = min(45, abs(xte_nm) * 30)  # 30° per nm, max 45°
+                            if xte_nm > 0:
+                                # Aircraft is RIGHT of centerline, turn LEFT
+                                target_heading = (runway_heading - intercept_angle) % 360
+                            else:
+                                # Aircraft is LEFT of centerline, turn RIGHT
+                                target_heading = (runway_heading + intercept_angle) % 360
+                        else:
+                            # On centerline - track runway heading
+                            target_heading = runway_heading
+                else:
+                    target_heading = runway_heading
+                    dist_to_dest = 0
+
+                # Calculate heading error to target
+                hdg_error = target_heading - current_hdg
                 if hdg_error > 180:
                     hdg_error -= 360
                 elif hdg_error < -180:
@@ -1624,21 +1895,42 @@ class FlightManager:
 
                 # === PHASE: FLARE ===
                 elif phase == "FLARE":
-                    # Reduce descent rate, pitch up for touchdown
-                    target_vs = -100  # Very gentle descent
+                    # Gradual flare - reduce descent rate smoothly
+                    # Target VS based on AGL: closer to ground = gentler descent
+                    if current_agl > 20:
+                        target_vs = -200  # Still descending at 20ft+
+                    elif current_agl > 10:
+                        target_vs = -100  # Gentle descent 10-20ft
+                    else:
+                        target_vs = -50   # Very gentle at touchdown
 
-                    # Reduce throttle to idle
-                    self.commander.set_throttle(0.0)
+                    # Keep some power until closer to ground (prevents rapid sink)
+                    if current_agl > 15:
+                        self.commander.set_throttle(0.15)  # Idle with slight power
+                    else:
+                        self.commander.set_throttle(0.0)   # Full idle for touchdown
 
-                    # Pitch up for flare
-                    target_pitch = TOUCHDOWN_PITCH
+                    # Pitch up for flare - gradual and smooth
+                    target_pitch = TOUCHDOWN_PITCH  # 5 degrees nose up
                     pitch_error = target_pitch - current_pitch
-                    elevator = pitch_error * 0.05
-                    elevator = max(-0.3, min(0.5, elevator))
+                    # Limit rate of pitch change for smooth flare
+                    elevator = pitch_error * 0.03  # Reduced gain for smoother pitch-up
+                    elevator = max(-0.2, min(0.3, elevator))
                     self.commander.set_elevator(elevator)
 
-                    # Check for touchdown (very low AGL and low vertical speed)
-                    if current_agl < 5 or (current_agl < 15 and abs(current_vs) < 50):
+                    # CRITICAL: Maintain wings level during flare
+                    bank_error = 0 - current_roll  # Target 0 roll
+                    aileron = bank_error * 0.05
+                    aileron = max(-0.3, min(0.3, aileron))
+                    self.commander.set_aileron(aileron)
+
+                    # Maintain heading with rudder
+                    rudder = hdg_error * 0.02
+                    rudder = max(-0.3, min(0.3, rudder))
+                    self.commander.set_rudder(rudder)
+
+                    # Check for touchdown (low AGL and reasonable vertical speed)
+                    if current_agl < 3 or (current_agl < 10 and abs(current_vs) < 200):
                         phase = "ROLLOUT"
                         print(f"  [LAND] TOUCHDOWN! AGL:{current_agl:.0f}ft VS:{current_vs:.0f}fpm")
                         await self.broadcast_status({"type": "autoland_status", "phase": "ROLLOUT"})
@@ -1649,9 +1941,18 @@ class FlightManager:
                     self.commander.set_throttle(0.0)  # Idle
                     self.commander.set_elevator(-0.3)  # Nose down to keep weight on wheels
 
-                    # Apply brakes
-                    self.commander.set_parking_brake(False)  # Make sure parking brake is off
-                    # Use differential braking for steering if available, otherwise symmetric braking
+                    # Apply wheel brakes - progressive braking based on speed
+                    if current_ias > 60:
+                        brake_amount = 0.3  # Light braking at high speed
+                    elif current_ias > 40:
+                        brake_amount = 0.5  # Medium braking
+                    elif current_ias > 20:
+                        brake_amount = 0.7  # Firm braking
+                    else:
+                        brake_amount = 1.0  # Full braking to stop
+
+                    self.commander.set_wheel_brakes(brake_amount)
+                    print(f"  [LAND] ROLLOUT IAS:{current_ias:.0f}kt brakes:{brake_amount:.0%}")
 
                     # Rudder/nosewheel to maintain runway heading
                     rudder = hdg_error * 0.05
@@ -1662,7 +1963,8 @@ class FlightManager:
                     # Check if stopped
                     if current_ias < 10:
                         print(f"  [LAND] *** LANDING COMPLETE ***")
-                        self.commander.set_parking_brake(True)
+                        self.commander.set_wheel_brakes(0.0)  # Release wheel brakes
+                        self.commander.set_parking_brake(True)  # Engage parking brake
                         if self.flight_plan:
                             self.flight_plan.phase = FlightPhase.COMPLETE
                         await self.broadcast_status({
@@ -1701,7 +2003,8 @@ class FlightManager:
 
                 # Logging
                 if elapsed - last_log_time >= 3:
-                    print(f"  [{phase}] ALT:{current_alt:.0f}(AGL:{current_agl:.0f}) HDG:{current_hdg:.0f}°->{runway_heading:.0f}° VS:{current_vs:.0f} IAS:{current_ias:.0f}")
+                    dist_str = f" dist:{dist_to_dest:.1f}nm" if dist_to_dest > 0 else ""
+                    print(f"  [{phase}] ALT:{current_alt:.0f}(AGL:{current_agl:.0f}) HDG:{current_hdg:.0f}°->{target_heading:.0f}° VS:{current_vs:.0f} IAS:{current_ias:.0f}{dist_str}")
                     last_log_time = elapsed
 
                 await asyncio.sleep(0.05)  # 20Hz

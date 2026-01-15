@@ -535,6 +535,46 @@
                 inset -6px -6px 12px #FFFFFF;
         }
 
+        /* Light mode flight control buttons */
+        .light-mode .flight-ctrl-btn {
+            background: #ECF0F3;
+            color: #4b5563;
+            box-shadow:
+                6px 6px 12px #D1D9E6,
+                -6px -6px 12px #FFFFFF;
+        }
+
+        .light-mode .flight-ctrl-btn:hover:not(:disabled) {
+            background: #E8ECF0;
+            color: #1a1a1a;
+        }
+
+        .light-mode .flight-ctrl-btn:active:not(:disabled) {
+            box-shadow:
+                inset 6px 6px 12px #D1D9E6,
+                inset -6px -6px 12px #FFFFFF;
+        }
+
+        .light-mode .flight-ctrl-btn.go-btn:not(:disabled) {
+            color: #16a34a;
+        }
+
+        .light-mode .flight-ctrl-btn.cancel-btn {
+            color: #dc2626;
+        }
+
+        .light-mode .flight-ctrl-btn.trip-btn.active {
+            background: #E0E5EC;
+            color: #0891b2;
+            box-shadow:
+                inset 6px 6px 12px #D1D9E6,
+                inset -6px -6px 12px #FFFFFF;
+        }
+
+        .light-mode .route-btn-divider {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
         /* Light mode ATC Radio Panel */
         .light-mode .atc-radio-panel {
             background: rgba(255, 255, 255, 0.98);
@@ -1051,7 +1091,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
@@ -1166,6 +1206,177 @@
             margin: 0 12px;
         }
 
+        /* Toolbar minimize button */
+        .toolbar-minimize-btn {
+            position: absolute;
+            right: 12px;
+            background: transparent;
+            border: none;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .toolbar-minimize-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .toolbar-minimize-btn svg {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.2s ease;
+        }
+
+        /* Minimized toolbar state - slides up */
+        .overlay-toolbar.minimized {
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .overlay-toolbar.minimized .toolbar-minimize-btn {
+            position: fixed;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 10, 10, 0.9);
+            border: 1px solid var(--border-color);
+            border-radius: 0 0 8px 8px;
+            padding: 8px 16px;
+            pointer-events: auto;
+            opacity: 1;
+        }
+
+        .overlay-toolbar.minimized .toolbar-minimize-btn svg {
+            transform: rotate(180deg);
+        }
+
+        /* Floating toolbar restore button - appears when toolbar is hidden */
+        .toolbar-restore-btn {
+            position: fixed;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1002;
+            background: rgba(10, 10, 10, 0.85);
+            border: 1px solid var(--border-color);
+            border-radius: 0 0 10px 10px;
+            padding: 8px 20px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            display: none;
+            transition: all 0.2s ease;
+        }
+
+        .toolbar-restore-btn:hover {
+            background: rgba(20, 20, 20, 0.95);
+            color: var(--text-primary);
+        }
+
+        .toolbar-restore-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        body.toolbar-minimized .toolbar-restore-btn {
+            display: none;  /* Hidden - using bottom toolbar button instead */
+        }
+
+        /* Overlay toggle button in bottom toolbar - highlight when panel is visible */
+        .overlay-toggle-btn.active {
+            background: var(--accent-color) !important;
+            color: white !important;
+        }
+
+        .light-mode .toolbar-restore-btn {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: rgba(0, 0, 0, 0.1);
+            color: #666;
+        }
+
+        .light-mode .toolbar-restore-btn:hover {
+            background: rgba(255, 255, 255, 0.95);
+            color: #1a1a1a;
+        }
+
+        /* Test Flight Mode UI */
+        .test-flight-ui {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1003;
+            background: rgba(220, 50, 50, 0.95);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: white;
+            font-family: var(--font-family);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            display: none;
+        }
+
+        .test-flight-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .test-flight-title {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .test-flight-stop {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .test-flight-stop:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .test-flight-stats {
+            display: flex;
+            gap: 16px;
+        }
+
+        .test-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .test-stat-label {
+            font-size: 10px;
+            opacity: 0.8;
+            text-transform: uppercase;
+        }
+
+        .test-stat-value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        /* Adjust main container when toolbar minimized */
+        body.toolbar-minimized .main-container {
+            padding-top: 0;
+        }
+
         /* Main Layout */
         .main-container {
             display: flex;
@@ -1173,9 +1384,14 @@
             height: 100vh;
             min-height: 100vh;
             width: 100%;
-            padding-top: 100px; /* navbar + toolbar */
+            padding-top: 0; /* toolbar hidden by default */
             margin-left: 0;
             background: var(--bg-secondary);
+        }
+
+        /* Add padding when toolbar is visible */
+        body:not(.toolbar-minimized) .main-container {
+            padding-top: 60px;
         }
 
         /* Map Container */
@@ -1185,18 +1401,9 @@
             position: relative;
         }
 
-        /* Resize Divider */
+        /* Resize Divider - Hidden, profile controlled by toggle button */
         .resize-divider {
-            height: 8px;
-            background: var(--bg-secondary);
-            border-top: 1px solid var(--border-color);
-            border-bottom: 1px solid var(--border-color);
-            cursor: ns-resize;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s;
-            flex-shrink: 0;
+            display: none;
         }
 
         .resize-divider:hover {
@@ -1346,7 +1553,7 @@
         .station-info .flight-rules.lifr { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
 
         .station-info .metar-raw {
-            font-family: 'SF Mono', Monaco, monospace;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             font-size: 11px;
             background: rgba(0, 0, 0, 0.3);
             padding: 10px;
@@ -1395,7 +1602,7 @@
             background: rgba(10, 10, 10, 0.98);
             backdrop-filter: blur(20px);
             border-right: 1px solid rgba(255, 255, 255, 0.1);
-            width: 280px;
+            width: 240px;
             height: 100vh;
             display: flex;
             flex-direction: column;
@@ -1412,13 +1619,13 @@
 
         /* Push main content when ATC panel is visible */
         body.atc-panel-open .main-container {
-            margin-left: 280px;
-            width: calc(100% - 280px);
+            margin-left: 240px;
+            width: calc(100% - 240px);
             transition: margin-left 0.3s ease, width 0.3s ease;
         }
 
         body.atc-panel-open .floating-brand {
-            left: 296px;
+            left: 256px;
             transition: left 0.3s ease;
         }
 
@@ -1457,10 +1664,10 @@
         }
 
         .atc-tailnum {
-            font-size: 16px;
+            font-size: 20px;
             font-weight: 700;
             color: var(--text-primary);
-            letter-spacing: 2px;
+            letter-spacing: 0.5px;
             text-transform: uppercase;
         }
 
@@ -1544,7 +1751,7 @@
             font-size: 20px;
             font-weight: 600;
             color: var(--text-primary);
-            font-family: 'SF Mono', Monaco, monospace;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
         .atc-freq-name {
@@ -1611,9 +1818,10 @@
         }
 
         .atc-transcription-text {
-            font-size: 13px;
-            line-height: 1.5;
-            color: var(--text-secondary);
+            font-size: 16px;
+            font-weight: 500;
+            line-height: 1.6;
+            color: var(--text-primary);
         }
 
         .atc-transcription-text .station-id {
@@ -1624,12 +1832,13 @@
         .atc-waiting {
             color: var(--text-tertiary);
             font-style: italic;
+            font-size: 15px;
         }
 
         .atc-message {
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .atc-message:last-child {
@@ -1641,15 +1850,18 @@
         .atc-station {
             font-weight: 700;
             color: #d4c96a;
-            font-size: 12px;
+            font-size: 14px;
             display: block;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .atc-msg-text {
-            color: var(--text-secondary);
-            font-size: 13px;
-            line-height: 1.4;
+            color: var(--text-primary);
+            font-size: 16px;
+            font-weight: 500;
+            line-height: 1.5;
         }
 
         /* Frequency row states */
@@ -1827,39 +2039,104 @@
             background: linear-gradient(90deg, #ef4444, #f87171);
         }
 
-        /* Trip Summary Panel - Floating above profile canvas */
+        /* Trip Progress in ATC Panel */
+        .atc-trip-progress {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .atc-trip-progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .atc-trip-progress-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .atc-trip-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-color), #22c55e);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        /* Floating ETA Display - Large time in bottom right */
+        .floating-eta {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 999;
+            display: none;
+            pointer-events: none;
+        }
+
+        .floating-eta.visible {
+            display: block;
+        }
+
+        .eta-value {
+            font-size: 72px;
+            font-weight: 600;
+            color: #1a1a1a;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            letter-spacing: -2px;
+            text-shadow: 0 2px 8px rgba(255, 255, 255, 0.3);
+            line-height: 1;
+        }
+
+        .light-mode .eta-value {
+            color: #1a1a1a;
+            text-shadow: 0 2px 8px rgba(255, 255, 255, 0.5);
+        }
+
+        /* Trip Summary Panel - Compact button that expands */
         .trip-summary {
             position: absolute;
-            bottom: 12px;
+            bottom: 100px;
             right: 12px;
             z-index: 1000;
             background: rgba(10, 10, 10, 0.92);
             backdrop-filter: blur(16px);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            width: 320px;
-            max-height: calc(100% - 120px);
+            border-radius: 8px;
             display: none;
             flex-direction: column;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
             overflow: hidden;
-        }
-
-        .trip-summary.expanded {
-            width: 340px;
-            max-height: calc(100% - 120px);
+            transition: all 0.2s ease;
         }
 
         .trip-summary.visible {
             display: flex;
         }
 
+        /* Collapsed state - compact button */
+        .trip-summary:not(.expanded) {
+            width: auto;
+            padding: 0;
+        }
+
+        /* Expanded state - full panel */
+        .trip-summary.expanded {
+            width: 340px;
+            max-height: calc(100% - 120px);
+            border-radius: 12px;
+        }
+
         .trip-summary-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 12px 16px;
-            gap: 12px;
+            padding: 8px 12px;
+            gap: 8px;
             flex-shrink: 0;
             cursor: pointer;
             background: transparent;
@@ -1873,10 +2150,11 @@
 
         .trip-summary.expanded .trip-summary-header {
             border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
         }
 
         .trip-summary-header:hover {
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(255, 255, 255, 0.05);
         }
 
         .trip-summary-title {
@@ -1918,12 +2196,11 @@
         .trip-summary-mini {
             display: flex;
             align-items: center;
-            gap: 20px;
-            font-size: 14px;
+            gap: 12px;
+            font-size: 13px;
             font-weight: 500;
             color: var(--text-primary);
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
         .trip-summary.expanded .trip-summary-mini {
@@ -1934,6 +2211,11 @@
             white-space: nowrap;
             padding: 0;
             background: transparent;
+        }
+
+        /* Hide close button in collapsed state */
+        .trip-summary:not(.expanded) .trip-close-btn {
+            display: none;
         }
 
         .expand-icon {
@@ -1997,7 +2279,7 @@
             font-size: 24px;
             font-weight: 700;
             color: var(--accent-color);
-            letter-spacing: 1px;
+            letter-spacing: 0;
         }
 
         .trip-route-display svg {
@@ -2155,7 +2437,7 @@
             border-radius: 4px;
             font-size: 11px;
             font-weight: 600;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
         .airway-tag.jet {
@@ -2221,7 +2503,7 @@
         }
 
         .runway-id {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             font-size: 13px;
             font-weight: 700;
             color: #a855f7;
@@ -2515,7 +2797,7 @@
         }
 
         .fuel-leg-route {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             font-size: 13px;
             font-weight: 600;
             color: #3b82f6;
@@ -2617,7 +2899,7 @@
         .automation-stat-value {
             color: var(--text-primary);
             font-weight: 600;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
         .automation-buttons {
@@ -2841,6 +3123,29 @@
             background: linear-gradient(135deg, #dc2626, #b91c1c);
             transform: scale(1.1);
             box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+        }
+
+        /* GO Button - Start Flight */
+        .automation-btn-icon.go-btn {
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .automation-btn-icon.go-btn:not(:disabled) {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            animation: go-btn-pulse 2s ease-in-out infinite;
+        }
+
+        .automation-btn-icon.go-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #16a34a, #15803d);
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.5);
+        }
+
+        @keyframes go-btn-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            50% { box-shadow: 0 0 15px 4px rgba(34, 197, 94, 0.4); }
         }
 
         .automation-buttons {
@@ -3122,6 +3427,95 @@
                 inset 4px 4px 8px rgba(0, 0, 0, 0.5),
                 inset -3px -3px 6px rgba(255, 255, 255, 0.03),
                 inset 0 0 0 1px rgba(6, 182, 212, 0.3);
+        }
+
+        /* Flight Control Buttons Divider */
+        .route-btn-divider {
+            width: 1px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            margin: 0 4px;
+        }
+
+        /* Flight Control Buttons (GO, Cancel, Trip) */
+        .flight-ctrl-btn {
+            background: #2a2a2a;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            box-shadow:
+                5px 5px 10px rgba(0, 0, 0, 0.5),
+                -3px -3px 8px rgba(255, 255, 255, 0.03);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .flight-ctrl-btn:hover:not(:disabled) {
+            background: #2f2f2f;
+            color: var(--text-primary);
+        }
+
+        .flight-ctrl-btn:active:not(:disabled) {
+            background: #252525;
+            box-shadow:
+                inset 4px 4px 8px rgba(0, 0, 0, 0.5),
+                inset -3px -3px 6px rgba(255, 255, 255, 0.03);
+        }
+
+        .flight-ctrl-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .flight-ctrl-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* GO Button - Green when ready */
+        .flight-ctrl-btn.go-btn:not(:disabled) {
+            color: #22c55e;
+            box-shadow:
+                5px 5px 10px rgba(0, 0, 0, 0.5),
+                -3px -3px 8px rgba(255, 255, 255, 0.03),
+                inset 0 0 0 1px rgba(34, 197, 94, 0.2);
+        }
+
+        .flight-ctrl-btn.go-btn:not(:disabled):hover {
+            color: #4ade80;
+            background: #252525;
+        }
+
+        /* Cancel Button - Red */
+        .flight-ctrl-btn.cancel-btn {
+            color: #ef4444;
+        }
+
+        .flight-ctrl-btn.cancel-btn:hover {
+            color: #f87171;
+        }
+
+        /* Trip Summary Button */
+        .flight-ctrl-btn.trip-btn.active {
+            background: #252525;
+            color: var(--accent-color);
+            box-shadow:
+                inset 4px 4px 8px rgba(0, 0, 0, 0.5),
+                inset -3px -3px 6px rgba(255, 255, 255, 0.03),
+                inset 0 0 0 1px rgba(6, 182, 212, 0.3);
+        }
+
+        .flight-ctrl-btn.profile-btn.active {
+            background: #252525;
+            color: #a78bfa;
+            box-shadow:
+                inset 4px 4px 8px rgba(0, 0, 0, 0.5),
+                inset -3px -3px 6px rgba(255, 255, 255, 0.03),
+                inset 0 0 0 1px rgba(167, 139, 250, 0.3);
         }
 
         /* Custom stop markers */
@@ -3410,7 +3804,7 @@
             font-size: 84px;
             font-weight: 600;
             color: var(--text-primary);
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             letter-spacing: -1px;
             text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
             line-height: 1;
@@ -4080,34 +4474,9 @@
         .legend-dot.ifr { background: #ef4444; }
         .legend-dot.lifr { background: #a855f7; }
 
-        /* Leaflet Customization */
+        /* Leaflet Customization - Hide zoom controls */
         .leaflet-control-zoom {
-            border: none !important;
-            box-shadow: none !important;
-            position: fixed !important;
-            bottom: 380px !important;
-            left: 296px !important;
-            top: auto !important;
-            margin: 0 !important;
-        }
-
-        body.atc-panel-open .leaflet-control-zoom {
-            left: 296px !important;
-        }
-
-        body:not(.atc-panel-open) .leaflet-control-zoom {
-            left: 16px !important;
-        }
-
-        .leaflet-control-zoom a {
-            background: rgba(10, 10, 10, 0.9) !important;
-            color: var(--text-primary) !important;
-            border: 1px solid var(--border-color) !important;
-            backdrop-filter: blur(20px);
-        }
-
-        .leaflet-control-zoom a:hover {
-            background: rgba(20, 20, 30, 0.95) !important;
+            display: none !important;
         }
 
         .leaflet-popup-content-wrapper {
@@ -4242,8 +4611,9 @@
             left: 16px;
             z-index: 1001;
             display: flex;
-            align-items: center;
-            gap: 10px;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
             font-weight: 600;
             font-size: 18px;
             color: var(--text-primary);
@@ -4260,8 +4630,17 @@
 
         .floating-brand svg.orca-logo {
             width: auto;
-            height: 22px;
+            height: 26px;
             color: #ffffff;
+        }
+
+        .floating-tailnum {
+            font-size: 14px;
+            font-weight: 600;
+            color: #ffffff;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            opacity: 0.9;
         }
 
         .light-mode .floating-brand {
@@ -4273,6 +4652,10 @@
         }
 
         .light-mode .floating-brand svg.orca-logo {
+            color: #1a1a1a;
+        }
+
+        .light-mode .floating-tailnum {
             color: #1a1a1a;
         }
 
@@ -4475,6 +4858,27 @@
             flex-wrap: nowrap;
             justify-content: center;
             z-index: 1000;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        /* Minimized state override for floating toolbar */
+        .overlay-toolbar.minimized {
+            transform: translateX(-50%) translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .overlay-toolbar.minimized .toolbar-minimize-btn {
+            position: fixed;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 10, 10, 0.9);
+            border: 1px solid var(--border-color);
+            border-radius: 0 0 8px 8px;
+            padding: 8px 16px;
+            pointer-events: auto;
+            opacity: 1;
         }
 
         .toolbar-section {
@@ -4791,7 +5195,7 @@
         }
     </style>
 </head>
-<body>
+<body class="toolbar-minimized">
     <!-- Overlay Loading Bar -->
     <div class="overlay-loading-bar" id="overlayLoadingBar">
         <div class="bar-fill"></div>
@@ -4816,17 +5220,8 @@
         </svg>
     </button>
 
-    <!-- X-Plane Mode Toggle -->
-    <button id="xplaneToggle" class="xplane-toggle" onclick="toggleXPlaneMode()" title="Toggle X-Plane Live Mode">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none">
-            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-        </svg>
-        <span class="xplane-label">X-PLANE</span>
-        <span class="xplane-status-dot"></span>
-    </button>
-
-    <!-- Overlay Toolbar -->
-    <div class="overlay-toolbar">
+    <!-- Overlay Toolbar (hidden by default) -->
+    <div class="overlay-toolbar minimized">
         <div class="toolbar-section">
             <button class="overlay-btn terrain" data-overlay="terrain" onclick="toggleOverlay(this)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -4931,7 +5326,20 @@
                 Runways
             </button>
         </div>
+        <!-- Toolbar minimize button -->
+        <button class="toolbar-minimize-btn" id="toolbarMinimizeBtn" onclick="toggleToolbar()" title="Minimize toolbar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="18 15 12 9 6 15"/>
+            </svg>
+        </button>
     </div>
+
+    <!-- Floating toolbar toggle button (visible when toolbar is minimized) -->
+    <button class="toolbar-restore-btn" id="toolbarRestoreBtn" onclick="toggleToolbar()" title="Show toolbar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"/>
+        </svg>
+    </button>
 
     <!-- Simple Loading Bar -->
     <div class="loading-bar-container" id="loadingBarContainer">
@@ -4943,16 +5351,16 @@
         <div class="map-container">
             <div id="map"></div>
 
-            <!-- ATC Radio Panel -->
-            <div id="atcRadioPanel" class="atc-radio-panel">
-                <div class="atc-header">
-                    <a href="/" class="atc-logo-link" title="Back to Weather Dashboard">
-                        <svg class="atc-orca-logo" viewBox="0 0 798 257" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M67.8809 234.41C186.564 258.373 307.51 270.119 360.879 234.41C414.248 198.702 779.734 36.4014 796.092 14.7603C812.45 -6.88083 723.078 -6.93654 548.57 29.5108C375.251 65.7097 321.828 80.6187 159.348 125.963L155.986 126.901C-9.12734 172.979 -50.8019 210.448 67.8809 234.41Z"/>
-                        </svg>
-                    </a>
-                    <div class="atc-tailnum">N90210</div>
-                </div>
+            <!-- Floating Brand and N Number - Top Left of Map -->
+            <a href="/" class="floating-brand" title="Back to Weather Dashboard">
+                <svg class="orca-logo" viewBox="0 0 798 257" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M67.8809 234.41C186.564 258.373 307.51 270.119 360.879 234.41C414.248 198.702 779.734 36.4014 796.092 14.7603C812.45 -6.88083 723.078 -6.93654 548.57 29.5108C375.251 65.7097 321.828 80.6187 159.348 125.963L155.986 126.901C-9.12734 172.979 -50.8019 210.448 67.8809 234.41Z"/>
+                </svg>
+                <span class="floating-tailnum">N90210</span>
+            </a>
+
+            <!-- ATC Radio Panel (hidden by default, shows when route is loaded) -->
+            <div id="atcRadioPanel" class="atc-radio-panel hidden">
                 <div class="atc-frequencies" id="atcFrequencies">
                     <!-- Populated dynamically -->
                 </div>
@@ -4980,6 +5388,15 @@
                         </svg>
                         <span class="value" id="atcAltimeterValue">29.92</span>
                     </button>
+                </div>
+                <!-- Trip Progress Bar (in comms panel) -->
+                <div class="atc-trip-progress" id="atcTripProgress" style="display: none;">
+                    <div class="atc-trip-progress-label">
+                        <span id="atcTripProgressTime">-- hrs</span>
+                    </div>
+                    <div class="atc-trip-progress-bar">
+                        <div class="atc-trip-progress-fill" id="atcTripProgressFill"></div>
+                    </div>
                 </div>
                 <div class="atc-fuel">
                     <div class="atc-fuel-container">
@@ -5025,32 +5442,9 @@
                 </div>
             </div>
 
-            <!-- Floating Trip Progress (visible when panel minimized) -->
-            <div class="trip-progress-float" id="tripProgressFloat">
-                <div class="trip-progress-time" id="tripFloatTime">-- hrs</div>
-                <div class="trip-progress-bar-container">
-                    <div class="trip-progress-bar" id="tripProgressBar"></div>
-                </div>
-            </div>
-
-            <!-- Floating Autopilot Controls (visible when panel minimized) -->
-            <div class="autopilot-float" id="autopilotFloat">
-                <div class="autopilot-status-float">
-                    <span class="autopilot-status-label">Autopilot</span>
-                    <span class="autopilot-status-phase idle" id="autopilotFloatPhase">IDLE</span>
-                </div>
-                <button class="automation-btn-icon autopilot" id="btnAutopilotFloat" onclick="engageAutopilot()" disabled title="Engage Autopilot">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                    </svg>
-                </button>
-                <button class="automation-btn-icon disengage" id="btnDisengageFloat" onclick="disengageAutopilot()" title="Disengage Autopilot">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <line x1="15" y1="9" x2="9" y2="15"/>
-                        <line x1="9" y1="9" x2="15" y2="15"/>
-                    </svg>
-                </button>
+            <!-- Floating ETA Display -->
+            <div class="floating-eta" id="floatingEta">
+                <span class="eta-value" id="etaValue">--:--</span>
             </div>
 
             <!-- Trip Summary Panel -->
@@ -5247,10 +5641,10 @@
             </div>
         </div>
 
-        <!-- Resize Divider -->
-        <div class="resize-divider" id="resizeDivider">
+        <!-- Resize Divider - Removed, profile controlled by toggle button -->
+        <!-- <div class="resize-divider" id="resizeDivider">
             <div class="resize-handle"></div>
-        </div>
+        </div> -->
 
         <!-- Profile View -->
         <div class="profile-container minimized" id="profileSection">
@@ -5276,31 +5670,29 @@
                     <button id="snapModeBtn" class="snap-btn" onclick="toggleSnapMode()" title="Snap to Airports">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
                     </button>
-                    <!-- Profile Expand/Minimize Button -->
-                    <button id="profileExpandBtn" class="profile-expand-btn" onclick="toggleProfileCanvas()" title="Expand Profile" style="display: none;">
-                        <svg class="expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="18 15 12 9 6 15"/>
-                        </svg>
-                        <span class="expand-label">Profile</span>
+                    <div class="route-btn-divider"></div>
+                    <!-- Flight Control Buttons -->
+                    <button id="btnGoFloat" class="flight-ctrl-btn go-btn" onclick="startFlight()" title="Start Flight" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
                     </button>
-                    <div class="header-zoom-controls" id="headerZoomControls" style="display: none;">
-                        <div class="zoom-divider"></div>
-                        <button class="profile-zoom-btn" onclick="profileZoom(1.5)" title="Zoom In">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        </button>
-                        <button class="profile-zoom-btn" onclick="profileZoom(0.67)" title="Zoom Out">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        </button>
-                        <button class="profile-zoom-btn" onclick="profileResetZoom()" title="Reset Zoom">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                        </button>
-                        <div class="profile-zoom-info"><span id="profileZoomLevel">1.0x</span></div>
-                        <button id="profileToggleBtn" class="profile-toggle-btn" onclick="toggleProfileCanvas()" title="Minimize Profile">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="6 9 12 15 18 9"/>
-                            </svg>
-                        </button>
-                    </div>
+                    <button id="btnDisengageFloat" class="flight-ctrl-btn cancel-btn" onclick="disengageAutopilot()" title="Stop Flight">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    </button>
+                    <button id="tripSummaryBtn" class="flight-ctrl-btn trip-btn" onclick="toggleTripSummaryVisibility()" title="Trip Summary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+                    </button>
+                    <!-- Profile Expand/Minimize Button -->
+                    <button id="profileExpandBtn" class="flight-ctrl-btn profile-btn" onclick="toggleProfileCanvas()" title="Toggle Profile" style="display: none;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 5-6"/>
+                        </svg>
+                    </button>
+                    <!-- Overlay Panel Toggle Button -->
+                    <button id="overlayPanelBtn" class="flight-ctrl-btn overlay-toggle-btn" onclick="toggleToolbar()" title="Toggle Overlay Panel">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                        </svg>
+                    </button>
                 </div>
             </div>
             <div class="profile-content" id="profileContent" style="display: none;">
@@ -7479,6 +7871,12 @@
 
             // Update status display
             updateXPlaneStatus();
+
+            // Update GO button state
+            updateGoButton();
+
+            // Check if ready for next test flight
+            checkTestFlightReady();
         }
 
         function initXPlaneMapMarker() {
@@ -7694,6 +8092,19 @@
             statusInterval: null,
             positioned: false,  // True once aircraft is at departure
             inFlight: false     // True once airborne
+        };
+
+        // Test flight mode - automatically cycles flights for landing training
+        const testFlightMode = {
+            enabled: false,
+            startTime: null,
+            durationHours: 12,
+            flightsCompleted: 0,
+            flightsFailed: 0,
+            landingScores: [],
+            currentFlightStart: null,
+            lastPhase: 'IDLE',
+            waitingForReset: false
         };
 
         // Update automation button states based on route and X-Plane connection
@@ -7985,18 +8396,27 @@
                 return;
             }
 
-            const waypoints = buildRouteWaypoints();
+            const allWaypoints = buildRouteWaypoints();
+
+            // Filter out TOC/TOD - these are for flight profile visualization only,
+            // not navigation waypoints. The NAV system calculates its own VNAV.
+            const waypoints = allWaypoints.filter(wp =>
+                wp.name !== 'TOC' && wp.name !== 'TOD'
+            );
+
             if (waypoints.length < 2) {
                 console.error('Need at least departure and destination');
                 return;
             }
 
-            console.log('Uploading flight plan with', waypoints.length, 'waypoints');
+            console.log('Uploading flight plan with', waypoints.length, 'navigation waypoints (filtered from', allWaypoints.length, 'total)');
+            console.log('Departure runway heading:', currentRoute.departureHeading || 0);
 
             xplaneState.websocket.send(JSON.stringify({
                 type: 'upload_flight_plan',
                 waypoints: waypoints,
-                cruise_altitude: currentRoute.cruiseAltitude || 10000
+                cruise_altitude: currentRoute.cruiseAltitude || 10000,
+                departure_heading: currentRoute.departureHeading || 0
             }));
 
             automationState.planUploaded = true;
@@ -8014,14 +8434,93 @@
                 return;
             }
 
-            console.log('Starting auto-takeoff sequence');
+            // Get the runway heading from the current route
+            const runwayHeading = currentRoute?.departureHeading || 0;
+            console.log('Starting auto-takeoff sequence, runway heading:', runwayHeading);
 
             xplaneState.websocket.send(JSON.stringify({
-                type: 'auto_takeoff'
+                type: 'auto_takeoff',
+                runway_heading: runwayHeading
             }));
 
             automationState.isActive = true;
             updateAutomationStatus('Starting takeoff sequence...');
+        }
+
+        // START FLIGHT - Main GO button function
+        // Uploads flight plan and starts takeoff in one click
+        async function startFlight() {
+            try {
+                console.log('startFlight() called');
+
+                if (!xplaneState.websocket || !xplaneState.enabled) {
+                    console.error('Cannot start flight: X-Plane not connected');
+                    alert('X-Plane not connected');
+                    return;
+                }
+
+                if (!currentRoute.dep || !currentRoute.dest) {
+                    console.error('Cannot start flight: No route loaded');
+                    alert('Please load a route first');
+                    return;
+                }
+
+                const flightData = xplaneState.flightData;
+                console.log('Flight data:', flightData);
+                if (!flightData || flightData.alt_agl > 50) {
+                    console.error('Cannot start flight: Aircraft not on ground, alt_agl:', flightData?.alt_agl);
+                    alert('Aircraft must be on ground to start flight');
+                    return;
+                }
+
+                console.log('All checks passed, starting flight...');
+                updateAutomationStatus('Starting flight...');
+
+                // Recalculate route to ensure current aircraft heading is used for departure
+                if (currentRoute.dep && currentRoute.dest) {
+                    console.log('Recalculating route with current aircraft heading...');
+                    rebuildFullRoute();
+                }
+
+                // Upload flight plan
+                console.log('Uploading flight plan...');
+                await uploadFlightPlan();
+                console.log('Flight plan uploaded, planUploaded:', automationState.planUploaded);
+
+                // Small delay then start takeoff
+                setTimeout(() => {
+                    console.log('Timeout fired, planUploaded:', automationState.planUploaded);
+                    if (automationState.planUploaded) {
+                        console.log('Calling autoTakeoff()...');
+                        autoTakeoff();
+                    }
+                }, 500);
+            } catch (error) {
+                console.error('Error in startFlight:', error);
+                alert('Error starting flight: ' + error.message);
+            }
+        }
+
+        // Update GO button state based on conditions
+        function updateGoButton() {
+            const goBtn = document.getElementById('btnGoFloat');
+            if (!goBtn) return;
+
+            const hasRoute = currentRoute.dep && currentRoute.dest;
+            const xplaneConnected = xplaneState.enabled && xplaneState.websocket?.readyState === WebSocket.OPEN;
+            const flightData = xplaneState.flightData;
+            const isOnGround = flightData && flightData.alt_agl < 50;
+            const isFlightActive = automationState.isActive;
+
+            // Enable GO button when: route ready + connected + on ground + not already flying
+            const canStart = hasRoute && xplaneConnected && isOnGround && !isFlightActive;
+
+            goBtn.disabled = !canStart;
+            goBtn.title = canStart ? 'Start Flight (GO!)' :
+                          !hasRoute ? 'Load a route first' :
+                          !xplaneConnected ? 'X-Plane not connected' :
+                          !isOnGround ? 'Aircraft must be on ground' :
+                          'Flight in progress';
         }
 
         // Emergency disconnect - stop all automation
@@ -8114,6 +8613,22 @@
             // Update the autopilot button appearance
             updateAutomationButtons();
 
+            // Detect flight completion for test mode
+            if (testFlightMode.enabled) {
+                const wasInFlight = testFlightMode.lastPhase !== 'IDLE' &&
+                                   ['CLIMBING', 'CRUISE', 'DESCENDING', 'APPROACH', 'FINAL', 'LANDING'].includes(testFlightMode.lastPhase);
+                const isNowIdle = automationState.phase === 'IDLE' || !automationState.isActive;
+
+                if (wasInFlight && isNowIdle) {
+                    // Flight just completed
+                    handleTestFlightCompletion({
+                        vertical_speed: xplaneState.flightData?.vertical_speed || 0,
+                        ground_speed: xplaneState.flightData?.ground_speed || 0
+                    });
+                }
+                testFlightMode.lastPhase = automationState.phase;
+            }
+
             // If automation stopped, reset
             if (!automationState.isActive && automationState.phase === 'IDLE') {
                 stopAutomationStatusPolling();
@@ -8144,6 +8659,211 @@
             automationState.inFlight = false;
             updateAutomationButtons();
         }
+
+        // ==================== TEST FLIGHT MODE ====================
+
+        // Start automated test flight mode
+        function startTestFlightMode() {
+            if (testFlightMode.enabled) {
+                console.log('Test flight mode already running');
+                return;
+            }
+
+            // Verify prerequisites
+            const dep = document.getElementById('departure').value.toUpperCase();
+            const dest = document.getElementById('destination').value.toUpperCase();
+
+            if (!dep || !dest) {
+                alert('Please enter departure and destination first');
+                return;
+            }
+
+            if (!xplaneState.enabled || xplaneState.websocket?.readyState !== WebSocket.OPEN) {
+                alert('X-Plane must be connected to start test flights');
+                return;
+            }
+
+            console.log(`Starting test flight mode: ${dep} → ${dest} for ${testFlightMode.durationHours} hours`);
+
+            testFlightMode.enabled = true;
+            testFlightMode.startTime = Date.now();
+            testFlightMode.flightsCompleted = 0;
+            testFlightMode.flightsFailed = 0;
+            testFlightMode.landingScores = [];
+            testFlightMode.waitingForReset = false;
+
+            // Show test mode UI
+            showTestFlightUI();
+
+            // Start first flight
+            console.log('Starting first test flight...');
+            startFlight();
+        }
+
+        // Stop test flight mode
+        function stopTestFlightMode() {
+            if (!testFlightMode.enabled) return;
+
+            console.log('Stopping test flight mode');
+            testFlightMode.enabled = false;
+
+            // Show summary
+            const elapsed = (Date.now() - testFlightMode.startTime) / 1000 / 60;
+            const avgScore = testFlightMode.landingScores.length > 0
+                ? testFlightMode.landingScores.reduce((a, b) => a + b, 0) / testFlightMode.landingScores.length
+                : 0;
+
+            const summary = `Test Flight Summary:\n` +
+                `Duration: ${elapsed.toFixed(1)} minutes\n` +
+                `Flights completed: ${testFlightMode.flightsCompleted}\n` +
+                `Flights failed: ${testFlightMode.flightsFailed}\n` +
+                `Average landing score: ${avgScore.toFixed(1)}/100`;
+
+            console.log(summary);
+            alert(summary);
+
+            hideTestFlightUI();
+        }
+
+        // Show test flight mode UI
+        function showTestFlightUI() {
+            let testUI = document.getElementById('testFlightUI');
+            if (!testUI) {
+                testUI = document.createElement('div');
+                testUI.id = 'testFlightUI';
+                testUI.className = 'test-flight-ui';
+                testUI.innerHTML = `
+                    <div class="test-flight-header">
+                        <span class="test-flight-title">TEST MODE</span>
+                        <button onclick="stopTestFlightMode()" class="test-flight-stop">STOP</button>
+                    </div>
+                    <div class="test-flight-stats">
+                        <div class="test-stat">
+                            <span class="test-stat-label">Flights</span>
+                            <span class="test-stat-value" id="testFlightCount">0</span>
+                        </div>
+                        <div class="test-stat">
+                            <span class="test-stat-label">Avg Score</span>
+                            <span class="test-stat-value" id="testAvgScore">--</span>
+                        </div>
+                        <div class="test-stat">
+                            <span class="test-stat-label">Elapsed</span>
+                            <span class="test-stat-value" id="testElapsed">0:00</span>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(testUI);
+            }
+            testUI.style.display = 'block';
+
+            // Start update interval
+            if (!testFlightMode.updateInterval) {
+                testFlightMode.updateInterval = setInterval(updateTestFlightUI, 1000);
+            }
+        }
+
+        // Hide test flight mode UI
+        function hideTestFlightUI() {
+            const testUI = document.getElementById('testFlightUI');
+            if (testUI) {
+                testUI.style.display = 'none';
+            }
+            if (testFlightMode.updateInterval) {
+                clearInterval(testFlightMode.updateInterval);
+                testFlightMode.updateInterval = null;
+            }
+        }
+
+        // Update test flight UI
+        function updateTestFlightUI() {
+            if (!testFlightMode.enabled) return;
+
+            const countEl = document.getElementById('testFlightCount');
+            const scoreEl = document.getElementById('testAvgScore');
+            const elapsedEl = document.getElementById('testElapsed');
+
+            if (countEl) countEl.textContent = testFlightMode.flightsCompleted;
+
+            if (scoreEl) {
+                const avgScore = testFlightMode.landingScores.length > 0
+                    ? testFlightMode.landingScores.reduce((a, b) => a + b, 0) / testFlightMode.landingScores.length
+                    : 0;
+                scoreEl.textContent = testFlightMode.landingScores.length > 0 ? avgScore.toFixed(0) : '--';
+            }
+
+            if (elapsedEl) {
+                const elapsed = (Date.now() - testFlightMode.startTime) / 1000;
+                const hours = Math.floor(elapsed / 3600);
+                const minutes = Math.floor((elapsed % 3600) / 60);
+                elapsedEl.textContent = `${hours}:${minutes.toString().padStart(2, '0')}`;
+            }
+
+            // Check if duration exceeded
+            const elapsedHours = (Date.now() - testFlightMode.startTime) / 1000 / 3600;
+            if (elapsedHours >= testFlightMode.durationHours) {
+                console.log('Test duration reached');
+                stopTestFlightMode();
+            }
+        }
+
+        // Handle flight completion in test mode
+        function handleTestFlightCompletion(landingData) {
+            if (!testFlightMode.enabled) return;
+
+            console.log('Test flight completed', landingData);
+            testFlightMode.flightsCompleted++;
+
+            // Calculate landing score based on vertical speed
+            const vs = Math.abs(landingData?.vertical_speed || 500);
+            let score;
+            if (vs < 100) score = 100;
+            else if (vs < 200) score = 80;
+            else if (vs < 400) score = 60;
+            else if (vs < 600) score = 40;
+            else score = 20;
+
+            testFlightMode.landingScores.push(score);
+            console.log(`Landing score: ${score}/100 (VS: ${vs.toFixed(0)} fpm)`);
+
+            // Wait for reset then start next flight
+            testFlightMode.waitingForReset = true;
+            console.log('Waiting for aircraft reset to departure...');
+            console.log('Please reposition aircraft to departure airport in X-Plane');
+        }
+
+        // Check if aircraft is ready for next test flight
+        function checkTestFlightReady() {
+            if (!testFlightMode.enabled || !testFlightMode.waitingForReset) return;
+
+            const flightData = xplaneState.flightData;
+            if (!flightData) return;
+
+            // Check if on ground and near departure
+            if (flightData.alt_agl < 50 && flightData.ground_speed < 5) {
+                // Check if near departure airport
+                const dep = currentRoute.dep;
+                if (dep) {
+                    const distToDep = Math.sqrt(
+                        Math.pow(flightData.lat - dep.lat, 2) +
+                        Math.pow(flightData.lon - dep.lon, 2)
+                    ) * 60; // Convert to NM approximately
+
+                    if (distToDep < 2) { // Within 2 NM of departure
+                        console.log('Aircraft reset detected - starting next flight');
+                        testFlightMode.waitingForReset = false;
+
+                        // Small delay before starting next flight
+                        setTimeout(() => {
+                            if (testFlightMode.enabled) {
+                                startFlight();
+                            }
+                        }, 3000);
+                    }
+                }
+            }
+        }
+
+        // ==================== END TEST FLIGHT MODE ====================
 
         // ==================== END FLIGHT AUTOMATION ====================
 
@@ -8686,6 +9406,41 @@
             }
 
             return bestResult;
+        }
+
+        // Get best departure runway heading toward destination
+        // Returns the runway heading that best aligns with the direction to destination
+        function getDepartureRunwayHeading(airportCode, destLat, destLon, depLat, depLon) {
+            const runways = runwayData[airportCode];
+            if (!runways || runways.length === 0) {
+                // No runway data available - estimate based on bearing to destination
+                return calculateBearing(depLat, depLon, destLat, destLon);
+            }
+
+            // Calculate bearing from departure to destination
+            const bearingToDestination = calculateBearing(depLat, depLon, destLat, destLon);
+
+            let bestHeading = null;
+            let bestDiff = 360;
+
+            for (const rwy of runways) {
+                // Check both runway ends
+                for (const [ident, heading] of [[rwy.leIdent, rwy.leHeading], [rwy.heIdent, rwy.heHeading]]) {
+                    if (!ident || !heading) continue;
+
+                    // Calculate angular difference from runway heading to destination bearing
+                    let diff = Math.abs(heading - bearingToDestination);
+                    if (diff > 180) diff = 360 - diff;
+
+                    if (diff < bestDiff) {
+                        bestDiff = diff;
+                        bestHeading = heading;
+                    }
+                }
+            }
+
+            // If no valid runway found, use bearing to destination
+            return bestHeading || calculateBearing(depLat, depLon, destLat, destLon);
         }
 
         // Find suitable fuel stop airports along a route
@@ -9438,7 +10193,7 @@
         }
 
         function updateZoomDisplay() {
-            document.getElementById('profileZoomLevel').textContent = profileView.zoom.toFixed(1) + 'x';
+            // profileZoomLevel element removed - function kept for compatibility
         }
 
         // Setup profile zoom/pan events
@@ -9865,7 +10620,7 @@
                                    ident.startsWith('Q') ? 'Q-Route (RNAV)' : 'Airway';
 
                 line.bindPopup(`
-                    <div style="font-family: system-ui; min-width: 150px;">
+                    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; min-width: 150px;">
                         <div style="font-weight: 700; color: ${color}; font-size: 18px; margin-bottom: 6px;">${ident || 'Unknown'}</div>
                         <div style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 8px;">${airwayType}</div>
                         <div style="font-size: 14px;">
@@ -9976,7 +10731,7 @@
                     const rwyName = `${rwy.leIdent}/${rwy.heIdent}`;
 
                     line.bindPopup(`
-                        <div style="font-family: system-ui; min-width: 160px;">
+                        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; min-width: 160px;">
                             <div style="font-weight: 700; color: ${color}; font-size: 18px; margin-bottom: 4px;">${icao}</div>
                             <div style="font-size: 15px; font-weight: 600; margin-bottom: 8px;">Runway ${rwyName}</div>
                             <div style="font-size: 13px;">
@@ -10201,40 +10956,51 @@
 
         function showTripSummary() {
             const panel = document.getElementById('tripSummary');
-            panel.classList.add('visible');
-            // Keep minimized on route load - floating progress shows time
-            updateFloatingProgress();
+            const tripBtn = document.getElementById('tripSummaryBtn');
+            // Don't show the panel - just show floating ETA instead
+            // User can click the trip button to see full details
+            // panel.classList.add('visible');
+            if (tripBtn) tripBtn.classList.add('active');
         }
 
         function hideTripSummary() {
             const panel = document.getElementById('tripSummary');
+            const tripBtn = document.getElementById('tripSummaryBtn');
             panel.classList.remove('visible');
             panel.classList.remove('expanded');
-            // Hide floating elements when panel hidden
-            document.getElementById('tripProgressFloat').classList.remove('visible');
-            document.getElementById('autopilotFloat').classList.remove('visible');
+            if (tripBtn) tripBtn.classList.remove('active');
         }
 
-        // Update floating progress bar visibility and content
-        function updateFloatingProgress() {
+        // Toggle trip summary visibility from button
+        function toggleTripSummaryVisibility() {
             const panel = document.getElementById('tripSummary');
-            const floatProgress = document.getElementById('tripProgressFloat');
-            const floatAutopilot = document.getElementById('autopilotFloat');
-            const isMinimized = panel.classList.contains('visible') && !panel.classList.contains('expanded');
+            const tripBtn = document.getElementById('tripSummaryBtn');
+            const isVisible = panel.classList.contains('visible');
 
-            if (isMinimized) {
-                floatProgress.classList.add('visible');
-                floatAutopilot.classList.add('visible');
+            if (isVisible) {
+                hideTripSummary();
             } else {
-                floatProgress.classList.remove('visible');
-                floatAutopilot.classList.remove('visible');
+                panel.classList.add('visible');
+                panel.classList.add('expanded'); // Open expanded
+                if (tripBtn) tripBtn.classList.add('active');
             }
         }
 
-        // Set floating progress bar values
+        // Update floating progress bar visibility (simplified - controls now in route bar)
+        function updateFloatingProgress() {
+            // No longer needed - controls are now in route input bar
+        }
+
+        // Set trip progress bar values (in ATC panel)
         function setTripProgress(timeText, progressPercent) {
-            document.getElementById('tripFloatTime').textContent = timeText;
-            document.getElementById('tripProgressBar').style.width = progressPercent + '%';
+            const atcProgress = document.getElementById('atcTripProgress');
+            const atcTime = document.getElementById('atcTripProgressTime');
+            const atcFill = document.getElementById('atcTripProgressFill');
+            if (atcProgress && atcTime && atcFill) {
+                atcProgress.style.display = 'block';
+                atcTime.textContent = timeText;
+                atcFill.style.width = progressPercent + '%';
+            }
         }
 
         // Toggle profile canvas minimize/maximize
@@ -10254,9 +11020,8 @@
                     toggleBtn.title = 'Minimize Profile';
                 }
                 if (expandBtn) {
-                    expandBtn.classList.add('expanded');
-                    expandBtn.title = 'Minimize Profile';
-                    expandBtn.querySelector('.expand-label').textContent = 'Hide';
+                    expandBtn.classList.add('active');
+                    expandBtn.title = 'Hide Profile';
                 }
                 // Redraw profile with current route
                 if (currentRoute.dep && currentRoute.dest) {
@@ -10274,9 +11039,8 @@
                     toggleBtn.title = 'Maximize Profile';
                 }
                 if (expandBtn) {
-                    expandBtn.classList.remove('expanded');
-                    expandBtn.title = 'Expand Profile';
-                    expandBtn.querySelector('.expand-label').textContent = 'Profile';
+                    expandBtn.classList.remove('active');
+                    expandBtn.title = 'Show Profile';
                 }
                 // Invalidate map size after layout change
                 setTimeout(() => map.invalidateSize(), 350);
@@ -10623,6 +11387,7 @@
                 airways: [], // Airways along the route
                 departureRunway: null, // Optimal runway for departure
                 destinationRunway: null, // Optimal runway for arrival
+                departureHeading: 0, // Runway heading for takeoff
                 phases: [],
                 hazards: [],
                 avoidanceManeuvers: [],
@@ -10765,18 +11530,68 @@
                 }
             ];
 
+            // Check if aircraft is on ground near departure airport
+            const flightData = xplaneState.flightData;
+            const isOnGround = flightData && flightData.alt_agl !== undefined && flightData.alt_agl < 50;
+            const hasValidPosition = flightData && flightData.lat && flightData.lon;
+            const hasValidHeading = flightData && flightData.heading_mag !== undefined && flightData.heading_mag !== null;
+
+            // Use aircraft position if on ground near departure (within 5nm)
+            let departureLat = depStation.lat;
+            let departureLon = depStation.lon;
+            if (isOnGround && hasValidPosition) {
+                const distToAirport = haversineNM(flightData.lat, flightData.lon, depStation.lat, depStation.lon);
+                if (distToAirport < 5) {
+                    // Aircraft is on ground near departure airport - use its actual position
+                    departureLat = flightData.lat;
+                    departureLon = flightData.lon;
+                    console.log(`Using aircraft position for departure: ${departureLat.toFixed(4)}, ${departureLon.toFixed(4)}`);
+                }
+            }
+
             // Generate waypoints along route
             routeData.waypoints.push({
                 name: depStation.id,
                 type: 'departure',
-                lat: depStation.lat,
-                lon: depStation.lon,
+                lat: departureLat,
+                lon: departureLon,
                 distance: 0
             });
 
-            // Add departure procedure waypoints (SID-style)
-            const departureProcedure = getDepartureWaypoints(depStation.id, destStation.lat, destStation.lon, depStation.lat, depStation.lon);
+            // Add departure turn point - represents where aircraft turns from runway heading toward destination
+            // This matches the NAV system behavior: climb out on runway heading, then turn at ~1000ft AGL
+            // Priority: 1) Actual aircraft heading (if on ground), 2) Runway data, 3) Bearing to destination
+            let runwayHeading;
+
+            if (isOnGround && hasValidHeading) {
+                // Use actual aircraft heading when on ground - this is the runway we're actually on
+                runwayHeading = flightData.heading_mag;
+                console.log(`Using actual aircraft heading for departure: ${runwayHeading.toFixed(0)}°`);
+            } else {
+                // Fall back to runway data when aircraft heading not available
+                runwayHeading = getDepartureRunwayHeading(depStation.id, destStation.lat, destStation.lon, depStation.lat, depStation.lon);
+                console.log(`Using runway data for departure heading: ${runwayHeading.toFixed(0)}°`);
+            }
+            routeData.departureHeading = runwayHeading;  // Store for takeoff automation
+            if (distance > 3) {
+                // Calculate turn point: ~2nm out along runway heading
+                const turnPointDist = 2.0;  // nm
+                const turnPoint = destinationPoint(departureLat, departureLon, runwayHeading, turnPointDist);
+                routeData.waypoints.push({
+                    name: 'TURN',
+                    type: 'departure-turn',
+                    lat: turnPoint.lat,
+                    lon: turnPoint.lon,
+                    distance: turnPointDist
+                });
+                console.log(`Added departure turn point at ${turnPointDist}nm on heading ${runwayHeading.toFixed(0)}°`);
+            }
+
+            // SID waypoints disabled - NAV system uses direct routing, not departure procedures
+            // To re-enable, uncomment the block below
             const departureWaypoints = [];
+            /*
+            const departureProcedure = getDepartureWaypoints(depStation.id, destStation.lat, destStation.lon, depStation.lat, depStation.lon);
             if (departureProcedure && departureProcedure.waypoints) {
                 console.log(`Using departure procedure: ${departureProcedure.name} from ${depStation.id}`);
                 routeData.departureProcedure = departureProcedure.name;
@@ -10800,10 +11615,13 @@
                     lastDepPoint = { lat: wp.lat, lon: wp.lon };
                 });
             }
+            */
 
-            // Get arrival procedure waypoints (STAR-style) - we'll insert these later
-            const arrivalProcedure = getArrivalWaypoints(destStation.id, depStation.lat, depStation.lon, destStation.lat, destStation.lon);
+            // STAR waypoints disabled - NAV system uses direct routing, not arrival procedures
+            // To re-enable, uncomment the block below
             const arrivalWaypoints = [];
+            /*
+            const arrivalProcedure = getArrivalWaypoints(destStation.id, depStation.lat, depStation.lon, destStation.lat, destStation.lon);
             if (arrivalProcedure && arrivalProcedure.waypoints) {
                 console.log(`Using arrival procedure: ${arrivalProcedure.name} to ${destStation.id}`);
                 routeData.arrivalProcedure = arrivalProcedure.name;
@@ -10822,6 +11640,7 @@
                     });
                 });
             }
+            */
 
             // Find all restricted/prohibited airspace intersections first
             const restrictedIntersections = findRestrictedIntersections(depStation, destStation, routeData.cruiseAltitude);
@@ -11881,6 +12700,14 @@
             document.getElementById('tripMiniConditions').textContent = conditionsStatus.text;
             document.getElementById('tripMiniConditions').style.color = conditionsStatus.color;
 
+            // Update floating ETA display
+            const etaElement = document.getElementById('floatingEta');
+            const etaValue = document.getElementById('etaValue');
+            if (etaElement && etaValue) {
+                etaValue.textContent = `${hours}:${mins.toString().padStart(2, '0')}`;
+                etaElement.classList.add('visible');
+            }
+
             // Update floating progress bar (0% at route load)
             setTripProgress(`${hours}h ${mins}m`, 0);
 
@@ -12480,6 +13307,25 @@
             }
         }
 
+        // Toggle overlay toolbar visibility
+        function toggleToolbar() {
+            const toolbar = document.querySelector('.overlay-toolbar');
+            const btn = document.getElementById('toolbarMinimizeBtn');
+            const overlayBtn = document.getElementById('overlayPanelBtn');
+            if (toolbar) {
+                toolbar.classList.toggle('minimized');
+                document.body.classList.toggle('toolbar-minimized');
+                // Update button title and active state
+                const isMinimized = toolbar.classList.contains('minimized');
+                if (btn) btn.title = isMinimized ? 'Show toolbar' : 'Minimize toolbar';
+                if (overlayBtn) overlayBtn.classList.toggle('active', !isMinimized);
+                // Invalidate map size after animation
+                setTimeout(() => {
+                    if (map) map.invalidateSize();
+                }, 300);
+            }
+        }
+
         // Toggle ATC panel visibility
         function toggleATCPanel() {
             const panel = document.getElementById('atcRadioPanel');
@@ -12490,6 +13336,10 @@
                 if (btn) btn.classList.toggle('active', !isHidden);
                 // Store state
                 localStorage.setItem('atcPanelVisible', !isHidden);
+                // Invalidate map size after panel animation
+                setTimeout(() => {
+                    if (map) map.invalidateSize();
+                }, 350);
             }
         }
 
@@ -13184,6 +14034,12 @@
 
             if (!departure || !destination) return;
 
+            // Ensure runway data is loaded for departure pattern calculation
+            if (!runwaysLoaded) {
+                console.log('Loading runway data for departure pattern...');
+                await fetchRunways();
+            }
+
             // Clear any custom waypoints and stops from previous route
             clearCustomWaypoints();
             clearCustomStops();
@@ -13296,6 +14152,12 @@
                 });
             }
 
+            // Wait briefly for X-Plane data if connected but no data yet
+            if (xplaneState.enabled && !xplaneState.flightData) {
+                console.log('Waiting for X-Plane data before calculating route...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
             // Calculate enhanced route and update trip summary
             const routeData = calculateEnhancedRoute(depStation, destStation, distance);
             currentRouteData = routeData; // Store for altitude filtering
@@ -13306,6 +14168,16 @@
 
             // Draw the enhanced route on map
             drawEnhancedRoute(routeData, depStation, destStation, distance);
+
+            // Show GO button when route is ready and aircraft is on ground
+            updateGoButton();
+
+            // Show ATC/Comms panel when route is loaded
+            const atcPanel = document.getElementById('atcRadioPanel');
+            if (atcPanel && atcPanel.classList.contains('hidden')) {
+                atcPanel.classList.remove('hidden');
+                document.body.classList.add('atc-panel-open');
+            }
         }
 
         // Draw enhanced route with high-resolution line and optional fuel stops
@@ -13444,7 +14316,7 @@
 
                 const marker = L.marker([wp.lat, wp.lon], { icon: diversionIcon }).addTo(map);
                 marker.bindTooltip(`
-                    <div style="font-family: system-ui; font-size: 11px;">
+                    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px;">
                         <div style="font-weight: 600; color: #ef4444; margin-bottom: 4px;">
                             Diversion Waypoint
                         </div>
@@ -13480,7 +14352,7 @@
 
                 const marker = L.marker([wp.lat, wp.lon], { icon: sidIcon }).addTo(map);
                 marker.bindTooltip(`
-                    <div style="font-family: system-ui; font-size: 11px;">
+                    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px;">
                         <div style="font-weight: 600; color: #22c55e; margin-bottom: 4px;">
                             Departure Procedure
                         </div>
@@ -13519,7 +14391,7 @@
 
                 const marker = L.marker([wp.lat, wp.lon], { icon: starIcon }).addTo(map);
                 marker.bindTooltip(`
-                    <div style="font-family: system-ui; font-size: 11px;">
+                    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px;">
                         <div style="font-weight: 600; color: #f59e0b; margin-bottom: 4px;">
                             Arrival Procedure
                         </div>
@@ -13563,7 +14435,7 @@
                     const legBefore = routeData.fuelPlan.legs ? routeData.fuelPlan.legs[idx] : null;
 
                     fuelMarker.bindTooltip(`
-                        <div style="font-family: system-ui; font-size: 12px; min-width: 160px;">
+                        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 12px; min-width: 160px;">
                             <div style="font-weight: 700; color: #f59e0b; font-size: 14px; margin-bottom: 4px;">
                                 Fuel Stop ${idx + 1}
                             </div>
@@ -14260,8 +15132,9 @@
             const waypoints = routeWaypoints !== null ? routeWaypoints : customWaypoints;
             const stops = routeStops !== null ? routeStops : customStops;
 
-            // Always show zoom controls so toggle button is visible
-            document.getElementById('headerZoomControls').style.display = 'flex';
+            // Show zoom controls if they exist (may be removed)
+            const zoomControls = document.getElementById('headerZoomControls');
+            if (zoomControls) zoomControls.style.display = 'flex';
 
             // Show the expand button when a route is loaded
             const expandBtn = document.getElementById('profileExpandBtn');
@@ -14282,9 +15155,8 @@
                     profileBtn.title = 'Maximize Profile';
                 }
                 if (expandBtn) {
-                    expandBtn.classList.remove('expanded');
-                    expandBtn.title = 'Expand Profile';
-                    expandBtn.querySelector('.expand-label').textContent = 'Profile';
+                    expandBtn.classList.remove('active');
+                    expandBtn.title = 'Show Profile';
                 }
                 return;
             }
@@ -14298,8 +15170,8 @@
                 profileBtn.title = 'Minimize Profile';
             }
             if (expandBtn) {
-                expandBtn.classList.add('expanded');
-                expandBtn.querySelector('.expand-label').textContent = 'Hide';
+                expandBtn.classList.add('active');
+                expandBtn.title = 'Hide Profile';
             }
 
             const canvas = document.getElementById('profileCanvas');
@@ -17256,6 +18128,8 @@
         // Setup resize divider functionality
         function setupResizeDivider() {
             const divider = document.getElementById('resizeDivider');
+            if (!divider) return; // Divider was removed, skip setup
+
             const mapContainer = document.querySelector('.map-container');
             const profileSection = document.getElementById('profileSection');
 
@@ -17390,6 +18264,17 @@
 
         // Refresh clouds every 10 minutes
         setInterval(loadCloudsLayer, 10 * 60 * 1000);
+
+        // Auto-connect to X-Plane on page load
+        setTimeout(() => {
+            if (!xplaneState.enabled) {
+                console.log('Auto-connecting to X-Plane...');
+                xplaneState.enabled = true;
+                connectXPlaneWebSocket();
+                initXPlaneMapMarker();
+                updateXPlaneToggle();
+            }
+        }, 1000);  // Small delay to ensure page is ready
 
         // Refresh METAR every 10 minutes (only if stations overlay is enabled)
         setInterval(() => {

@@ -838,6 +838,21 @@ class XPlaneCommandSender:
         print("[PARKING BRAKE] ALL BRAKES RELEASED")
         return True
 
+    def set_wheel_brakes(self, amount: float) -> bool:
+        """
+        Apply wheel brakes for landing rollout.
+
+        Args:
+            amount: Brake pressure 0.0 (none) to 1.0 (full)
+        """
+        amount = max(0.0, min(1.0, amount))
+        # Apply to both left and right wheel brakes
+        self.send_dref("sim/cockpit2/controls/left_brake_ratio", amount)
+        self.send_dref("sim/cockpit2/controls/right_brake_ratio", amount)
+        self.send_dref("sim/cockpit2/controls/toe_brakes_left", amount)
+        self.send_dref("sim/cockpit2/controls/toe_brakes_right", amount)
+        return True
+
     def set_gear(self, down: bool) -> bool:
         """
         Set landing gear position.
